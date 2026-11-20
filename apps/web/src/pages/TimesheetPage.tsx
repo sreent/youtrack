@@ -9,8 +9,9 @@ import { formatPeriod, parsePeriod } from '@a4a/shared/periods';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { get, put, qs } from '../api/client';
+import { get, post, put, qs } from '../api/client';
 import { ErrorLine, ErrorNote, Loading, PageHead } from '../components/States';
+import { Badge } from '../components/Badges';
 import { errorText } from '../features/issues/api';
 import { formatItems, intlLocale, t as tx, tr } from '../i18n';
 
@@ -101,6 +102,16 @@ export default function TimesheetPage() {
       setError(errorText(e));
     }
   };
+  const weekAction = async (what: 'submit' | 'approve' | 'reopen') => {
+    setError(null);
+    try {
+      const next = await post<Timesheet>(`/timesheet/${what}`, { week: week0 });
+      qc.setQueryData(key, next);
+      setSaid(tx(what === 'submit' ? 'page.timesheet.said.submitted' : what === 'approve' ? 'page.timesheet.said.approved' : 'page.timesheet.said.sentBack'));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
 
   if (sheet.isLoading) return <Loading what="loadingLine.timesheet" />;
   if (sheet.error || !sheet.data) {
@@ -131,6 +142,10 @@ export default function TimesheetPage() {
         }
         actions={
           <div className="cluster">
+            {t.status === 'open' ? <button type="button" className="primary" onClick={() => void weekAction('submit')}>{tx('page.timesheet.submit')}</button> : null}
+            {t.status === 'submitted' ? <button type="button" className="primary" onClick={() => void weekAction('approve')}>{tx('page.timesheet.approve')}</button> : null}
+            {t.status !== 'open' ? <button type="button" onClick={() => void weekAction('reopen')}>{tx('page.timesheet.sendBack')}</button> : null}
+            {t.status !== 'open' ? <Badge tone={t.status === 'approved' ? 'good' : 'warn'}>{t.status === 'approved' ? tx('page.timesheet.approved') : tx('page.timesheet.submitted')}</Badge> : null}
             <button type="button" onClick={() => go(addDays(week0, -7))}>{tx('page.timesheet.previousWeek')}</button>
             <button type="button" onClick={() => go(localToday())}>{tx('page.timesheet.thisWeek')}</button>
             <button type="button" onClick={() => go(addDays(week0, 7))}>{tx('page.timesheet.nextWeek')}</button>

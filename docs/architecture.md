@@ -1178,14 +1178,14 @@ A board plans its sprints from a backlog, counts story points, and shows how muc
   - A rule's command can't move issues between sprints. Rules change fields; who plans a sprint is people.
 - **Story points** are a number field the board chooses (`points_field_id`). The board sums them on each column and for the sprint shown, and the backlog for what it holds.
 - **Velocity** is, per sprint that has begun (the last twelve), what it held when it started and what was resolved in it by its end, in points, estimated hours or issues; and the average done over the last three that are over. Both come from history, as the burndown's do (D21): the burndown's reading of a sprint is shared, and counts a board's points where it counted estimates. A sprint without dates has no velocity. An issue limited away from the reader (D37) counts for nothing in a sprint's burndown or velocity, as in its count.
-- **A sprint's plan** sets its load against its people's capacity. Load is each assignee's remaining estimate on their unresolved issues in it (estimate less work logged); capacity is the hours they can work from its start (today, once it has begun) to its end, on the board's first project's calendar, their working week and their days away. Its people are its assignees; the unassigned are a row of their own, with no capacity.
+- **A sprint's plan** sets its load against its people's capacity. Load is each assignee's remaining estimate on their unresolved issues in it (estimate less work logged); capacity is the hours they can work from its start (today, once it has begun) to its end, on the board's first project's calendar, their working week and their days away. Its people are its assignees, and the board's projects' members who can change their issues: a person with nothing in it yet shows their capacity, so a team is more than who is already busy. The unassigned are a row of their own, with no capacity.
 - **Timers.** A person's timer on an issue starts, pauses and stops; one runs at a time per person (a partial unique index), so starting one pauses the other.
   - Stopping it logs the minutes it counted, rounded, as a work item, or a duration given instead, with a date (today where they are, D31), a note and a type. Under half a minute logs nothing.
   - The timer is taken before the work is logged, so stopping it twice at once logs the time once. When logging is refused (a type the project requires is missing), the timer is put back as it was.
   - A timer is the person's own: no event, nobody told, and a timer on an issue they can no longer see is out of sight.
   - Timing work, the timesheet and correcting logged work take the time permission in the issue's project, as logging it does (D37).
 - **Work types** are a list per project, kept by its managers. Work is logged as one (`work_type_id`), and a project can require one on every work item (`settings.time.workTypeRequired`). A type that has been used is archived, not deleted: it stays on that work and is no longer offered.
-- **The weekly timesheet** shows a person's week, Monday to Sunday, a row per issue and work type, with each day's total against their working hours that day.
+- **The weekly timesheet** shows a person's week, Monday to Sunday, a row per issue and work type, with each day's total against their working hours that day. A week is submitted once its cells are right (its cells lock), and approved by an administrator or a manager of every project it holds work in, each step an event the other is told of (`timesheet.submitted`, `timesheet.approved`); whoever approves may send it back, and the week is open again.
   - Setting a cell logs an entry where there's none, corrects the one there (`work.updated`, a new event, with what it was), and deletes it at 0. A day of several entries is refused (409) and changed on the issue, one by one: a cell can't say which of them to change.
   - People see and change their own; administrators anyone's. A manager may log work for someone, as before, but a timesheet is a person's own week across projects.
   - Work logged in projects the reader can't see is left out, as everywhere.
@@ -1200,7 +1200,7 @@ A board plans its sprints from a backlog, counts story points, and shows how muc
 - Velocity reads each sprint's history as a burndown does: twelve sprints are twelve burndowns' reading.
 - A timesheet is one query for the week's work and one for the person's days away.
 
-**Revisit when:** a team is more than a sprint's assignees (capacity for people with nothing in it yet); timesheets are submitted and approved; or a rule should plan sprints (`sprint` in a rule's command), which wants a decision about who plans. (Cards ranked by dragging on the board itself came with D53.)
+**Revisit when:** a rule should plan sprints (`sprint` in a rule's command), which wants a decision about who plans. (Cards ranked by dragging on the board itself came with D53.)
 
 ### D44. More reports: issues per field, a matrix, average age and time in state
 

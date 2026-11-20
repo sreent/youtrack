@@ -152,6 +152,9 @@ export const EVENT_TYPES = [
   // Someone was copied on a help desk request, or stopped being (D57).
   'request.cc_added',
   'request.cc_removed',
+  // A week of logged time, submitted and approved (D43's revisit).
+  'timesheet.submitted',
+  'timesheet.approved',
   // A script's call out (D40's revisit): sent to the one webhook it names, like a rule's.
   'script.called',
   // A whiteboard's life, and what came of it (D58). Its elements' edits aren't events: they go to its own live stream.

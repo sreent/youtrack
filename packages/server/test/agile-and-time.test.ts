@@ -21,7 +21,7 @@ import { createIssue, findVisibleIssue, updateIssue } from '../src/services/issu
 import { addMember } from '../src/services/members';
 import { getResourceLoad, getSchedule } from '../src/services/planning';
 import { createProject, updateProject } from '../src/services/projects';
-import { discardTimer, getTimesheet, listTimers, pauseTimer, setTimesheetCell, startTimer, stopTimer } from '../src/services/time';
+import { approveTimesheet, discardTimer, getTimesheet, listTimers, pauseTimer, reopenTimesheet, setTimesheetCell, startTimer, stopTimer, submitTimesheet } from '../src/services/time';
 import { updateUser } from '../src/services/users';
 import { listWorkItems, logWork } from '../src/services/workitems';
 import { createWorkType, deleteWorkType, listWorkTypes, updateWorkType } from '../src/services/work-types';
@@ -351,5 +351,30 @@ describe('over REST', () => {
     expect((await call('PATCH', `/work-items/${item.id}`, { duration: '1h' })).body.minutes).toBe(60);
     expect((await call('PATCH', '/me', { workWeek: [0, 6, 6, 6, 6, 6, 0] })).body.workWeek).toEqual([0, 6, 6, 6, 6, 6, 0]);
     expect((await call('PATCH', '/me', { workWeek: [8, 8] })).status).toBe(400);
+  });
+});
+describe("a week submitted and approved (D43's revisit)", () => {
+  it('submits, locks its cells, is approved by a manager of its projects, and comes back open', async () => {
+    const anna = w.as(w.anna);
+    const issue = await createIssue(anna, { project: 'AGL', summary: 'Timesheet me', fields: { Type: 'Task' } });
+    await setTimesheetCell(anna, { issue: issue.id, date: day(0), minutes: 60 });
+    const open = await getTimesheet(anna, { week: mon });
+    expect(open.status).toBe('open');
+    const submitted = await submitTimesheet(anna, { week: mon });
+    expect(submitted.status).toBe('submitted');
+    expect(submitted.submittedAt).not.toBeNull();
+    // Its cells are locked: submitted, the cell refuses.
+    const locked = await refused(() => setTimesheetCell(anna, { issue: issue.id, date: day(0), minutes: 90 }));
+    expect(locked.status).toBe(409);
+    // Ben, AGL's lead, approves it; Anna can't.
+    const notAnna = await refused(() => approveTimesheet(anna, { week: mon, user: 'anna' }));
+    expect(notAnna.status).toBe(403);
+    const approved = await approveTimesheet(w.as(w.ben), { week: mon, user: 'anna' });
+    expect(approved.status).toBe('approved');
+    expect(approved.approvedBy).toMatchObject({ login: 'ben' });
+    // Sent back, its cells change again.
+    const again = await reopenTimesheet(w.as(w.ben), { week: mon, user: 'anna' });
+    expect(again.status).toBe('open');
+    await setTimesheetCell(anna, { issue: issue.id, date: day(0), minutes: 90 });
   });
 });

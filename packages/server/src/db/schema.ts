@@ -446,6 +446,22 @@ export const comments = pgTable(
   (t) => [index('comments_issue').on(t.issueId, t.createdAt), index('comments_search').using('gin', t.searchVector)],
 );
 
+export const timesheetWeeks = pgTable(
+  'timesheet_weeks',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    /** The week's Monday (D43's revisit): one row per person and week, its state as it goes. */
+    week: date('week', { mode: 'string' }).notNull(),
+    status: text('status').notNull().default('open'),
+    submittedAt: ts('submitted_at'),
+    approvedAt: ts('approved_at'),
+    approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('timesheet_weeks_person_week').on(t.userId, t.week)],
+);
+
 export const workItems = pgTable(
   'work_items',
   {

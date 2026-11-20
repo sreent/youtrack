@@ -183,6 +183,7 @@ function SprintLoad({ plan }: { plan: SprintPlan }) {
             <tr key={p.user?.id ?? t('page.sprintPlanning.nobody')}>
               <th scope="row" className="row-head">
                 {p.user ? p.user.name : <span className="muted">{t('page.sprintPlanning.nobodyYet')}</span>}
+                {p.user && p.issues === 0 ? <Badge tone="idle">{t('page.sprintPlanning.nothingYet')}</Badge> : null}
               </th>
               <td className="num mono">{p.issues}</td>
               <td className="num mono">{p.points ?? '–'}</td>

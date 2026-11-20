@@ -668,7 +668,7 @@ const LINK_EVENTS = ['link.created', 'link.deleted'];
 const WHITEBOARD_EVENTS: readonly string[] = ['whiteboard.created', 'whiteboard.renamed', 'whiteboard.deleted', 'whiteboard.converted'];
 
 export function eventVisible(view: AccessView, s: SchemaSnapshot, e: Pick<TrackerEvent, 'type' | 'project' | 'issue' | 'data'>): boolean {
-  // A person's own whiteboard's events (D58's revisit): its readers alone see them, an administrator included, by what the event kept.
+  // A week of time, submitted or approved (D43's revisit): the person and administrators alone.
   if (!e.project && !e.issue && WHITEBOARD_EVENTS.includes(e.type)) {
     const personal = (e.data as { whiteboard?: { personal?: { share?: string; people?: string[]; groups?: string[] } } } | undefined)?.whiteboard?.personal;
     if (!personal || view.guest) return false;

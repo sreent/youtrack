@@ -64,6 +64,10 @@ export function eventVerb(tr: Translator, e: TrackerEvent): string {
       return t('server.notify.verb.ruleWebhook', { rule: ruleName(tr, e) });
     case 'script.called':
       return t('server.notify.verb.scriptWebhook', { origin: (e.data as { name?: unknown } | undefined)?.name ?? '' });
+    case 'timesheet.submitted':
+      return t('server.notify.verb.timesheetSubmitted', { who: (e.data as { user?: { name?: string } } | undefined)?.user?.name ?? '' });
+    case 'timesheet.approved':
+      return t('server.notify.verb.timesheetApproved', { who: (e.data as { user?: { name?: string } } | undefined)?.user?.name ?? '' });
     // These reach only those whose saved search an issue came into (D31).
     case 'comment.deleted':
       return t('server.notify.verb.deletedComment');

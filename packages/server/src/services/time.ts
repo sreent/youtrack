@@ -6,9 +6,11 @@ import type { StopTimerInput, Timer, Timesheet, TimesheetCellInput, WorkItem } f
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 import { isAdmin, requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { issues, timers, users, workItems, workTypes } from '../db/schema';
+import { issues, timers, timesheetWeeks, users, workItems, workTypes } from '../db/schema';
 import { addDays, isISODate, startOfWeek, weekday } from '../lib/dates';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
+import { publishActivities, recordActivity } from '../events/activity';
+import { newId } from '../lib/ids';
 import { todayIn } from '../reports/tz';
 import { DEFAULT_PLAN } from './projects';
 import { absencesForPlan } from './absences';
@@ -173,12 +175,13 @@ async function workingHours(db: Db, u: UserRow, days: string[]): Promise<number[
   });
 }
 
-export async function getTimesheet(ctx: Ctx, q: { week?: string; user?: string } = {}): Promise<Timesheet> {
+export async function getTimesheet(ctx: Ctx, q: { week?: string; user?: string } = {}, opts: { approver?: boolean } = {}): Promise<Timesheet> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
-  const person = whose(ctx, s, q.user);
+  const mondayFor = startOfWeek(q.week ?? todayIn(zoneOf(ctx)));
+  const person = opts.approver ? await whoseForApproval(ctx, s, q.user, mondayFor) : whose(ctx, s, q.user);
   if (q.week !== undefined && !isISODate(q.week)) throw badRequest('week must be a date (YYYY-MM-DD)').said('time.weekNotADate');
-  const monday = startOfWeek(q.week ?? todayIn(zoneOf(ctx)));
+  const monday = mondayFor;
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const view = await projectAccess(ctx);
   const rows = (
@@ -211,7 +214,8 @@ export async function getTimesheet(ctx: Ctx, q: { week?: string; user?: string }
   }
   const ordered = [...byRow.values()].sort((a, b) => a.issue.id.localeCompare(b.issue.id, undefined, { numeric: true }) || (a.type?.name ?? '').localeCompare(b.type?.name ?? ''));
   const [fresh] = await ctx.db.select().from(users).where(eq(users.id, person.id));
-  return { user: userRefDto(person), week: monday, days, hours: await workingHours(ctx.db, fresh ?? person, days), totals, rows: ordered };
+  const weekRow = await weekOf(ctx.db, person.id, monday);
+  return { user: userRefDto(person), week: monday, status: weekRow.status as Timesheet['status'], submittedAt: weekRow.submittedAt?.toISOString() ?? null, approvedBy: weekRow.approvedById ? (s.users.get(weekRow.approvedById) ? userRefDto(s.users.get(weekRow.approvedById)!) : null) : null, days, hours: await workingHours(ctx.db, fresh ?? person, days), totals, rows: ordered };
 }
 
 /**
@@ -224,6 +228,7 @@ export async function setTimesheetCell(ctx: Ctx, input: TimesheetCellInput): Pro
   const s = await ctx.app.schema.get();
   const person = whose(ctx, s, input.user);
   if (!isISODate(input.date)) throw badRequest('date must be YYYY-MM-DD').said('time.dateFormat');
+  await assertWeekOpen(ctx, person.id, startOfWeek(input.date));
   const issue = await resolveIssue(ctx, input.issue);
   await assertCanProject(ctx, issue.projectId, 'time');
   const project = s.projects.get(issue.projectId)!;
@@ -258,4 +263,92 @@ export async function setTimesheetCell(ctx: Ctx, input: TimesheetCellInput): Pro
     await logWork(ctx, input.issue, { duration: input.minutes, date: input.date, author: person.login, type: typeId });
   }
   return getTimesheet(ctx, { week: input.date, user: person.id === ctx.actor.user.id ? undefined : person.login });
+}
+// ---------------------------------------------------------------------------
+// Submitting and approving a week (D43's revisit)
+// ---------------------------------------------------------------------------
+
+type WeekRow = typeof timesheetWeeks.$inferSelect;
+
+async function weekOf(db: Db, personId: string, monday: string): Promise<WeekRow> {
+  const [row] = await db.select().from(timesheetWeeks).where(and(eq(timesheetWeeks.userId, personId), eq(timesheetWeeks.week, monday)));
+  return row ?? { id: '', userId: personId, week: monday, status: 'open', submittedAt: null, approvedAt: null, approvedById: null, updatedAt: new Date() };
+}
+
+/** The week's state as a cell edit may see it: submitted or approved weeks don't change by the cell. */
+async function assertWeekOpen(ctx: Ctx, personId: string, monday: string): Promise<void> {
+  const row = await weekOf(ctx.db, personId, monday);
+  if (row.status === 'submitted') throw conflict('This week has been submitted', 'Ask whoever approves it to send it back, or change the work on its issue.').said('time.weekSubmitted');
+  if (row.status === 'approved') throw conflict('This week has been approved', 'Ask whoever approved it to send it back, or change the work on its issue.').said('time.weekApproved');
+}
+
+/** The person whose week it is, as an approver may reach them: themselves, or through `mayApprove`. */
+async function whoseForApproval(ctx: Ctx, s: SchemaSnapshot, login: string | undefined, monday: string): Promise<UserRow> {
+  if (!login) return ctx.actor.user;
+  const u = findUser(s, login, ctx.actor.user.id);
+  if (!u) throw notFound(`User ${login}`).said('notFound.user', { id: login });
+  if (u.id !== ctx.actor.user.id) await mayApprove(ctx, u.id, monday);
+  return u;
+}
+
+/** Whoever may approve someone's week: an administrator, or a manager of every project it holds work in. */
+async function mayApprove(ctx: Ctx, personId: string, monday: string): Promise<void> {
+  if (isAdmin(ctx)) return;
+  const s = await ctx.app.schema.get();
+  const view = await projectAccess(ctx);
+  const rows = await ctx.db
+    .select({ projectId: issues.projectId })
+    .from(workItems)
+    .innerJoin(issues, eq(issues.id, workItems.issueId))
+    .where(and(eq(workItems.authorId, personId), gte(workItems.date, monday), lte(workItems.date, addDays(monday, 6))));
+  const projects = [...new Set(rows.map((r) => r.projectId))];
+  if (!projects.length || projects.some((id) => !view.canManage(id))) throw forbidden('Only an administrator, or a manager of every project the week holds work in, approves a timesheet').said('time.onlyManagersApprove');
+}
+
+/** Submit the week: yours, or anyone's as an administrator. Its cells lock until it comes back. */
+export async function submitTimesheet(ctx: Ctx, input: { week?: string; user?: string }): Promise<Timesheet> {
+  requireScope(ctx, 'write');
+  const s = await ctx.app.schema.get();
+  const person = whose(ctx, s, input.user);
+  const monday = startOfWeek(input.week ?? todayIn(zoneOf(ctx)));
+  const before = await weekOf(ctx.db, person.id, monday);
+  if (before.status !== 'open') throw conflict(`The week is already ${before.status}`).said('time.weekNotOpen');
+  const activity = await ctx.db.transaction(async (tx) => {
+    const db = tx as unknown as Db;
+    await db.insert(timesheetWeeks).values({ id: newId(), userId: person.id, week: monday, status: 'submitted', submittedAt: new Date() }).onConflictDoUpdate({ target: [timesheetWeeks.userId, timesheetWeeks.week], set: { status: 'submitted', submittedAt: new Date(), approvedAt: null, approvedById: null, updatedAt: new Date() } });
+    return recordActivity(db, ctx, { type: 'timesheet.submitted', projectId: null, issueId: null, payload: { data: { user: userRefDto(person), week: monday } } });
+  });
+  await publishActivities(ctx.app, [activity]);
+  return getTimesheet(ctx, { week: monday, user: person.login }, { approver: true });
+}
+
+/** Approve a submitted week: an administrator, or a manager of every project it holds work in. */
+export async function approveTimesheet(ctx: Ctx, input: { week?: string; user?: string }): Promise<Timesheet> {
+  requireScope(ctx, 'write');
+  const s = await ctx.app.schema.get();
+  const monday = startOfWeek(input.week ?? todayIn(zoneOf(ctx)));
+  const person = await whoseForApproval(ctx, s, input.user, monday);
+  const before = await weekOf(ctx.db, person.id, monday);
+  if (before.status !== 'submitted') throw conflict('A week is approved after it is submitted').said('time.weekNotSubmitted');
+  await mayApprove(ctx, person.id, monday);
+  const activity = await ctx.db.transaction(async (tx) => {
+    const db = tx as unknown as Db;
+    await db.update(timesheetWeeks).set({ status: 'approved', approvedAt: new Date(), approvedById: ctx.actor.user.id, updatedAt: new Date() }).where(and(eq(timesheetWeeks.userId, person.id), eq(timesheetWeeks.week, monday)));
+    return recordActivity(db, ctx, { type: 'timesheet.approved', projectId: null, issueId: null, payload: { data: { user: userRefDto(person), week: monday, by: userRefDto(ctx.actor.user) } } });
+  });
+  await publishActivities(ctx.app, [activity]);
+  return getTimesheet(ctx, { week: monday, user: person.login }, { approver: true });
+}
+
+/** Send an approved or submitted week back, so its cells change again. */
+export async function reopenTimesheet(ctx: Ctx, input: { week?: string; user?: string }): Promise<Timesheet> {
+  requireScope(ctx, 'write');
+  const s = await ctx.app.schema.get();
+  const monday = startOfWeek(input.week ?? todayIn(zoneOf(ctx)));
+  const person = await whoseForApproval(ctx, s, input.user, monday);
+  const before = await weekOf(ctx.db, person.id, monday);
+  if (before.status === 'open') throw conflict('The week is already open').said('time.weekAlreadyOpen');
+  await mayApprove(ctx, person.id, monday);
+  await ctx.db.update(timesheetWeeks).set({ status: 'open', submittedAt: null, approvedAt: null, approvedById: null, updatedAt: new Date() }).where(and(eq(timesheetWeeks.userId, person.id), eq(timesheetWeeks.week, monday)));
+  return getTimesheet(ctx, { week: monday, user: person.login }, { approver: true });
 }
