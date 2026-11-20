@@ -3571,11 +3571,24 @@ export const ChatStatusSchema = z
         .object({ commands: z.string(), interactivity: z.string(), events: z.string() })
         .describe("Where Slack sends what people do, for the app's settings"),
     }),
+    matrix: z.object({
+      connected: z.boolean(),
+      homeserver: z.string().nullable(),
+      userId: z.string().nullable().describe("The bot account's Matrix id, e.g. @a4a:matrix.org"),
+      connectedBy: UserRefSchema.nullable(),
+      connectedAt: timestamp.nullable(),
+      removed: z.string().nullable().describe("Why it stopped: an administrator disconnected it, or its token was refused"),
+      removedSaid: z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }).nullable().describe("Why it stopped as a problem's words, problem.<key> in the catalogs, for a page in another language (D49)"),
+    }),
     channels: z.array(ChatChannelSchema),
   })
   .meta({ id: 'ChatStatus' });
 export type ChatStatus = z.infer<typeof ChatStatusSchema>;
 
+export const ConnectMatrixBody = z.object({
+  homeserver: z.string().trim().min(1).max(200).describe("The homeserver's address, e.g. https://matrix.org"),
+  accessToken: z.string().trim().min(1).max(500).describe("The bot account's access token, from its settings, kept sealed"),
+});
 export const ConnectSlackBody = z.object({
   botToken: z.string().trim().regex(/^xoxb-/, "A bot token starts with xoxb-: it's under OAuth & Permissions in the app's settings"),
   signingSecret: z.string().trim().min(16).describe("Under Basic Information in the app's settings"),
