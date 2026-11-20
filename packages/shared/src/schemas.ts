@@ -166,6 +166,7 @@ export const UserSchema = UserRefSchema.extend({
     .describe("Their working week: hours on each weekday, Sunday first. Null: the plan's working days at their capacity"),
   createdAt: timestamp,
   signIn: SignInSchema.optional().describe('How they sign in: only in what administrators get'),
+  hrCalendar: z.string().nullable().optional().describe("Their HR calendar's iCal feed (D36's revisit): only in what administrators get"),
 }).meta({ id: 'User' });
 export type User = z.infer<typeof UserSchema>;
 
@@ -258,6 +259,12 @@ export const UpdateUserBody = z.object({
   hourlyRate: z.number().min(0).nullable().optional(),
   capacityHoursPerDay: z.number().min(0).max(24).optional(),
   workWeek: workWeek.nullable().optional().describe('Hours on each weekday, Sunday first; null for the plan\'s working days'),
+  hrCalendar: z
+    .string()
+    .url()
+    .nullable()
+    .optional()
+    .describe("Their HR calendar (D36's revisit): an iCal feed whose days away are filed for them; administrators set it"),
 });
 
 export const ApiTokenSchema = z
@@ -883,7 +890,8 @@ export const LinkBody = z.object({
 export const WorkItemSchema = z
   .object({
     id: z.string(),
-    issueId: z.string(),
+    issueId: z.string().nullable().describe('The readable id, or null on their own row (D43\'s revisit)'),
+    activity: z.string().nullable().describe("Their own row's name (D43's revisit), or null on an issue's work"),
     author: UserRefSchema.nullable(),
     date: isoDate,
     minutes: z.number().int(),
@@ -2259,6 +2267,10 @@ export const RuleBody = z.object({
     .describe(
       'JavaScript run in a sandbox (D40) in place of the command (a change or scheduled rule) or of `requires` (a guard). Its globals: `issue`, `change`, `project`, and apply(command[, issueId]), comment(text), refuse(message), log(...). Administrators only',
     ),
+  queued: z
+    .boolean()
+    .default(false)
+    .describe("A scripted rule (D40's revisit): its worker runs it, so it may take its time. Administrators only"),
   enabled: z.boolean().default(true),
 });
 export type RuleInput = z.input<typeof RuleBody>;
@@ -2309,6 +2321,7 @@ export const RuleSchema = z
       .nullable()
       .describe('The webhook it calls, if any'),
     script: z.string().nullable().describe('A scripted rule\'s JavaScript (D40), or null'),
+    queued: z.boolean().describe("Runs from the queue (D40's revisit): a worker runs it, so it may take its time"),
     enabled: z.boolean(),
     sentence: z.string().describe('The rule in words: "When an issue is created, if it matches …, then apply …"'),
     problems: z
@@ -3458,6 +3471,15 @@ export const TimesheetSchema = z
     days: z.array(isoDate).length(7),
     hours: z.array(z.number()).length(7).describe('Their working hours each day: their working week, less days away'),
     totals: z.array(z.number().int()).length(7).describe('Minutes logged each day'),
+    personal: z
+      .array(
+        z.object({
+          activity: z.string().describe("Their own row's name (D43's revisit): BAU, or anything they keep"),
+          minutes: z.array(z.number().int()).length(7),
+          entries: z.array(z.number().int()).length(7),
+        }),
+      )
+      .describe("Their own rows, each a name of their choosing, beside their issues'"),
     rows: z.array(
       z.object({
         issue: IssueRefSchema,
@@ -3476,6 +3498,13 @@ export const TimesheetQuery = z.object({
 export const TimesheetWeekBody = z.object({
   week: isoDate.optional().describe('Any day of the week; this week by default'),
   user: z.string().optional().describe('Whose (a login); yours by default'),
+});
+export type TimesheetPersonalInput = z.infer<typeof TimesheetPersonalBody>;
+export const TimesheetPersonalBody = z.object({
+  date: isoDate,
+  minutes: z.number().int().min(0).max(24 * 60),
+  activity: z.string().min(1).max(100).describe('Their own row\'s name: BAU, or anything they keep'),
+  user: z.string().optional().describe('Whose (a login); yours by default. Administrators only for others'),
 });
 export const TimesheetCellBody = z.object({
   issue: z.string(),

@@ -217,7 +217,8 @@ async function changeable(ctx: Ctx, id: string): Promise<{ row: AbsenceRow; user
 }
 
 export async function updateAbsence(ctx: Ctx, id: string, input: UpdateAbsenceInput): Promise<Absence> {
-  const { row, user } = await changeable(ctx, id);
+  const { row, user } = await changeable(ctx, id);  // The HR calendar's rows are the feed's own (D36's revisit): only it changes them.
+  if (row.source === 'hr') throw forbidden('These days come from the HR calendar', 'Change the event there; its feed files it again within the hour.').said('absences.fromHr');
   const s = await ctx.app.schema.get();
   if (input.expectedVersion !== undefined && input.expectedVersion !== row.version) {
     throw conflict('These days away changed since you read them', 'Look at them again, then change them.', { absence: toDto(ctx, s.users, row, true) }).said('absences.changedSince');
@@ -252,7 +253,7 @@ export async function updateAbsence(ctx: Ctx, id: string, input: UpdateAbsenceIn
 }
 
 export async function deleteAbsence(ctx: Ctx, id: string): Promise<void> {
-  const { row } = await changeable(ctx, id);
+  const { row } = await changeable(ctx, id);  if (row.source === 'hr') throw forbidden('These days come from the HR calendar', 'Change the event there; its feed files it again within the hour.').said('absences.fromHr');
   await ctx.db.delete(absences).where(eq(absences.id, row.id));
 }
 

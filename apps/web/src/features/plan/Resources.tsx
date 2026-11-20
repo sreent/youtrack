@@ -100,6 +100,7 @@ function LoadGrid({ load, choice, children }: { load: ResourceLoad; choice?: Rea
               <tr key={r.user.id}>
                 <th scope="row" className="load-who">
                   <Who kind={r.user.isBot ? 'agent' : 'person'} name={r.user.isBot ? r.user.login : r.user.name} about={t('plan.resources.aDay', { hours: hours(r.capacityHoursPerDay) })} small />
+                  {r.totalHours === 0 && !r.user.isBot ? <Badge tone="idle">{t('plan.resources.nothingYet')}</Badge> : null}
                 </th>
                 {r.days.map((d, i) => (
                   <LoadCell key={d.date} day={d} weekStart={Boolean(starts[i])} />

@@ -135,6 +135,26 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - Die einstellbare Genehmigung: `projects.workTypes.approvalEvery` = „Seine Manager, unter den Managern jedes Projekts, in dem die Woche Arbeit enthält“ — liest sich die lange Beschriftung natürlich?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (HR-Kalender): `page.admin.hrCalendar` = „HR-Kalender“ und `problem.absences.fromHr` = „Diese Tage kommen aus dem HR-Kalender...“ — klingt die Erklärung natürlich?
+
+Messages added with the timesheet's personal view:
+
+- Die eigene Sicht: `page.timesheet.bauOrAnythingYouKeep` = „BAU oder was du sonst führst“ und `problem.time.severalPersonalEntries` = „...Ändere sie einzeln.“ — klingen sie natürlich?
+
+Messages added with the queued scripts:
+
+- Die Warteschlange: `rules.ruleForm.runFromTheQueue` = „Aus der Warteschlange ausführen: es darf sich Zeit nehmen und handelt mit dem, was es beim Auslösen der Regel sah“ — liest sich die lange Beschriftung natürlich?
+
+With the posts that change in place:
+
+- Die Beiträge ändern sich an Ort und Stelle – keine neuen Wörter; eine Frage: soll die Änderung im Kanal als „bearbeitet“ erkennbar sein, oder reicht der stille Austausch des Inhalts?
+
+Messages added with the load grid's team:
+
+- Die Lastanzeige: `plan.resources.nothingYet` = „Noch nichts“ neben einer Person ohne geplante Arbeit — passt das knappe Wort?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -270,6 +290,26 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - La aprobación configurable: `projects.workTypes.approvalEvery` = “Sus gestores, entre los gestores de cada proyecto donde la semana tiene trabajo” — ¿natural, pese a lo largo?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (calendario de RR. HH.): `page.admin.hrCalendar` = “Calendario de RR. HH.” y el rechazo “Estos días vienen del calendario de RR. HH...” — ¿naturales?
+
+Messages added with the timesheet's personal view:
+
+- La vista personal: `page.timesheet.bauOrAnythingYouKeep` = “BAU, o lo que tú lleves” y el rechazo “...Cámbialas una a una.” — ¿naturales?
+
+Messages added with the queued scripts:
+
+- La cola: `rules.ruleForm.runFromTheQueue` = “Ejecútalo desde la cola: puede tomarse su tiempo y actúa sobre lo que vio cuando su regla se disparó” — ¿natural, pese a lo largo?
+
+With the posts that change in place:
+
+- Las publicaciones cambian en su sitio – sin palabras nuevas; una pregunta: ¿debería verse en el canal que se editó, o basta con el contenido reemplazado en silencio?
+
+Messages added with the load grid's team:
+
+- La carga: `plan.resources.nothingYet` = “Nada aún” junto a una persona sin trabajo planificado — ¿encaja la palabra breve?
 ## French
 
 Terms:
@@ -405,6 +445,26 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - L'approbation configurable : `projects.workTypes.approvalEvery` = “Ses gestionnaires, parmi les gestionnaires de chaque projet où la semaine a du travail” — naturel malgré la longueur ?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (calendrier RH) : `page.admin.hrCalendar` = “Calendrier RH” et le refus “Ces jours viennent du calendrier RH...” — naturels ?
+
+Messages added with the timesheet's personal view:
+
+- La vue personnelle : `page.timesheet.bauOrAnythingYouKeep` = “BAU, ou ce que vous suivez” et le refus “...Changez-les une par une.” — naturels ?
+
+Messages added with the queued scripts:
+
+- La file : `rules.ruleForm.runFromTheQueue` = “L'exécuter depuis la file : il peut prendre son temps et agit sur ce qu'il a vu quand sa règle s'est déclenchée” — naturel malgré la longueur ?
+
+With the posts that change in place:
+
+- Les messages changent sur place – pas de mots nouveaux ; une question : faut-il montrer dans le canal que c'est une édition, ou le contenu remplacé en silence suffit-il ?
+
+Messages added with the load grid's team:
+
+- La charge : `plan.resources.nothingYet` = “Rien encore” à côté d'une personne sans travail planifié — le mot bref convient-il ?
 ## Japanese
 
 Terms:
@@ -532,6 +592,26 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - 設定可能な承認: `projects.workTypes.approvalEvery` = “その週の作業を含む全プロジェクトのマネージャーのうち、このプロジェクトのマネージャー” — 長いですが自然ですか。
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18（HR カレンダー）: `page.admin.hrCalendar` = “HR カレンダー”、拒否の文言 = “この日々は HR カレンダーから...” — 自然ですか。
+
+Messages added with the timesheet's personal view:
+
+- 個人ビュー: `page.timesheet.bauOrAnythingYouKeep` = “BAU、またはあなたが記録するもの”、拒否文 = “...1 件ずつ変更...” — 自然ですか。
+
+Messages added with the queued scripts:
+
+- キュー: `rules.ruleForm.runFromTheQueue` = “キューから実行: 時間をかけてもよく、ルールが発火した時点の内容に作用します” — 長いですが自然ですか。
+
+With the posts that change in place:
+
+- 投稿はその場で変わります（新しい言葉はありません）。質問: チャネルに編集したことを示すべきですか、静かに差し替えるだけで良いですか。
+
+Messages added with the load grid's team:
+
+- 負荷グリッド: 計画のない人の横の `plan.resources.nothingYet` = “まだ何も” — 短い言葉で伝わりますか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -638,6 +718,26 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - A aprovação configurável: `projects.workTypes.approvalEvery` = “Os seus gestores, entre os gestores de cada projeto onde a semana tem trabalho” — natural, apesar de longo?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (calendário de RH): `page.admin.hrCalendar` = “Calendário de RH” e a recusa “Estes dias vêm do calendário de RH...” — naturais?
+
+Messages added with the timesheet's personal view:
+
+- A vista pessoal: `page.timesheet.bauOrAnythingYouKeep` = “BAU, ou o que registar” e a recusa “...Mude-as uma a uma.” — naturais?
+
+Messages added with the queued scripts:
+
+- A fila: `rules.ruleForm.runFromTheQueue` = “Executar a partir da fila: pode levar o seu tempo e age sobre o que viu quando a regra disparou” — natural, apesar de longo?
+
+With the posts that change in place:
+
+- As publicações mudam no sítio – sem palavras novas; uma pergunta: deve ver-se no canal que foi editada, ou basta o conteúdo trocado em silêncio?
+
+Messages added with the load grid's team:
+
+- A carga: `plan.resources.nothingYet` = “Nada ainda” ao lado de quem não tem trabalho planeado — a palavra breve serve?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -793,6 +893,26 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - 설정 가능한 승인: `projects.workTypes.approvalEvery` = “그 주의 작업이 있는 모든 프로젝트의 관리자 중 이 프로젝트의 관리자” — 길지만 자연스럽나요?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18(HR 달력): `page.admin.hrCalendar` = “HR 달력”, 거부 문구 = “이 날짜들은 HR 달력에서...” — 자연스럽나요?
+
+Messages added with the timesheet's personal view:
+
+- 개인 보기: `page.timesheet.bauOrAnythingYouKeep` = “BAU, 또는 당신이 기록하는 것”, 거부문 = “...하나씩 바꾸세요.” — 자연스럽나요?
+
+Messages added with the queued scripts:
+
+- 대기열: `rules.ruleForm.runFromTheQueue` = “대기열에서 실행: 시간이 걸려도 되며, 규칙이 발동했을 때 본 내용에 작용합니다” — 길지만 자연스럽나요?
+
+With the posts that change in place:
+
+- 게시물은 제자리에서 바뀝니다 – 새 문구는 없습니다. 질문: 채널에서 편집했음을 보여주어야 할까요, 아니면 조용히 바뀌는 것으로 충분할까요?
+
+Messages added with the load grid's team:
+
+- 부하: 계획된 업무가 없는 사람 옆의 `plan.resources.nothingYet` = “아직 없음” — 짧은 말로 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -939,6 +1059,26 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - 可配置的审批: `projects.workTypes.approvalEvery` = “它的管理者，且是该周有工作的每个项目的管理者”——虽然长，读起来自然吗？
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18（人事日历）: `page.admin.hrCalendar` = “人事日历”，拒绝说明 = “这些日子来自人事日历...” ——自然吗？
+
+Messages added with the timesheet's personal view:
+
+- 个人视图：`page.timesheet.bauOrAnythingYouKeep` = “BAU，或任何你记录的内容”，拒绝说明 = “请逐条修改...” ——自然吗？
+
+Messages added with the queued scripts:
+
+- 队列：`rules.ruleForm.runFromTheQueue` = “从队列运行：它可以慢慢来，并作用于规则触发时所见的内容” ——虽然长，自然吗？
+
+With the posts that change in place:
+
+- 帖子就地变化，没有新词。问题：应该在频道里标明“已编辑”，还是静静替换内容就好？
+
+Messages added with the load grid's team:
+
+- 负荷格：没有计划工作的人旁边的 `plan.resources.nothingYet` = “还没有” ——简短的词能传达吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1097,6 +1237,26 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - Duyệt có thể cấu hình: `projects.workTypes.approvalEvery` = “Người quản lý của nó, trong số người quản lý của mọi dự án mà tuần đó có việc” — dài nhưng tự nhiên chứ?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (lịch nhân sự): `page.admin.hrCalendar` = “Lịch nhân sự” và lời từ chối = “Những ngày này đến từ lịch nhân sự...” — tự nhiên chứ?
+
+Messages added with the timesheet's personal view:
+
+- Góc nhìn cá nhân: `page.timesheet.bauOrAnythingYouKeep` = “BAU, hoặc bất cứ gì bạn theo dõi” và lời từ chối = “...Hãy sửa từng mục một.” — tự nhiên chứ?
+
+Messages added with the queued scripts:
+
+- Hàng đợi: `rules.ruleForm.runFromTheQueue` = “Chạy từ hàng đợi: nó được phép tốn thời gian, và tác động lên những gì nó thấy khi quy tắc kích hoạt” — dài nhưng tự nhiên chứ?
+
+With the posts that change in place:
+
+- Bài đăng thay đổi ngay tại chỗ – không có từ mới. Câu hỏi: có nên cho kênh thấy là đã sửa, hay chỉ cần thay nội dung trong im lặng?
+
+Messages added with the load grid's team:
+
+- Tải: `plan.resources.nothingYet` = “Chưa có gì” cạnh người chưa có việc được lên kế hoạch — từ ngắn có ổn không?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1252,6 +1412,26 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - Persetujuan yang dapat diatur: `projects.workTypes.approvalEvery` = “Manajernya, di antara manajer setiap proyek yang pekan itu memuat pekerjaan” — apakah alami meski panjang?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (kalender SDM): `page.admin.hrCalendar` = “Kalender SDM” dan penolakan = “Hari-hari ini datang dari kalender SDM...” — apakah alami?
+
+Messages added with the timesheet's personal view:
+
+- Tampilan pribadi: `page.timesheet.bauOrAnythingYouKeep` = “BAU, atau apa pun yang kamu catat” dan penolakan = “...Ubah satu per satu.” — apakah alami?
+
+Messages added with the queued scripts:
+
+- Antrean: `rules.ruleForm.runFromTheQueue` = “Jalankan dari antrean: ia boleh memakan waktu, dan bertindak atas yang dilihatnya saat aturannya terpicu” — apakah alami meski panjang?
+
+With the posts that change in place:
+
+- Kiriman berubah di tempatnya – tanpa kata baru. Pertanyaan: perlukah saluran menandai bahwa kiriman diedit, atau cukup isinya diganti diam-diam?
+
+Messages added with the load grid's team:
+
+- Beban: `plan.resources.nothingYet` = “Belum ada” di samping orang tanpa pekerjaan terencana — apakah kata singkatnya pas?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1408,6 +1588,26 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - การอนุมัติที่ตั้งค่าได้: `projects.workTypes.approvalEvery` = “ผู้จัดการของมัน ในกลุ่มผู้จัดการของทุกโปรเจกต์ที่สัปดาห์นั้นมีงาน” — ยาวแต่เป็นธรรมชาติไหม
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (ปฏิทิน HR): `page.admin.hrCalendar` = “ปฏิทิน HR” และข้อความปฏิเสธ = “วันเหล่านี้มาจากปฏิทิน HR...” — ธรรมชาติหรือไม่
+
+Messages added with the timesheet's personal view:
+
+- มุมมองส่วนตัว: `page.timesheet.bauOrAnythingYouKeep` = “BAU หรืออะไรก็ตามที่คุณบันทึก” และข้อปฏิเสธ = “...เปลี่ยนทีละรายการ” — ธรรมชาติหรือไม่
+
+Messages added with the queued scripts:
+
+- คิว: `rules.ruleForm.runFromTheQueue` = “รันจากคิว: ใช้เวลาได้ และทำงานกับสิ่งที่เห็นตอนกฎทำงาน” — ยาวแต่เป็นธรรมชาติหรือไม่
+
+With the posts that change in place:
+
+- โพสต์เปลี่ยนที่เดิม – ไม่มีถ้อยคำใหม่ คำถาม: ควรให้ช่องเห็นว่าแก้ไขแล้ว หรือแทนที่เนื้อหาเงียบๆ ก็พอ
+
+Messages added with the load grid's team:
+
+- ภาระ: `plan.resources.nothingYet` = “ยังไม่มี” ข้างคนที่ยังไม่มีงานที่วางแผน — คำสั้นๆ เหมาะสมไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

@@ -113,3 +113,14 @@ describe('planning over the demo data', () => {
     expect(later.taskCount).toBeGreaterThan(10);
   });
 });
+describe("the load grid's team (D43's revisit)", () => {
+  it('shows the project\'s members who can change its issues, with their capacity, even with nothing planned', async () => {
+    const ctx = adminCtx(w.app, w.admin);
+    const load = await getResourceLoad(ctx, 'MIG');
+    const logins = load.resources.map((r) => r.user.login);
+    // Diego is a member of MIG: his capacity is on the grid as his own.
+    expect(logins).toContain('diego');
+    const diego = load.resources.find((r) => r.user.login === 'diego');
+    expect(diego!.capacityHoursPerDay).toBeGreaterThan(0);
+  });
+});

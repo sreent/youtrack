@@ -93,6 +93,8 @@ export interface Draft {
   callWebhookId: string | null;
   /** A scripted rule's JavaScript (D40): it runs in place of the command, or of what a guard requires. */
   script: string | null;
+  /** Runs from the queue (D40's revisit): a worker runs it, on what it saw when the rule fired. */
+  queued: boolean;
   enabled: boolean;
 }
 
@@ -162,6 +164,7 @@ export function draftOf(row: RuleRow): Draft {
     notify: notifyOf(row.notify),
     callWebhookId: row.callWebhookId,
     script: row.script ?? null,
+    queued: row.queued,
     enabled: row.enabled,
   };
 }
@@ -227,6 +230,7 @@ function draftFrom(projectId: string | null, input: RuleInput): Draft {
     notify: input.notify ? { to: input.notify.to ?? [], people: input.notify.people ?? [], message: input.notify.message } : null,
     callWebhookId: input.call?.webhook ?? null,
     script: input.script ?? null,
+    queued: input.queued ?? false,
     enabled: input.enabled ?? true,
   });
 }
@@ -478,6 +482,7 @@ export function ruleDto(s: SchemaSnapshot, seen: SchemaSnapshot, row: RuleRow, l
     notify: d.notify,
     call: row.callWebhookId ? { webhook: row.callWebhookId, origin: callOrigin } : null,
     script: row.script ?? null,
+    queued: row.queued,
     enabled: row.enabled,
     sentence: ruleSentence({ ...d, callOrigin, calls: Boolean(row.callWebhookId) }),
     problems: readingProblems(row.projectId ? ruleWorld(s, row.projectId) : seen, d),
@@ -659,6 +664,7 @@ export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
       notify: d.notify,
       callWebhookId: d.callWebhookId,
       script: d.script,
+      queued: d.queued,
       enabled: d.enabled,
       nextRunAt: d.schedule && d.enabled ? nextRunAfter(d.schedule, new Date()) : null,
       createdById: ctx.actor.user.id,
@@ -707,6 +713,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
       : {}),
     ...(input.call !== undefined ? { callWebhookId: input.call?.webhook ?? null } : {}),
     ...(input.script !== undefined ? { script: input.script ?? null } : {}),
+  ...(input.queued !== undefined ? { queued: input.queued } : {}),
     ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
   });
   // Turning off a rule that calls a webhook is anyone's who manages it; anything else about one is an administrator's.

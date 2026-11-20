@@ -79,6 +79,7 @@ export interface Draft {
   /** Written as a script (D40), an administrator's: it runs in place of the command, or of what a guard requires. */
   scripted: boolean;
   script: string;
+  queued: boolean;
 }
 
 export const EMPTY: Draft = {
@@ -102,6 +103,7 @@ export const EMPTY: Draft = {
   call: '',
   scripted: false,
   script: '',
+  queued: false,
 };
 
 /** What a new script starts as: what it's given, and what it can ask for. */
@@ -194,6 +196,7 @@ export function draftOf(rule: Rule): Draft {
     call: rule.call?.webhook ?? '',
     scripted: Boolean(rule.script),
     script: rule.script ?? '',
+    queued: rule.queued,
   };
 }
 
@@ -218,6 +221,7 @@ function toInput(project: string | null, d: Draft): RuleInput {
     related: acts && !scripted && of ? { of, phrase: of === 'linked' ? d.andPhrase || null : null, match, query: d.andQuery } : null,
     target: acts && !scripted && d.to !== 'issue' ? { to: d.to, phrase: d.to === 'linked' ? d.toPhrase || null : null } : null,
     script: scripted ? d.script : null,
+    queued: scripted ? d.queued : false,
     notify: acts && (d.tell.length || people.length || d.saying.trim()) ? { to: d.tell, people, message: d.saying } : null,
     call: acts && d.call ? { webhook: d.call } : null,
     enabled: true,
@@ -671,6 +675,10 @@ export function RuleForm({
           </div>
           {testError ? <ErrorLine>{testError}</ErrorLine> : null}
           {tested ? <ScriptRunView issue={tested.issue} run={tested.run} /> : null}
+          <label className="choice">
+            <input type="checkbox" checked={d.queued} onChange={(e) => set('queued', e.target.checked)} />
+            <span>{t('rules.ruleForm.runFromTheQueue')}</span>
+          </label>
         </div>
       ) : null}
 

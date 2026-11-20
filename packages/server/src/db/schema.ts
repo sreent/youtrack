@@ -83,6 +83,8 @@ export const users = pgTable(
      * days at their capacity. The timesheet, the load grid, scheduling and levelling use it.
      */
     workWeek: jsonb('work_week').$type<number[]>(),
+  /** Their HR calendar (D36's revisit): an iCal feed an administrator sets, whose days away are filed for them. */
+  hrCalendar: text('hr_calendar'),
     /** Their time zone (IANA), for "today" in their searches, their digest's hour and their email's times. Null: the server's. */
     timeZone: text('time_zone'),
     /** The language they read a4a in (D49): one of LOCALES, or null for their browser's (and, by email, the server's default). */
@@ -466,9 +468,9 @@ export const workItems = pgTable(
   'work_items',
   {
     id: text('id').primaryKey(),
-    issueId: text('issue_id')
-      .notNull()
-      .references(() => issues.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'cascade' }),
+    /** Their own row's name (D43's revisit): BAU or any activity they keep; null on an issue's work. */
+    activity: text('activity'),
     authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
     date: date('date', { mode: 'string' }).notNull(),
     minutes: integer('minutes').notNull(),
@@ -758,6 +760,8 @@ export const rules = pgTable(
      * scheduled rule) or of what it requires (a guard). Only administrators write scripts.
      */
     script: text('script'),
+    /** Runs from the queue (D40's revisit): a worker of its own runs it, so it may take its time. */
+    queued: boolean('queued').notNull().default(false),
     /** The app that installed it (D48): it acts as that app's agent, where the app is enabled, and goes with it. */
     appId: text('app_id').references((): AnyPgColumn => apps.id, { onDelete: 'cascade' }),
     enabled: boolean('enabled').notNull().default(true),
@@ -808,6 +812,24 @@ export const ruleRuns = pgTable(
     uniqueIndex('rule_runs_once').on(t.ruleId, t.issueId, t.originId).where(sql`${t.originId} IS NOT NULL`),
   ],
 );
+export const scriptJobs = pgTable(
+  'script_jobs',
+  {
+    id: text('id').primaryKey(),
+    ruleId: text('rule_id').notNull(),
+    projectId: text('project_id').notNull(),
+    issueId: text('issue_id').notNull(),
+    /** The event's origin, for the run's claim: a replayed event makes no second job. */
+    origin: text('origin'),
+    /** The script's frozen input, as it was when the rule fired. */
+    input: jsonb('input').notNull(),
+    state: text('state').notNull().default('queued'),
+    claimedAt: ts('claimed_at'),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex('script_jobs_once').on(t.ruleId, t.issueId, t.origin)],
+);
+
 
 // ---------------------------------------------------------------------------
 // Version control: GitHub, GitLab, Bitbucket, Gitea and Forgejo send pushes and pull requests here
@@ -1587,6 +1609,10 @@ export const absences = pgTable(
     half: text('half'),
     /** 'holiday' | 'sick' | 'training' | 'other': seen only by the person, administrators and whoever entered it. */
     kind: text('kind').notNull(),
+    /** 'entered' by a person, or 'hr': filed from the person's HR calendar (D36's revisit), which alone changes it. */
+    source: text('source').notNull().default('entered'),
+    /** The HR calendar event's UID, so one event is never filed twice. */
+    externalId: text('external_id'),
     note: text('note').notNull().default(''),
     version: integer('version').notNull().default(1),
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
@@ -2356,6 +2382,19 @@ export const chatLinkTokens = pgTable(
  * What a4a posts to channels: a row first, written by the outbox's consumer, sent after, at least once,
  * as mail is (mail_outbox). One per channel per event, whichever subscriptions matched it.
  */
+export const chatPosts = pgTable(
+  'chat_posts',
+  {
+    id: text('id').primaryKey(),
+    channelId: text('channel_id').notNull().references(() => chatChannels.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id').notNull(),
+    /** The post as its provider knows it (Slack's ts, Teams' activity id, Matrix's event id). */
+    messageId: text('message_id').notNull(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('chat_posts_channel_issue').on(t.channelId, t.issueId)],
+);
+
 export const chatOutbox = pgTable(
   'chat_outbox',
   {

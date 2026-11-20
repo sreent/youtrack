@@ -914,7 +914,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
   - an agent's: agents are never away.
 
   A change checks the version read.
-- **The load grid's window** is each person's choice: two weeks, a month or a quarter from today, the plan's end, or two dates. It's kept for them in `user_preferences`, the same on every plan and every device. Choosing it needs only reading, as notification settings do, so a viewer chooses what they see too.
+- **The load grid's people** are the plan's assignees, and the project's members who can change its issues (D43's revisit): a person with nothing planned still shows their capacity, marked on the page, so the whole team is on the grid. Its window is each person's choice: two weeks, a month or a quarter from today, the plan's end, or two dates. It's kept for them in `user_preferences`, the same on every plan and every device. Choosing it needs only reading, as notification settings do, so a viewer chooses what they see too.
 - **A board with lanes** scrolls in a frame of its own, at most the window's height, so its column heads stay in view (Ocean's `.held`). It scrolls sideways in that frame too, so its heads can stay in view only within it.
 
 **What it costs.**
@@ -922,7 +922,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 - The backward pass reuses the forward pass's length. That's off only when a half day falls between the earliest and the latest a task could start.
 - A plan's people's days away are read with the plan: one query.
 
-**Revisit when:** days away should come from an HR system (iCal or its API), as the same rows. (People working part time on a pattern have a working week of their own: D43.)
+**Revisit when:** days away should come from several HR systems, or hold which person each came as; a feed is one per person, set by an administrator. (People working part time on a pattern have a working week of their own: D43.)
 
 ### D37. Access in depth: who sees an issue or a comment, roles as permissions, and guests
 
@@ -1032,7 +1032,7 @@ D25's rules say what they do in the query and command languages. Some workflows 
 - **Scripts run in a sandbox.**
   - QuickJS, compiled to WebAssembly (`quickjs-emscripten`), in a pool of worker threads, with a new runtime for every run (`workflow/sandbox.ts`, `workflow/sandbox-worker.mjs`).
   - A script reaches nothing but what a4a hands it: no network, files, timers, modules or host objects. `fetch`, `setTimeout`, `require` and `process` don't exist in it.
-  - Each run has a time limit (250 ms; a guard's, 60 ms, since it runs inside the write path) and a memory limit (16 MB). A run past either is stopped and says so. The time limit is hard: see "What it costs".
+  - Each run has a time limit (250 ms; a guard's, 60 ms, since it runs inside the write path) and a memory limit (16 MB). A run past either is stopped and says so. The time limit is hard: see "What it costs". A scripted rule marked queued doesn't run in the request at all: the engine files the run (`script_jobs`) with what the script saw, and a worker of its own runs it on that input, with 30 seconds, applying what it asked for as the workflow agent, with the same once-per-origin claim and the same run log.
   - It's given three globals, as frozen data parsed inside the sandbox from text, so no host object crosses:
     - `issue`: its fields by name (people by login, numbers as numbers, a period in minutes, a date as YYYY-MM-DD), tags, links in its project with how each reads, its parent and subtasks, and its latest 20 comments;
     - `change`: who made the change and what changed, field by field, or the new comment, or that it's a scheduled turn, or an action;
@@ -1085,7 +1085,7 @@ D25's rules say what they do in the query and command languages. Some workflows 
 - A run costs 0.8 to 0.9 ms at the median and 1.5 to 1.9 ms on average (measured on an issue with 20 comments and 5 links), where it cost 0.6 ms and 1.1 ms in the main thread: the difference is handing the issue to the thread and back. The main thread never runs a script, so ten at once hold up nothing else, and a guard's run goes ahead of the others waiting. Each worker holds a thread and QuickJS's memory, 16 MB a run at most.
 - The time limit is hard. QuickJS stops ordinary code at its limit, counted from when the worker starts the run, and the run says what it logged. A worker that hasn't answered 50 ms after the limit (`HARD_GRACE_MS`, for the handover to the thread, which a loaded machine can delay) is terminated and another started in its place, and the run fails, saying it ran past its limit. That ends what QuickJS can't: a built-in that allocates megabytes at once runs for seconds before it looks at its interrupt (measured: 4 to 15 s in the main thread), and is now ended within 300 ms, or 110 ms in a guard.
 
-**Revisit when:** scripts need to run longer than a request should wait, which wants a queue and a worker of their own.
+**Revisit when:** a queued script needs the rule's webhook call and its own `call()`s at its turn (now they wait for a future revisit), or a queued run should wait on several jobs at once.
 
 ### D41. Issues move, clone, take votes and reactions, and fields gain kinds and conditions
 
@@ -1126,7 +1126,7 @@ The team works in Microsoft Teams, or Slack: an issue's news should reach them t
 - It's checked when the outbox's consumer writes a post, and again when the post is sent: an issue limited in between isn't posted, and isn't posted about again.
 - Whoever subscribes a channel vouches for its people, and every post is read as they would read the issue. A project open to everyone takes anyone who reads it (a read-only account excepted); one open to its members alone, someone who manages it, since the channel's people may not be members. A subscriber who loses the project, or is banned, ends a project's subscription, saying why; a saved search's only stops telling of that project.
 - What goes to one person (an answer, a card refreshed for them) follows their own access, as anywhere else in a4a: Slack's ephemeral messages, Teams' personal chat and `refresh.userIds`. A question asked in a Teams channel is answered in the asker's personal chat, with a word in the channel; only a subscription's confirmation is answered in the channel, since it says what the channel will hear.
-- A channel hears of what happens from when it's subscribed, however late the outbox hands an event over.
+- A channel hears of what happens from when it's subscribed, however late the outbox hands an event over. A post is remembered by issue (`chat_posts`); the issue's next news changes it in place (Teams' `updateActivity`, Slack's `chat.update`, Matrix's edit of the same event), so a channel isn't re-told in a fresh message.
 
 **Posting.** As mail is (D23): the consumer writes one row per channel per event (`chat_outbox`, keyed so a second hand-over writes nothing), and a sender on every instance claims due rows (`FOR UPDATE SKIP LOCKED`, with a lease) and posts them, rendered from the issue as it is then. A 429 or a 5xx waits as long as the service asks (`Retry-After`), and at least 30 s, 2 min, 10 min, 30 min, then 2 h; a channel that's gone (Teams' `ConversationNotFound`, Slack's `channel_not_found`, `is_archived`, `not_in_channel`) is marked so and its subscriptions end, saying why; a revoked token or a bot taken out of a team ends every subscription in that workspace. Ended subscriptions stay on the page with their reason until someone takes them off.
 
@@ -1185,7 +1185,7 @@ A board plans its sprints from a backlog, counts story points, and shows how muc
   - A timer is the person's own: no event, nobody told, and a timer on an issue they can no longer see is out of sight.
   - Timing work, the timesheet and correcting logged work take the time permission in the issue's project, as logging it does (D37).
 - **Work types** are a list per project, kept by its managers. Work is logged as one (`work_type_id`), and a project can require one on every work item (`settings.time.workTypeRequired`). A type that has been used is archived, not deleted: it stays on that work and is no longer offered.
-- **The weekly timesheet** shows a person's week, Monday to Sunday, a row per issue and work type, with each day's total against their working hours that day. A week is submitted once its cells are right (its cells lock), and approved by an administrator or a manager of every project it holds work in, each step an event the other is told of (`timesheet.submitted`, `timesheet.approved`); whoever approves may send it back, and the week is open again. Who approves is each project's to set (`settings.time.timesheetApproval`): `every` (the default, the strict rule), or `any`, by which a manager of any project the week holds work in approves the whole week - the rule holds when every project in the week says `any`. Whether a project's logged work shows in the sheet at all is also its own (`settings.time.timesheetEnabled`, on by default): off, its work stays on its issues and out of the sheet, and its cells refuse.
+- **The weekly timesheet** shows a person's week, Monday to Sunday, a row per issue and work type, and their own rows beside them (D43's revisit): BAU or anything they name, hours per day with no issue under them. A cell logs, corrects or (emptied) deletes its entry, on the issue and on their own rows alike. A week is submitted once its cells are right (its cells lock), and approved by an administrator or a manager of every project it holds work in, each step an event the other is told of (`timesheet.submitted`, `timesheet.approved`); whoever approves may send it back, and the week is open again. Who approves is each project's to set (`settings.time.timesheetApproval`): `every` (the default, the strict rule), or `any`, by which a manager of any project the week holds work in approves the whole week - the rule holds when every project in the week says `any`. Whether a project's logged work shows in the sheet at all is also its own (`settings.time.timesheetEnabled`, on by default): off, its work stays on its issues and out of the sheet, and its cells refuse.
   - Setting a cell logs an entry where there's none, corrects the one there (`work.updated`, a new event, with what it was), and deletes it at 0. A day of several entries is refused (409) and changed on the issue, one by one: a cell can't say which of them to change.
   - People see and change their own; administrators anyone's. A manager may log work for someone, as before, but a timesheet is a person's own week across projects.
   - Work logged in projects the reader can't see is left out, as everywhere.
@@ -2243,11 +2243,8 @@ D68 left passkeys required of everyone or of administrators only, and an id that
 
 Planned, with the seams already in place:
 
-- days away from an HR calendar (D36);
-- scripts that call out through a signed webhook, and code shared between a project's scripts (D40);
-- chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);
+- Google Chat or Mattermost, and Teams' own link unfurling (a message extension) (D42);
 - a thread's replies in an issue made from a Teams message (through Microsoft Graph), and a message's files brought into the issue rather than linked (D60);
-- a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
 - SAML for requesters' identity providers, a desk's own provider limited to its customers, and the desk's emails in a requester's own language (D63);
 - customers that several desks serve, a requester in several groups at a desk, and members told of their group's requests (D56);
 - builds from GitLab's and Bitbucket's pipelines as GitHub's workflow runs come, a build's commits by the commit graph rather than by time, and GitHub Issues' reactions in an import (D46);

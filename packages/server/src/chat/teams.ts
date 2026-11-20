@@ -185,7 +185,7 @@ async function botToken(app: AppServices): Promise<string> {
 }
 
 /** A call to Teams at a service URL, as the bot. */
-async function connector(app: AppServices, serviceUrl: string, method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<Record<string, unknown> | null> {
+async function connector(app: AppServices, serviceUrl: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH', path: string, body?: unknown): Promise<Record<string, unknown> | null> {
   const cfg = app.config.teams;
   if (!cfg) throw new ChatCallError('Teams isn’t set up here', 'failed');
   if (!callable(app, serviceUrl, cfg.serviceHosts)) throw new ChatCallError(`${serviceUrl} isn't one of Bot Framework's hosts`, 'failed');
@@ -225,6 +225,11 @@ const conv = (id: string) => `v3/conversations/${encodeURIComponent(id)}/activit
 export async function teamsSend(app: AppServices, serviceUrl: string, conversationId: string, activity: Record<string, unknown>): Promise<string | null> {
   const res = await connector(app, serviceUrl, 'POST', conv(conversationId), { type: 'message', ...activity });
   return typeof res?.id === 'string' ? res.id : null;
+}
+
+/** A channel's post, changed in place as its issue changes (D42's revisit): the same activity, new body. */
+export async function teamsUpdate(app: AppServices, serviceUrl: string, conversationId: string, messageId: string, activity: Record<string, unknown>): Promise<void> {
+  await connector(app, serviceUrl, 'PATCH', `${conv(conversationId)}/${encodeURIComponent(messageId)}`, activity);
 }
 
 /** The bot's personal chat with someone, made if it isn't there yet. */
