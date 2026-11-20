@@ -395,6 +395,7 @@ export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
 export const TimeSettingsSchema = z
   .object({
     workTypeRequired: z.boolean().describe('Whether work logged in the project must say its type (D43)'),
+  timesheetEnabled: z.boolean().optional().describe("Whether the project's logged work shows in its people's weekly timesheets (D43's revisit): yes by default; no hides it from the sheet, and its cells refuse"),
   timesheetApproval: z
     .enum(['every', 'any'])
     .optional()

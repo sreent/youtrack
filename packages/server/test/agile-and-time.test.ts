@@ -398,3 +398,20 @@ describe("the approval rule is the projects' to set (D43's revisit)", () => {
     expect(approved.approvedBy).toMatchObject({ login: 'ben' });
   });
 });
+describe("the timesheet itself is each project's to turn off (D43's revisit)", () => {
+  it("a project's work leaves the sheet, and its cells refuse, until it is on again", async () => {
+    const anna = w.as(w.anna);
+    // A week of its own, so the other test's submitted week doesn't lock these cells.
+    const next = addDays(mon, 7);
+    const back = await createIssue(anna, { project: 'BACK', summary: 'Off the sheet', fields: { Type: 'Task' } });
+    await logWork(anna, back.id, { duration: 30, date: next });
+    await updateProject(w.adminCtx, 'BACK', { settings: { time: { timesheetEnabled: false } } });
+    const sheet = await getTimesheet(anna, { week: next });
+    expect(sheet.rows.some((r) => r.issue.id === back.id)).toBe(false);
+    const refusedCell = await refused(() => setTimesheetCell(anna, { issue: back.id, date: next, minutes: 60 }));
+    expect(refusedCell.status).toBe(400);
+    await updateProject(w.adminCtx, 'BACK', { settings: { time: { timesheetEnabled: true } } });
+    const again = await getTimesheet(anna, { week: next });
+    expect(again.rows.some((r) => r.issue.id === back.id)).toBe(true);
+  });
+});

@@ -35,6 +35,10 @@ export function WorkTypes({ project, canEdit }: { project: Project; canEdit: boo
     mutationFn: (rule: 'every' | 'any') => patch(`/projects/${project.key}`, { settings: { time: { timesheetApproval: rule } } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.project(project.key) }),
   });
+  const timesheetOn = useMutation({
+    mutationFn: (on: boolean) => patch(`/projects/${project.key}`, { settings: { time: { timesheetEnabled: on } } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.project(project.key) }),
+  });
   const list = types.data ?? [];
   return (
     <div className="stack">
@@ -79,6 +83,15 @@ export function WorkTypes({ project, canEdit }: { project: Project; canEdit: boo
             />
             <span>{tx('projects.workTypes.workLoggedHereMustSay')}</span>
           </label>
+          <label className="choice">
+            <input
+              type="checkbox"
+              checked={timesheetOn.isPending && timesheetOn.variables !== undefined ? timesheetOn.variables : project.settings.time.timesheetEnabled !== false}
+              onChange={(e) => timesheetOn.mutate(e.target.checked)}
+            />
+            <span>{tx('projects.workTypes.timesheetOn')}</span>
+          </label>
+          {project.settings.time.timesheetEnabled !== false ? (
           <label className="form-field">
             <span>{tx('projects.workTypes.approvalLabel')}</span>
             <select value={project.settings.time.timesheetApproval ?? 'every'} onChange={(e) => approval.mutate(e.target.value as 'every' | 'any')}>
@@ -86,6 +99,7 @@ export function WorkTypes({ project, canEdit }: { project: Project; canEdit: boo
               <option value="any">{tx('projects.workTypes.approvalAny')}</option>
             </select>
           </label>
+          ) : null}
         </>
       ) : project.settings.time.workTypeRequired ? (
         <p className="note">{tx('projects.workTypes.workLoggedHereMustSay2')}</p>
