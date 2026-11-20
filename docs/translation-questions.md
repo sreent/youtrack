@@ -127,6 +127,10 @@ Messages added in wave 13 (Matrix chat):
 Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
 
 - Wave 14 (Stundenzettel): `page.timesheet.submit` = „Woche einreichen“ und `page.timesheet.sendBack` = „Zurückgeben“ — klingen die Knöpfe natürlich?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (Skriptbibliothek): `page.rules.library` = „Skriptbibliothek“ und `page.rules.libraryCode` = „Der gemeinsame Code“ — klingen die Bezeichnungen natürlich?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -254,6 +258,10 @@ Messages added in wave 13 (Matrix chat):
 Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
 
 - Wave 14 (parte de horas): `page.timesheet.submit` = “Enviar la semana” y `page.timesheet.sendBack` = “Devolverla” — ¿naturales?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (biblioteca de scripts): `page.rules.library` = “Biblioteca de scripts” y `page.rules.libraryCode` = “El código compartido” — ¿naturales?
 ## French
 
 Terms:
@@ -381,6 +389,10 @@ Messages added in wave 13 (Matrix chat):
 Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
 
 - Wave 14 (feuille de temps) : `page.timesheet.submit` = “Envoyer la semaine” et `page.timesheet.sendBack` = “La renvoyer” — naturels ?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (bibliothèque de scripts) : `page.rules.library` = “Bibliothèque de scripts” et `page.rules.libraryCode` = “Le code partagé” — naturels ?
 ## Japanese
 
 Terms:
@@ -500,6 +512,10 @@ Messages added in wave 13 (Matrix chat):
 Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
 
 - Wave 14（タイムシート）: `page.timesheet.submit` = “週を提出”、`page.timesheet.sendBack` = “差し戻す” — 自然ですか。
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16（スクリプトライブラリ）: `page.rules.library` = “スクリプトライブラリ”、`page.rules.libraryCode` = “共有コード” — 自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -598,6 +614,10 @@ Messages added in wave 13 (Matrix chat):
 Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
 
 - Wave 14 (folha de horas): `page.timesheet.submit` = “Enviar a semana” e `page.timesheet.sendBack` = “Devolvê-la” — naturais?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (biblioteca de scripts): `page.rules.library` = “Biblioteca de scripts” e `page.rules.libraryCode` = “O código partilhado” — naturais?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -745,6 +765,10 @@ Messages added in wave 13 (Matrix chat):
 Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
 
 - Wave 14(시간 기록): `page.timesheet.submit` = “주 제출”, `page.timesheet.sendBack` = “반려” — 자연스럽나요?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16(스크립트 라이브러리): `page.rules.library` = “스크립트 라이브러리”, `page.rules.libraryCode` = “공유 코드” — 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -883,6 +907,10 @@ Messages added in wave 13 (Matrix chat):
 Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
 
 - Wave 14（工时表）: `page.timesheet.submit` = “提交这一周”、`page.timesheet.sendBack` = “退回” ——自然吗？
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16（脚本库）: `page.rules.library` = “脚本库”、`page.rules.libraryCode` = “共享代码” ——自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1033,6 +1061,10 @@ Messages added in wave 13 (Matrix chat):
 Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
 
 - Wave 14 (bảng chấm công): `page.timesheet.submit` = “Gửi tuần” và `page.timesheet.sendBack` = “Trả lại” — tự nhiên chứ?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (thư viện script): `page.rules.library` = “Thư viện script” và `page.rules.libraryCode` = “Mã dùng chung” — tự nhiên chứ?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1180,6 +1212,10 @@ Messages added in wave 13 (Matrix chat):
 Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
 
 - Wave 14 (lembar waktu): `page.timesheet.submit` = “Kirim minggunya” dan `page.timesheet.sendBack` = “Kirim balik” — apakah alami?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (pustaka skrip): `page.rules.library` = “Pustaka skrip” dan `page.rules.libraryCode` = “Kode bersama” — apakah alami?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1328,6 +1364,10 @@ Messages added in wave 13 (Matrix chat):
 Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
 
 - Wave 14 (ใบบันทึกเวลา): `page.timesheet.submit` = “ส่งสัปดาห์” และ `page.timesheet.sendBack` = “ส่งกลับ” — ธรรมชาติหรือไม่
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (ไลบรารีสคริปต์): `page.rules.library` = “ไลบรารีสคริปต์” และ `page.rules.libraryCode` = “โค้ดที่ใช้ร่วมกัน” — ธรรมชาติหรือไม่
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

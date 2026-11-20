@@ -1085,7 +1085,7 @@ D25's rules say what they do in the query and command languages. Some workflows 
 - A run costs 0.8 to 0.9 ms at the median and 1.5 to 1.9 ms on average (measured on an issue with 20 comments and 5 links), where it cost 0.6 ms and 1.1 ms in the main thread: the difference is handing the issue to the thread and back. The main thread never runs a script, so ten at once hold up nothing else, and a guard's run goes ahead of the others waiting. Each worker holds a thread and QuickJS's memory, 16 MB a run at most.
 - The time limit is hard. QuickJS stops ordinary code at its limit, counted from when the worker starts the run, and the run says what it logged. A worker that hasn't answered 50 ms after the limit (`HARD_GRACE_MS`, for the handover to the thread, which a loaded machine can delay) is terminated and another started in its place, and the run fails, saying it ran past its limit. That ends what QuickJS can't: a built-in that allocates megabytes at once runs for seconds before it looks at its interrupt (measured: 4 to 15 s in the main thread), and is now ended within 300 ms, or 110 ms in a guard.
 
-**Revisit when:** scripts need to call out (a webhook from a script, which would go through D32's signed call, never a raw `fetch`), share code between them (a library per project), or run longer than a request should wait, which wants a queue and a worker of their own.
+**Revisit when:** scripts need to run longer than a request should wait, which wants a queue and a worker of their own.
 
 ### D41. Issues move, clone, take votes and reactions, and fields gain kinds and conditions
 
