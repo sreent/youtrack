@@ -471,7 +471,7 @@ describe('freehand drawings and pictures (D58’s revisit)', () => {
     logForm.append('file', new Blob([Buffer.from('not a picture')]), 'notes.txt');
     const txt = await http.request(`/api/v1/whiteboards/${board.id}/attachments`, { method: 'POST', headers: { authorization: `Bearer ${tokens.anna}` }, body: logForm });
     if (txt.status === 400 && (await txt.clone().text()).includes('EPERM')) return;
-    expect(txt.status).toBe(201);
+    expect(txt.status, await txt.clone().text()).toBe(201);
     const txtAtt = (await txt.json()) as { id: string };
     await expect(applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'pic-000003', kind: 'image', x: 0, y: 0, attachment: txtAtt.id }] })).rejects.toThrow();
     await expect(applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'pic-000004', kind: 'image', x: 0, y: 0, attachment: 'somewhere-else' }] })).rejects.toThrow();
