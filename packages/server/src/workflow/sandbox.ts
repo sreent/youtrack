@@ -33,6 +33,11 @@ export const SCRIPT_LIMITS = {
   comments: 5,
   logs: 50,
   text: 2000,
+  /** Webhooks a script calls in one run, and the most one call's body may take, as JSON characters. */
+  calls: 5,
+  callBody: 2048,
+  /** A project's shared code, the library every script in it may use. */
+  librarySource: 20_000,
   /** An app handler's answer (D48), as JSON characters. */
   response: 256 * 1024,
   /** Keys an app handler stores in one run, and the most one value may take, as JSON characters. */
@@ -58,6 +63,8 @@ export interface ScriptIntents {
   /** A guard's refusal, in its words; or an action's or rule's "don't". */
   refusal: string | null;
   logs: string[];
+  /** A script's calls out (D40's revisit): the webhook's name, and the body as JSON text. */
+  calls: { webhook: string; body: string }[];
   /** An app handler's answer (D48), from respond(). */
   response?: unknown;
   /** What an app handler keeps, from store(key, value); a null value forgets the key. */
@@ -94,7 +101,7 @@ export interface ScriptProblem {
   values?: Record<string, string | number>;
 }
 
-const empty = (): ScriptIntents => ({ applies: [], comments: [], refusal: null, logs: [] });
+const empty = (): ScriptIntents => ({ applies: [], comments: [], refusal: null, logs: [], calls: [] });
 
 /** Its words, the same in the worker (sandbox-worker.mjs), where time and memory run out. */
 const tooLong = (limitMs: number): ScriptError => ({
@@ -123,6 +130,8 @@ interface Job {
   timeMs: number;
   /** A guard's run, which waits inside a transaction: it goes ahead of other runs. */
   first: boolean;
+  /** A project's shared library, run before the script (D40's revisit), and whether the script may call out. */
+  extras?: { library?: string; canCall?: boolean };
   done: (reply: { ok: true; result: unknown } | { ok: false; error: string; timedOut?: boolean }) => void;
 }
 
@@ -214,7 +223,7 @@ class SandboxPool {
       // QuickJS's own interrupt stops ordinary code at the limit, so such a run says what it logged
       // and its worker carries on; the timer ends anything that doesn't stop (HARD_GRACE_MS later).
       slot.timer = setTimeout(() => this.end(slot, { ok: false, error: 'time', timedOut: true }), job.timeMs + HARD_GRACE_MS);
-      slot.worker.postMessage({ id: job.id, kind: job.kind, source: job.source, input: job.input, timeMs: job.timeMs });
+      slot.worker.postMessage({ id: job.id, kind: job.kind, source: job.source, input: job.input, timeMs: job.timeMs, extras: job.extras ?? {} });
     }
   }
 
@@ -301,11 +310,11 @@ export async function checkScript(source: string): Promise<ScriptProblem[]> {
 export async function runScript(
   source: string,
   input: { issue: unknown; change: unknown; project: unknown; request?: unknown; settings?: unknown; storage?: unknown; app?: unknown },
-  opts: { timeMs?: number; guard?: boolean } = {},
+  opts: { timeMs?: number; guard?: boolean; library?: string } = {},
 ): Promise<ScriptOutcome> {
   const limitMs = opts.timeMs ?? (opts.guard ? SCRIPT_LIMITS.guardTimeMs : SCRIPT_LIMITS.timeMs);
   const started = Date.now();
-  const reply = await pool.submit({ kind: 'run', source, input: JSON.stringify(input), timeMs: limitMs, first: Boolean(opts.guard) });
+  const reply = await pool.submit({ kind: 'run', source, input: JSON.stringify(input), timeMs: limitMs, first: Boolean(opts.guard), extras: { library: opts.library ?? '', canCall: !opts.guard } });
   if (reply.ok) {
     const out = reply.result as ScriptOutcome;
     return { ...out, error: checked(out.error) };

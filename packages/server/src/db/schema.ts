@@ -200,6 +200,8 @@ export const projects = pgTable(
     visibility: text('visibility').notNull().default('open'),
     /** Anyone may read it without signing in (D37). */
     guestAccess: boolean('guest_access').notNull().default(false),
+    /** A project's shared code for its scripts (D40's revisit): every script in it runs with it as `library`. */
+    scriptLibrary: text('script_library'),
     settings: jsonb('settings').notNull(),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),

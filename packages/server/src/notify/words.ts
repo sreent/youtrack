@@ -62,6 +62,8 @@ export function eventVerb(tr: Translator, e: TrackerEvent): string {
       return t('server.notify.verb.ruleMessage', { rule: ruleName(tr, e) });
     case 'rule.called':
       return t('server.notify.verb.ruleWebhook', { rule: ruleName(tr, e) });
+    case 'script.called':
+      return t('server.notify.verb.scriptWebhook', { origin: (e.data as { name?: unknown } | undefined)?.name ?? '' });
     // These reach only those whose saved search an issue came into (D31).
     case 'comment.deleted':
       return t('server.notify.verb.deletedComment');

@@ -37,7 +37,7 @@ import { describeCommand, parseCommand, suggestCommand } from '../commands/parse
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
-import { issues, ruleRuns, rules, webhooks } from '../db/schema';
+import { issues, projects, ruleRuns, rules, webhooks } from '../db/schema';
 import { callableUrl, webhookOrigin } from '../events/webhooks';
 import { AppError, badRequest, conflict, errorWords, forbidden, keyedProblem, noted, notFound, saidProblems, wordsOf } from '../lib/errors';
 import { translatorFor } from '../i18n';
@@ -1070,4 +1070,29 @@ export async function testRule(ctx: Ctx, input: RuleInput & { issue: string }): 
   const guard = d.kind === 'guard';
   const actor = guard || !bot ? ctx : botCtx(ctx.app, bot, issue.projectId);
   return dryRunScript(actor, full, issue, d.script, testChange(ctx, full, d), { meId: ctx.actor.user.id, guard, timeMs: guard ? SCRIPT_LIMITS.guardTimeMs : undefined });
+}
+// ---------------------------------------------------------------------------
+// A project's shared code for its scripts (D40's revisit)
+// ---------------------------------------------------------------------------
+
+/** The project's script library, readable by its managers and writable by administrators (D40's revisit). */
+export async function scriptLibrary(ctx: Ctx, key: string): Promise<string> {
+  const project = await requireProject(ctx, key, 'read');
+  const view = await projectAccess(ctx);
+  if (!view.canManage(project.id) && !ctx.actor.scopes.includes('admin')) throw forbidden('Only a project’s managers and administrators read its script library', 'Ask one of them.').said('workflow.libraryAdminOnly');
+  return project.scriptLibrary ?? '';
+}
+
+/** Save the project's script library: administrators alone, its syntax checked as a script's is. */
+export async function setScriptLibrary(ctx: Ctx, key: string, source: string): Promise<string> {
+  assertCanScript(ctx, 'rule');
+  if (source.length > SCRIPT_LIMITS.librarySource) throw badRequest(`A project’s library takes ${SCRIPT_LIMITS.librarySource.toLocaleString('en')} characters at most`, 'Take out what its scripts don’t share.').said('workflow.libraryTooLong');
+  const project = await requireProject(ctx, key, 'edit');
+  if (source.trim()) {
+    const problems = await checkScript(source);
+    if (problems.length) throw badRequest(`Its library doesn’t run: ${problems[0]!.message}`, 'Fix it, then save again.').said('workflow.libraryStopped', { error: problems[0]!.message });
+  }
+  await ctx.db.update(projects).set({ scriptLibrary: source.trim() || null, updatedAt: new Date() }).where(eq(projects.id, project.id));
+  ctx.app.schema.invalidate();
+  return source.trim();
 }

@@ -28,7 +28,7 @@ async function dto(ctx: Ctx, row: WebhookRow): Promise<Webhook> {
 }
 
 /** What a webhook can listen for: a rule's call goes only to the webhook the rule names. */
-const SUBSCRIBABLE = EVENT_TYPES.filter((t) => t !== 'rule.called');
+const SUBSCRIBABLE = EVENT_TYPES.filter((t) => t !== 'rule.called' && t !== 'script.called');
 
 function validateEvents(events: string[]): string[] {
   const known = new Set<string>(SUBSCRIBABLE);
@@ -225,6 +225,7 @@ export function webhookConsumer(app: AppServices): OutboxConsumer {
       const shown = eventFor(null, s, event);
       if (!shown) return;
       if (shown.type === 'rule.called') return callFromRule(app, shown);
+      if (shown.type === 'script.called') return callFromRule(app, shown);
       const hooks = await app.db.select().from(webhooks).where(eq(webhooks.active, true));
       const matching = hooks.filter((h) => {
         if (!h.events.includes('*') && !h.events.includes(event.type)) return false;

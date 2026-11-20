@@ -304,6 +304,8 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     }
     case 'rule.called':
       return { ...base, did: t('issues.issueHistory.andCalledItsWebhook', { v: byRule(data) ?? t('issues.issueHistory.appliedARule') }) };
+    case 'script.called':
+      return { ...base, did: t('issues.issueHistory.andCalledItsWebhook', { v: byRule(data) ?? t('issues.issueHistory.appliedARule') }) };
     case 'request.cc_added':
     case 'request.cc_removed': {
       // Someone copied on a help desk request, or no longer (D57); stopped from an email's link, it's them.

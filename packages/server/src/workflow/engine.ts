@@ -24,7 +24,7 @@
  * own project's names (match.ts, ruleWorld), as it was checked when it was made.
  */
 import type { Change, NoteSaid, RuleSchedule, TrackerEvent } from '@a4a/shared';
-import { and, asc, eq, gt, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { commandSpec } from '../commands/executor';
 import { parseCommand } from '../commands/parser';
 import type { AppServices, AutomationCause, Ctx, UserRow } from '../context';
@@ -58,6 +58,16 @@ const PRUNE_EVERY_MS = 3_600_000;
 const BROKEN_NOTE_EVERY_MS = 3_600_000;
 
 export type Outcome = 'applied' | 'unchanged' | 'failed' | 'skipped' | 'duplicate';
+
+/** What became of a script's call(): the webhook it names, and whether it will be called. */
+interface CallOutcome {
+  name: string;
+  body: string;
+  ok: boolean;
+  hook: { id: string; url: string; active: boolean } | null;
+  why: string;
+  whyKey: string;
+}
 
 interface Chain {
   /** The change that started the chain (an event id), or null for a scheduled run. */
@@ -361,12 +371,13 @@ export class RuleEngine {
     // transaction, as the workflow agent, with "me" as whoever set it off.
     let planned: Planned[] = [];
     let logs: string[] = [];
+    let calls: CallOutcome[] = [];
     if (rule.script) {
       // An app's rule reads comments only if its app was granted them (D48), and never a limited one.
       const input = await scriptInput(this.app.db, s, issue, chain.change ?? changeOf('scheduled', null), { unlimited: Boolean(owner) });
       if (owner && !owner.granted.read.includes('comments')) input.issue.comments = [];
       // And its app's settings, the project's over the app's.
-      const out = await runScript(rule.script, owner ? { ...input, settings: await settingsForRule(this.app, owner.id, issue.projectId) } : input);
+      const out = await runScript(rule.script, owner ? { ...input, settings: await settingsForRule(this.app, owner.id, issue.projectId) } : input, { library: s.projects.get(issue.projectId)?.scriptLibrary ?? undefined });
       const logged = logWords(out.intents.logs);
       if (out.error) {
         await this.record(s, rule, issue, chain, 'failed', `${scriptErrorText(out)}.${logged}`, [
@@ -389,6 +400,7 @@ export class RuleEngine {
         return 'failed';
       }
       logs = out.intents.logs;
+      calls = await this.callsOf(issue.projectId, out.intents.calls);
     } else if (d.command || d.comment) {
       try {
         const parsed = parseCommand(rule.command, s, [issue.projectId]);
@@ -413,7 +425,7 @@ export class RuleEngine {
         const res = planned.length ? await applyPlanned(tx, ctx, s, issue, planned) : { changes: [] as Change[], others: [] as OtherChanged[], activities: [] as ActivityRow[] };
         const activities = [...res.activities];
         const after = planned.length ? ((await findIssue(tx, s, issue.id)) ?? fresh) : fresh;
-        const ref = (d.notify || call?.ok) && after ? await refOf(tx, s, after) : null;
+        const ref = (d.notify || call?.ok || calls.some((x) => x.ok)) && after ? await refOf(tx, s, after) : null;
 
         // Whom it tells, as the issue is after its change: "its assignee" is whoever it just assigned.
         let told: UserRow[] = [];
@@ -440,21 +452,35 @@ export class RuleEngine {
             }),
           );
         }
+        for (const x of calls) {
+          if (x.ok && ref) {
+            activities.push(
+              await recordActivity(tx, ctx, {
+                type: 'script.called',
+                projectId: after.projectId,
+                issueId: after.id,
+                payload: { issue: ref, data: { webhook: x.hook!.id, name: x.name, body: x.body } },
+              }),
+            );
+          }
+        }
 
         const changed = res.changes.length > 0 || res.others.length > 0;
-        const acted = changed || told.length > 0 || Boolean(call?.ok);
+        const acted = changed || told.length > 0 || Boolean(call?.ok) || calls.some((x) => x.ok);
         if (chain.origin !== null || acted) {
           const said = [
             res.changes.length ? changeWords(res.changes) : '',
             res.others.length ? `Also changed ${othersWords(res.others)}` : '',
             told.length ? `Told ${people(told)}` : d.notify ? 'Had nobody to tell: whoever set it off isn’t told, and only people who can see the issue are' : '',
             call?.ok ? `Called ${call.origin ?? 'its webhook'}` : call ? call.why : '',
+            ...calls.map((x) => (x.ok ? `Called ${x.name}` : x.why)),
           ].filter(Boolean);
           const words: NoteSaid[] = [
             ...changesSaid(res.changes),
             ...(res.others.length ? [othersSaid(res.others)] : []),
             ...(told.length ? [toldSaid(told)] : d.notify ? [{ key: 'rules.run.toldNobody' }] : []),
             ...(call?.ok ? [call.origin ? { key: 'rules.run.called', values: { origin: call.origin } } : { key: 'rules.run.calledItsWebhook' }] : call ? [{ key: call.whyKey }] : []),
+            ...calls.map((x) => (x.ok ? { key: 'rules.run.called', values: { origin: x.name } } : { key: x.whyKey })),
           ];
           const claimed = await tx
             .insert(ruleRuns)
@@ -485,6 +511,21 @@ export class RuleEngine {
       await this.record(s, rule, issue, chain, 'failed', errorText(e), [errorSaid(e)]);
       return 'failed';
     }
+  }
+
+  /** A script's call, resolved: which webhook it names, and whether it can be called now. */
+  private async callsOf(projectId: string, asked: { webhook: string; body: string }[]): Promise<CallOutcome[]> {
+    // A script names a webhook as its page does: by origin, never its path, which can hold a secret (D32).
+    const rows = await this.app.db.select().from(webhooks).where(or(eq(webhooks.projectId, projectId), isNull(webhooks.projectId)));
+    return asked.map((x) => {
+      const named = rows.filter((h) => webhookOrigin(h.url) === x.webhook);
+      if (!named.length) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `It called ${x.webhook}, which isn't a webhook of this project`, whyKey: 'rules.run.scriptCalledNobody' };
+      if (named.length > 1) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `More than one webhook has the origin ${x.webhook}, so nothing was called`, whyKey: 'rules.run.scriptCalledAmbiguous' };
+      const hook = named[0]!;
+      if (!callableUrl(hook.url)) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `Its webhook's address isn't https, so ${x.webhook} wasn't called`, whyKey: 'rules.run.webhookNotHttps' };
+      if (!hook.active) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `Its webhook is paused, so ${x.webhook} wasn't called`, whyKey: 'rules.run.webhookPaused' };
+      return { name: x.webhook, body: x.body, ok: true, hook, why: '', whyKey: '' };
+    });
   }
 
   /** Whether the webhook a rule calls can be called now: there, on, and https (or this machine). */
