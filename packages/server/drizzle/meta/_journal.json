@@ -337,6 +337,13 @@
       "when": 1795016131172,
       "tag": "0047_ai_drafted_words",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795016132172,
+      "tag": "0048_personal_whiteboards",
+      "breakpoints": true
     }
   ]
 }

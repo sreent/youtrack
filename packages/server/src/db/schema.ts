@@ -3004,15 +3004,19 @@ export const whiteboards = pgTable(
   'whiteboards',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
+    /** A project's whiteboard; null for a person's own, shared as below (D58's revisit). */
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     /** Its latest change. Each change takes the next under the whiteboard's row lock, so they never cross. */
     seq: bigint('seq', { mode: 'number' }).notNull().default(0),
+    /** Who it belongs to: for a person's whiteboard, whoever made it (createdById). */
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
+    /** Who besides its owner reads and changes a personal whiteboard: everyone signed in, or the people and groups named. */
+    share: text('share').notNull().default('everyone'),
+    /** Its people (logins) and groups (ids), when share is 'limited'. */
+    sharedWith: jsonb('shared_with').notNull().default({ people: [], groups: [] }),
   },
   (t) => [index('whiteboards_project').on(t.projectId)],
 );
