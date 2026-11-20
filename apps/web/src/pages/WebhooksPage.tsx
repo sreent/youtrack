@@ -48,6 +48,8 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'rule.notified': t('page.webhooks.aWorkflowRuleTellsPeople'),
   'rule.called': t('page.webhooks.aWorkflowRuleCallsIt'),
   'script.called': t('page.webhooks.aWorkflowScriptCallsIt'),
+  'timesheet.submitted': t('page.webhooks.aTimesheetIsSubmitted'),
+  'timesheet.approved': t('page.webhooks.aTimesheetIsApproved'),
   'project.group.added': t('page.webhooks.aGroupIsGivenA'),
   'project.group.changed': t('page.webhooks.aGroupSRoleIn'),
   'project.group.removed': t('page.webhooks.aGroupIsTakenOut'),
@@ -115,6 +117,8 @@ const EVENT_LABELS: Record<Subscribable, string> = {
   'whiteboard.converted': t('page.webhooks.label.whiteboardConverted'),
   'project.portal_sign_in.changed': t('page.webhooks.label.projectPortalSignInChanged'),
   'project.request_ccs.changed': t('page.webhooks.label.projectRequestCcsChanged'),
+  'timesheet.submitted': t('page.webhooks.label.timesheetSubmitted'),
+  'timesheet.approved': t('page.webhooks.label.timesheetApproved'),
 };
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';

@@ -7,7 +7,7 @@ import { RANK_KEY_LIMIT, keyBetween, keysBetween } from '@a4a/shared/ranks';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { boardLaneRanks, boardMoves, boardRanks, boards, issues, sprintIssues, sprints, users, workItems } from '../db/schema';
+import { boardLaneRanks, boardMoves, boardRanks, boards, issues, projectMembers, sprintIssues, sprints, users, workItems } from '../db/schema';
 import { translatorFor } from '../i18n';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { diffDays } from '../lib/dates';
@@ -18,7 +18,7 @@ import type { PlanResource } from '../planning/types';
 import { todayIn } from '../reports/tz';
 import { searchIssueRows } from '../search/service';
 import { absencesForPlan } from './absences';
-import { assertCanWriteProject, projectAccess, type AccessView } from './access';
+import { assertCanWriteProject, loadRoles, projectAccess, type AccessView } from './access';
 import {
   MAX_BOARD_ISSUES,
   boardCardRows,
@@ -475,6 +475,11 @@ export async function sprintPlan(ctx: Ctx, sprintId: string): Promise<SprintPlan
     if (!issue.resolvedAt) row.loadMinutes += Math.max(0, minutesOfValue(issue, estimate) - (spent.get(issue.uid) ?? 0));
   }
 
+  // A team is more than a sprint's assignees (D43's revisit): the projects' members who can change
+  // their issues, each with their capacity, so a person with nothing in it yet is seen.
+  const teamIds = await projectWorkers(ctx.db, readable);
+  for (const id of teamIds) if (!byUser.has(id)) byUser.set(id, { userId: id, issues: 0, points: 0, loadMinutes: 0 });
+
   const today = todayIn(zoneOf(ctx));
   const from = sprint.startDate && sprint.endDate ? (sprint.startDate > today ? sprint.startDate : today) : null;
   const to = sprint.startDate && sprint.endDate ? sprint.endDate : null;
@@ -518,4 +523,21 @@ export async function sprintPlan(ctx: Ctx, sprintId: string): Promise<SprintPlan
       capacityHours: from && to ? round1(named.reduce((sum, p) => sum + (p.capacityHours ?? 0), 0)) : null,
     },
   };
+}
+/** The people who can change a board's projects' issues: their direct members whose role grants edit (D43's revisit). */
+async function projectWorkers(db: Db, projectIds: readonly string[]): Promise<string[]> {
+  if (!projectIds.length) return [];
+  const roles = await loadRoles(db);
+  const rows = await db
+    .select({ userId: projectMembers.userId, role: projectMembers.role, banned: users.banned, isBot: users.isBot })
+    .from(projectMembers)
+    .innerJoin(users, eq(users.id, projectMembers.userId))
+    .where(inArray(projectMembers.projectId, [...projectIds]));
+  const out: string[] = [];
+  for (const r of rows) {
+    if (r.banned || r.isBot || out.includes(r.userId)) continue;
+    const role = roles.get(r.role);
+    if (role && role.permissions.has('edit')) out.push(r.userId);
+  }
+  return out;
 }

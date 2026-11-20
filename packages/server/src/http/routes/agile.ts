@@ -19,7 +19,7 @@ import {
 } from '@a4a/shared';
 import { z } from 'zod';
 import { getBacklog, rankIssue, sprintPlan, velocity } from '../../services/agile';
-import { discardTimer, getTimesheet, listTimers, pauseTimer, setTimesheetCell, startTimer, stopTimer } from '../../services/time';
+import { approveTimesheet, discardTimer, getTimesheet, listTimers, pauseTimer, reopenTimesheet, setTimesheetCell, startTimer, stopTimer, submitTimesheet } from '../../services/time';
 import { updateWorkItem } from '../../services/workitems';
 import { createWorkType, deleteWorkType, listWorkTypes, updateWorkType } from '../../services/work-types';
 import type { HttpEnv } from '../env';

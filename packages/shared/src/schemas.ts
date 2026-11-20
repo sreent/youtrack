@@ -3447,6 +3447,9 @@ export const TimesheetSchema = z
   .object({
     user: UserRefSchema,
     week: isoDate.describe('Its Monday'),
+    status: z.enum(['open', 'submitted', 'approved']).describe("The week's state (D43's revisit): open to change, submitted to a manager, or approved"),
+    submittedAt: timestamp.nullable(),
+    approvedBy: UserRefSchema.nullable().describe('Who approved it, when it is'),
     days: z.array(isoDate).length(7),
     hours: z.array(z.number()).length(7).describe('Their working hours each day: their working week, less days away'),
     totals: z.array(z.number().int()).length(7).describe('Minutes logged each day'),
@@ -3464,6 +3467,10 @@ export type Timesheet = z.infer<typeof TimesheetSchema>;
 export const TimesheetQuery = z.object({
   week: isoDate.optional().describe('Any day of the week; this week by default'),
   user: z.string().optional().describe('Whose (a login); yours by default. Administrators only for others'),
+});
+export const TimesheetWeekBody = z.object({
+  week: isoDate.optional().describe('Any day of the week; this week by default'),
+  user: z.string().optional().describe('Whose (a login); yours by default'),
 });
 export const TimesheetCellBody = z.object({
   issue: z.string(),

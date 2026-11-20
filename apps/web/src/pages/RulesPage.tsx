@@ -9,7 +9,9 @@ import { EXAMPLES, RuleForm, type Draft } from '../features/rules/RuleForm';
 import { RuleRuns } from '../features/rules/RuleRuns';
 import { Actions } from '../features/workflow/Actions';
 import { Machines } from '../features/workflow/Machines';
+import { get, put } from '../api/client';
 import { t, tr } from '../i18n';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
 /**
@@ -17,6 +19,53 @@ import type { ReactNode } from 'react';
  * languages, previewed before they're saved, and what they did. Its managers (administrators
  * among them) change them; anyone who can see the project can see them.
  */
+/** The project's script library (D40's revisit): shared code every script runs with, as `library`. */
+function Library({ project, isAdmin, said }: { project: string; isAdmin: boolean; said: (s: string | null) => void }) {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['script-library', project], queryFn: () => get<{ source: string }>(`/projects/${encodeURIComponent(project)}/script-library`) });
+  const [text, setText] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const source = text ?? q.data?.source ?? '';
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await put<{ source: string }>(`/projects/${encodeURIComponent(project)}/script-library`, { source });
+      qc.setQueryData(['script-library', project], next);
+      setText(null);
+      said(t('page.rules.librarySaved'));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (q.isLoading) return null;
+  return (
+    <section className="card" aria-labelledby="library-title">
+      <div className="section-head">
+        <h2 id="library-title">{t('page.rules.library')}</h2>
+        <span className="note">{t('page.rules.libraryAbout')}</span>
+      </div>
+      {isAdmin ? (
+        <div className="stack">
+          <FormField label={t('page.rules.libraryCode')}>
+            {(id) => <textarea id={id} rows={8} className="mono" maxLength={20_000} value={source} onChange={(e) => setText(e.target.value)} placeholder="({ daysBetween: (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000) })" />}
+          </FormField>
+          {error ? <ErrorNote error={new Error(error)} /> : null}
+          <div className="cluster">
+            <button type="button" className="primary" onClick={() => void save()} disabled={busy || source === q.data?.source}>
+              {t('page.rules.librarySave')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="note">{t('page.rules.libraryReadOnly')}</p>
+      )}
+    </section>
+  );
+}
 export default function RulesPage() {
   const { project: param } = useParams();
   const navigate = useNavigate();
@@ -165,6 +214,7 @@ export default function RulesPage() {
       ) : null}
 
       <Machines project={project.key} projectName={project.name} fields={fields.data ?? []} manages={manages} />
+      <Library project={project.key} isAdmin={isAdmin && scopes.includes('write')} said={setSaid} />
       <Actions project={project.key} projectName={project.name} manages={manages} isAdmin={isAdmin && scopes.includes('write')} />
 
       <section className="card" aria-labelledby="runs-title">
