@@ -17610,7 +17610,21 @@
      "isUnique": true
     }
    },
-   "foreignKeys": {},
+   "foreignKeys": {
+    "chat_posts_channel_id_chat_channels_id_fk": {
+     "name": "chat_posts_channel_id_chat_channels_id_fk",
+     "tableFrom": "chat_posts",
+     "tableTo": "chat_channels",
+     "columnsFrom": [
+      "channel_id"
+     ],
+     "columnsTo": [
+      "id"
+     ],
+     "onDelete": "cascade",
+     "onUpdate": "no action"
+    }
+   },
    "compositePrimaryKeys": {},
    "uniqueConstraints": {},
    "policies": {},
