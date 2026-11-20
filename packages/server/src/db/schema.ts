@@ -760,6 +760,8 @@ export const rules = pgTable(
      * scheduled rule) or of what it requires (a guard). Only administrators write scripts.
      */
     script: text('script'),
+    /** Runs from the queue (D40's revisit): a worker of its own runs it, so it may take its time. */
+    queued: boolean('queued').notNull().default(false),
     /** The app that installed it (D48): it acts as that app's agent, where the app is enabled, and goes with it. */
     appId: text('app_id').references((): AnyPgColumn => apps.id, { onDelete: 'cascade' }),
     enabled: boolean('enabled').notNull().default(true),
@@ -810,6 +812,24 @@ export const ruleRuns = pgTable(
     uniqueIndex('rule_runs_once').on(t.ruleId, t.issueId, t.originId).where(sql`${t.originId} IS NOT NULL`),
   ],
 );
+export const scriptJobs = pgTable(
+  'script_jobs',
+  {
+    id: text('id').primaryKey(),
+    ruleId: text('rule_id').notNull(),
+    projectId: text('project_id').notNull(),
+    issueId: text('issue_id').notNull(),
+    /** The event's origin, for the run's claim: a replayed event makes no second job. */
+    origin: text('origin'),
+    /** The script's frozen input, as it was when the rule fired. */
+    input: jsonb('input').notNull(),
+    state: text('state').notNull().default('queued'),
+    claimedAt: ts('claimed_at'),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex('script_jobs_once').on(t.ruleId, t.issueId, t.origin)],
+);
+
 
 // ---------------------------------------------------------------------------
 // Version control: GitHub, GitLab, Bitbucket, Gitea and Forgejo send pushes and pull requests here

@@ -162,6 +162,7 @@ export function draftOf(row: RuleRow): Draft {
     notify: notifyOf(row.notify),
     callWebhookId: row.callWebhookId,
     script: row.script ?? null,
+    queued: row.queued,
     enabled: row.enabled,
   };
 }

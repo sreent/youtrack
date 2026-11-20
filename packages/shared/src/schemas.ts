@@ -2317,6 +2317,7 @@ export const RuleSchema = z
       .nullable()
       .describe('The webhook it calls, if any'),
     script: z.string().nullable().describe('A scripted rule\'s JavaScript (D40), or null'),
+    queued: z.boolean().describe("Runs from the queue (D40's revisit): a worker runs it, so it may take its time"),
     enabled: z.boolean(),
     sentence: z.string().describe('The rule in words: "When an issue is created, if it matches …, then apply …"'),
     problems: z
