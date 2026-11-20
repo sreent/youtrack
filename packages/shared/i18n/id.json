@@ -4144,6 +4144,7 @@
   "plan.resources.nothingMoves": "{v} Tidak ada yang bergeser.",
   "plan.resources.nothingMovesUntilYouLevelThem": "{outcome} {finish} Tidak ada yang bergeser sampai Anda meratakannya{n, plural, other {}}.",
   "plan.resources.nothingWasLevelled": "Tidak ada yang diratakan",
+  "plan.resources.nothingYet": "Belum ada",
   "plan.resources.nowStartsItsHistorySays": "{issue} kini dimulai {dayMonth}. Riwayatnya mencatat bahwa perataan beban menggesernya. Rencana berakhir {dayMonth2}.",
   "plan.resources.of": "dari {hours}",
   "plan.resources.ofWorkInTheseDays": "{hours} pekerjaan pada hari-hari ini belum ditugaskan kepada siapa pun, jadi tidak tampil di tabel.",

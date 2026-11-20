@@ -4144,6 +4144,7 @@
   "plan.resources.nothingMoves": "{v}何も移動しません。",
   "plan.resources.nothingMovesUntilYouLevelThem": "{outcome}{finish}平準化するまで何も移動しません。{n, plural, other {}}",
   "plan.resources.nothingWasLevelled": "何も平準化されませんでした",
+  "plan.resources.nothingYet": "まだ何も",
   "plan.resources.nowStartsItsHistorySays": "{issue}の開始は{dayMonth}になりました。平準化による移動が履歴に記録されています。計画の終了は{dayMonth2}です。",
   "plan.resources.of": "/ {hours}",
   "plan.resources.ofWorkInTheseDays": "この期間の{hours}分の作業には担当者がいないため、グリッドに含まれていません。",

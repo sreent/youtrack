@@ -4144,6 +4144,7 @@
   "plan.resources.nothingMoves": "{v} 옮겨지는 작업은 없습니다.",
   "plan.resources.nothingMovesUntilYouLevelThem": "{outcome} {finish} 평준화하기 전까지는 {n, plural, other {아무것도 옮겨지지 않습니다}}.",
   "plan.resources.nothingWasLevelled": "평준화하지 않음",
+  "plan.resources.nothingYet": "아직 없음",
   "plan.resources.nowStartsItsHistorySays": "{issue}은(는) 이제 {dayMonth}에 시작합니다. 이슈 기록에 평준화로 옮겼다고 남습니다. 계획은 {dayMonth2}에 끝납니다.",
   "plan.resources.of": "/ {hours}",
   "plan.resources.ofWorkInTheseDays": "이 기간의 작업 {hours}은(는) 담당자가 없어 표에 나오지 않습니다.",

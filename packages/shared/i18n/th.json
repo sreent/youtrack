@@ -4144,6 +4144,7 @@
   "plan.resources.nothingMoves": "{v} ไม่มีอะไรย้าย",
   "plan.resources.nothingMovesUntilYouLevelThem": "{outcome} {finish} จะยังไม่มีอะไรย้ายจนกว่าคุณจะปรับระดับ{n, plural, other {}}",
   "plan.resources.nothingWasLevelled": "ไม่ได้ปรับระดับอะไร",
+  "plan.resources.nothingYet": "ยังไม่มี",
   "plan.resources.nowStartsItsHistorySays": "ตอนนี้ {issue} เริ่ม {dayMonth} ประวัติบันทึกว่าการปรับระดับย้ายงานนี้ แผนสิ้นสุด {dayMonth2}",
   "plan.resources.of": "จาก {hours}",
   "plan.resources.ofWorkInTheseDays": "งาน {hours} ในวันเหล่านี้ไม่มีผู้รับผิดชอบ จึงไม่อยู่ในตาราง",

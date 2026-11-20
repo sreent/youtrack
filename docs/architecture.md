@@ -914,7 +914,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
   - an agent's: agents are never away.
 
   A change checks the version read.
-- **The load grid's window** is each person's choice: two weeks, a month or a quarter from today, the plan's end, or two dates. It's kept for them in `user_preferences`, the same on every plan and every device. Choosing it needs only reading, as notification settings do, so a viewer chooses what they see too.
+- **The load grid's people** are the plan's assignees, and the project's members who can change its issues (D43's revisit): a person with nothing planned still shows their capacity, marked on the page, so the whole team is on the grid. Its window is each person's choice: two weeks, a month or a quarter from today, the plan's end, or two dates. It's kept for them in `user_preferences`, the same on every plan and every device. Choosing it needs only reading, as notification settings do, so a viewer chooses what they see too.
 - **A board with lanes** scrolls in a frame of its own, at most the window's height, so its column heads stay in view (Ocean's `.held`). It scrolls sideways in that frame too, so its heads can stay in view only within it.
 
 **What it costs.**

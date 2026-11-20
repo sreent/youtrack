@@ -4144,6 +4144,7 @@
   "plan.resources.nothingMoves": "{v} Rien ne bouge.",
   "plan.resources.nothingMovesUntilYouLevelThem": "{outcome} {finish} Rien ne bouge tant que vous ne {n, plural, one {la nivelez} other {les nivelez}} pas.",
   "plan.resources.nothingWasLevelled": "Rien n’a été nivelé",
+  "plan.resources.nothingYet": "Rien encore",
   "plan.resources.nowStartsItsHistorySays": "{issue} commence maintenant le {dayMonth}. Son historique indique que le nivellement l’a déplacé. Le planning se termine le {dayMonth2}.",
   "plan.resources.of": "sur {hours}",
   "plan.resources.ofWorkInTheseDays": "Sur ces jours, du travail sans responsable ({hours}) ne figure pas dans la grille.",

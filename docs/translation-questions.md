@@ -151,6 +151,10 @@ Messages added with the queued scripts:
 With the posts that change in place:
 
 - Die Beiträge ändern sich an Ort und Stelle – keine neuen Wörter; eine Frage: soll die Änderung im Kanal als „bearbeitet“ erkennbar sein, oder reicht der stille Austausch des Inhalts?
+
+Messages added with the load grid's team:
+
+- Die Lastanzeige: `plan.resources.nothingYet` = „Noch nichts“ neben einer Person ohne geplante Arbeit — passt das knappe Wort?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -302,6 +306,10 @@ Messages added with the queued scripts:
 With the posts that change in place:
 
 - Las publicaciones cambian en su sitio – sin palabras nuevas; una pregunta: ¿debería verse en el canal que se editó, o basta con el contenido reemplazado en silencio?
+
+Messages added with the load grid's team:
+
+- La carga: `plan.resources.nothingYet` = “Nada aún” junto a una persona sin trabajo planificado — ¿encaja la palabra breve?
 ## French
 
 Terms:
@@ -453,6 +461,10 @@ Messages added with the queued scripts:
 With the posts that change in place:
 
 - Les messages changent sur place – pas de mots nouveaux ; une question : faut-il montrer dans le canal que c'est une édition, ou le contenu remplacé en silence suffit-il ?
+
+Messages added with the load grid's team:
+
+- La charge : `plan.resources.nothingYet` = “Rien encore” à côté d'une personne sans travail planifié — le mot bref convient-il ?
 ## Japanese
 
 Terms:
@@ -596,6 +608,10 @@ Messages added with the queued scripts:
 With the posts that change in place:
 
 - 投稿はその場で変わります（新しい言葉はありません）。質問: チャネルに編集したことを示すべきですか、静かに差し替えるだけで良いですか。
+
+Messages added with the load grid's team:
+
+- 負荷グリッド: 計画のない人の横の `plan.resources.nothingYet` = “まだ何も” — 短い言葉で伝わりますか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -718,6 +734,10 @@ Messages added with the queued scripts:
 With the posts that change in place:
 
 - As publicações mudam no sítio – sem palavras novas; uma pergunta: deve ver-se no canal que foi editada, ou basta o conteúdo trocado em silêncio?
+
+Messages added with the load grid's team:
+
+- A carga: `plan.resources.nothingYet` = “Nada ainda” ao lado de quem não tem trabalho planeado — a palavra breve serve?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -889,6 +909,10 @@ Messages added with the queued scripts:
 With the posts that change in place:
 
 - 게시물은 제자리에서 바뀝니다 – 새 문구는 없습니다. 질문: 채널에서 편집했음을 보여주어야 할까요, 아니면 조용히 바뀌는 것으로 충분할까요?
+
+Messages added with the load grid's team:
+
+- 부하: 계획된 업무가 없는 사람 옆의 `plan.resources.nothingYet` = “아직 없음” — 짧은 말로 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -1051,6 +1075,10 @@ Messages added with the queued scripts:
 With the posts that change in place:
 
 - 帖子就地变化，没有新词。问题：应该在频道里标明“已编辑”，还是静静替换内容就好？
+
+Messages added with the load grid's team:
+
+- 负荷格：没有计划工作的人旁边的 `plan.resources.nothingYet` = “还没有” ——简短的词能传达吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1225,6 +1253,10 @@ Messages added with the queued scripts:
 With the posts that change in place:
 
 - Bài đăng thay đổi ngay tại chỗ – không có từ mới. Câu hỏi: có nên cho kênh thấy là đã sửa, hay chỉ cần thay nội dung trong im lặng?
+
+Messages added with the load grid's team:
+
+- Tải: `plan.resources.nothingYet` = “Chưa có gì” cạnh người chưa có việc được lên kế hoạch — từ ngắn có ổn không?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1396,6 +1428,10 @@ Messages added with the queued scripts:
 With the posts that change in place:
 
 - Kiriman berubah di tempatnya – tanpa kata baru. Pertanyaan: perlukah saluran menandai bahwa kiriman diedit, atau cukup isinya diganti diam-diam?
+
+Messages added with the load grid's team:
+
+- Beban: `plan.resources.nothingYet` = “Belum ada” di samping orang tanpa pekerjaan terencana — apakah kata singkatnya pas?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1568,6 +1604,10 @@ Messages added with the queued scripts:
 With the posts that change in place:
 
 - โพสต์เปลี่ยนที่เดิม – ไม่มีถ้อยคำใหม่ คำถาม: ควรให้ช่องเห็นว่าแก้ไขแล้ว หรือแทนที่เนื้อหาเงียบๆ ก็พอ
+
+Messages added with the load grid's team:
+
+- ภาระ: `plan.resources.nothingYet` = “ยังไม่มี” ข้างคนที่ยังไม่มีงานที่วางแผน — คำสั้นๆ เหมาะสมไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

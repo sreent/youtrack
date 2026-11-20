@@ -4144,6 +4144,7 @@
   "plan.resources.nothingMoves": "{v} No se mueve nada.",
   "plan.resources.nothingMovesUntilYouLevelThem": "{outcome} {finish} No se mueve nada hasta que {n, plural, one {la niveles} other {las niveles}}.",
   "plan.resources.nothingWasLevelled": "No se ha nivelado nada",
+  "plan.resources.nothingYet": "Nada aún",
   "plan.resources.nowStartsItsHistorySays": "{issue} empieza ahora el {dayMonth}. Su historial dice que la nivelación la movió. El plan termina el {dayMonth2}.",
   "plan.resources.of": "de {hours}",
   "plan.resources.ofWorkInTheseDays": "En estos días hay {hours} de trabajo sin nadie asignado, que no aparece en la cuadrícula.",

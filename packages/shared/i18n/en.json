@@ -4144,6 +4144,7 @@
   "plan.resources.nothingMoves": "{v} Nothing moves.",
   "plan.resources.nothingMovesUntilYouLevelThem": "{outcome} {finish} Nothing moves until you level {n, plural, one {it} other {them}}.",
   "plan.resources.nothingWasLevelled": "Nothing was levelled",
+  "plan.resources.nothingYet": "Nothing yet",
   "plan.resources.nowStartsItsHistorySays": "{issue} now starts {dayMonth}. Its history says levelling moved it. The plan ends {dayMonth2}.",
   "plan.resources.of": "of {hours}",
   "plan.resources.ofWorkInTheseDays": "{hours} of work in these days has nobody assigned, so it isn't in the grid.",

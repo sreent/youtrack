@@ -4144,6 +4144,7 @@
   "plan.resources.nothingMoves": "{v} Nichts verschiebt sich.",
   "plan.resources.nothingMovesUntilYouLevelThem": "{outcome} {finish} Nichts verschiebt sich, bis Sie {n, plural, one {sie} other {sie}} abgleichen.",
   "plan.resources.nothingWasLevelled": "Nichts wurde abgeglichen",
+  "plan.resources.nothingYet": "Noch nichts",
   "plan.resources.nowStartsItsHistorySays": "{issue} beginnt jetzt am {dayMonth}. Sein Verlauf vermerkt, dass der Kapazitätsabgleich ihn verschoben hat. Der Plan endet am {dayMonth2}.",
   "plan.resources.of": "von {hours}",
   "plan.resources.ofWorkInTheseDays": "{hours} Arbeit an diesen Tagen ist niemandem zugewiesen und steht deshalb nicht im Raster.",

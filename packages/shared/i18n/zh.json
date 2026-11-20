@@ -4144,6 +4144,7 @@
   "plan.resources.nothingMoves": "{v}没有任何移动。",
   "plan.resources.nothingMovesUntilYouLevelThem": "{outcome}{finish}执行平衡之前，{n, plural, =1 {任务} other {这些任务}}不会移动。",
   "plan.resources.nothingWasLevelled": "没有平衡任何任务",
+  "plan.resources.nothingYet": "还没有",
   "plan.resources.nowStartsItsHistorySays": "{issue} 改为 {dayMonth}开始，历史记录中注明由资源平衡移动。计划于 {dayMonth2}结束。",
   "plan.resources.of": "/ {hours}",
   "plan.resources.ofWorkInTheseDays": "这些天中有 {hours} 的工作无人指派，因此不在表格中。",

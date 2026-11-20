@@ -525,7 +525,7 @@ export async function sprintPlan(ctx: Ctx, sprintId: string): Promise<SprintPlan
   };
 }
 /** The people who can change a board's projects' issues: their direct members whose role grants edit (D43's revisit). */
-async function projectWorkers(db: Db, projectIds: readonly string[]): Promise<string[]> {
+export async function projectWorkers(db: Db, projectIds: readonly string[]): Promise<string[]> {
   if (!projectIds.length) return [];
   const roles = await loadRoles(db);
   const rows = await db

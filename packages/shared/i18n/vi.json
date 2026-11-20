@@ -4144,6 +4144,7 @@
   "plan.resources.nothingMoves": "{v} Không có gì dời.",
   "plan.resources.nothingMovesUntilYouLevelThem": "{outcome} {finish} Không có gì dời cho đến khi bạn cân bằng{n, plural, other {}}.",
   "plan.resources.nothingWasLevelled": "Chưa cân bằng công việc nào",
+  "plan.resources.nothingYet": "Chưa có gì",
   "plan.resources.nowStartsItsHistorySays": "{issue} giờ bắt đầu {dayMonth}. Lịch sử ghi rằng cân bằng nguồn lực đã dời công việc. Kế hoạch kết thúc {dayMonth2}.",
   "plan.resources.of": "trên {hours}",
   "plan.resources.ofWorkInTheseDays": "{hours} công việc trong những ngày này chưa giao cho ai, nên không có trong lưới.",
