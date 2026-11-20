@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "Ce formulaire a expiré ou n’est pas le vôtre : recommencez à partir du message.",
   "server.chat.issue.files": "{n, plural, =1 {Le fichier du message est ajouté au ticket sous forme de lien, sans être copié.} other {Les # fichiers du message sont ajoutés au ticket sous forme de liens, sans être copiés.}}",
   "server.chat.issue.from": "À partir du message de {author} dans {channel}.",
+  "server.chat.issue.isShared": "a partagé le ticket",
   "server.chat.issue.made": "{id} a été créé à partir du message.",
   "server.chat.issue.madeAlready": "{id} a déjà été créé à partir de ce message.",
   "server.chat.issue.noProjects": "Vous ne pouvez encore créer de tickets dans aucun projet.",

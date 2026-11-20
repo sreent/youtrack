@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "This form has expired, or isn’t yours: start again from the message.",
   "server.chat.issue.files": "{n, plural, one {The message’s file is linked from the issue, not copied.} other {The message’s # files are linked from the issue, not copied.}}",
   "server.chat.issue.from": "From {author}’s message in {channel}.",
+  "server.chat.issue.isShared": "shared the issue",
   "server.chat.issue.made": "Created {id} from the message.",
   "server.chat.issue.madeAlready": "{id} was created from this message already.",
   "server.chat.issue.noProjects": "You can create issues in no project yet.",

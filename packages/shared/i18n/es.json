@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "Este formulario ha caducado o no es tuyo: empieza de nuevo desde el mensaje.",
   "server.chat.issue.files": "{n, plural, one {El archivo del mensaje se enlaza desde la incidencia, sin copiarlo.} other {Los # archivos del mensaje se enlazan desde la incidencia, sin copiarlos.}}",
   "server.chat.issue.from": "Del mensaje de {author} en {channel}.",
+  "server.chat.issue.isShared": "compartió la incidencia",
   "server.chat.issue.made": "Se ha creado {id} a partir del mensaje.",
   "server.chat.issue.madeAlready": "{id} ya se creó a partir de este mensaje.",
   "server.chat.issue.noProjects": "Todavía no puedes crear incidencias en ningún proyecto.",

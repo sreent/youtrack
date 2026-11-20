@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "Dieses Formular ist abgelaufen oder gehört nicht Ihnen: Beginnen Sie noch einmal bei der Nachricht.",
   "server.chat.issue.files": "{n, plural, one {Die Datei der Nachricht wird im Vorgang verlinkt, nicht kopiert.} other {Die # Dateien der Nachricht werden im Vorgang verlinkt, nicht kopiert.}}",
   "server.chat.issue.from": "Aus der Nachricht von {author} in {channel}.",
+  "server.chat.issue.isShared": "hat den Vorgang geteilt",
   "server.chat.issue.made": "{id} wurde aus der Nachricht angelegt.",
   "server.chat.issue.madeAlready": "{id} wurde bereits aus dieser Nachricht angelegt.",
   "server.chat.issue.noProjects": "Sie können noch in keinem Projekt Vorgänge anlegen.",

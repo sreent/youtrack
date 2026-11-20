@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "Formulir ini sudah kedaluwarsa, atau bukan milik Anda: mulai lagi dari pesannya.",
   "server.chat.issue.files": "{n, plural, =1 {File pesan ini ditautkan dari isu, tidak disalin.} other {# file pesan ini ditautkan dari isu, tidak disalin.}}",
   "server.chat.issue.from": "Dari pesan {author} di {channel}.",
+  "server.chat.issue.isShared": "membagikan tiketnya",
   "server.chat.issue.made": "{id} dibuat dari pesan ini.",
   "server.chat.issue.madeAlready": "{id} sudah dibuat dari pesan ini.",
   "server.chat.issue.noProjects": "Anda belum dapat membuat isu di proyek mana pun.",

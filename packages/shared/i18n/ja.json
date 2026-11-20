@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "このフォームは期限切れか、あなたのものではありません。メッセージからやり直してください。",
   "server.chat.issue.files": "{n, plural, =1 {メッセージのファイルは、コピーせずに課題からリンクします。} other {メッセージの#個のファイルは、コピーせずに課題からリンクします。}}",
   "server.chat.issue.from": "{channel}での{author}のメッセージから作成します。",
+  "server.chat.issue.isShared": "がチケットを共有しました",
   "server.chat.issue.made": "メッセージから{id}を作成しました。",
   "server.chat.issue.madeAlready": "このメッセージからは、すでに{id}が作成されています。",
   "server.chat.issue.noProjects": "課題を作成できるプロジェクトがまだありません。",

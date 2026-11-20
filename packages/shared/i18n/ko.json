@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "이 양식은 만료되었거나 본인이 연 양식이 아닙니다. 메시지에서 다시 시작하세요.",
   "server.chat.issue.files": "{n, plural, other {메시지의 파일 #개는 이슈에 복사하지 않고 링크로 남깁니다.}}",
   "server.chat.issue.from": "{channel}에 게시된 {author}의 메시지에서 만듭니다.",
+  "server.chat.issue.isShared": "님이 이슈를 공유했습니다",
   "server.chat.issue.made": "메시지에서 {id}을(를) 만들었습니다.",
   "server.chat.issue.madeAlready": "이 메시지에서 이미 {id}이(가) 만들어졌습니다.",
   "server.chat.issue.noProjects": "아직 이슈를 만들 수 있는 프로젝트가 없습니다.",

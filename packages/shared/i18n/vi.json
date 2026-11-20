@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "Biểu mẫu này đã hết hạn, hoặc không phải của bạn: bắt đầu lại từ tin nhắn.",
   "server.chat.issue.files": "{n, plural, =1 {Vấn đề liên kết đến tệp trong tin nhắn, không sao chép tệp.} other {Vấn đề liên kết đến # tệp trong tin nhắn, không sao chép tệp.}}",
   "server.chat.issue.from": "Từ tin nhắn của {author} trong {channel}.",
+  "server.chat.issue.isShared": "đã chia sẻ vấn đề",
   "server.chat.issue.made": "Đã tạo {id} từ tin nhắn.",
   "server.chat.issue.madeAlready": "Đã tạo {id} từ tin nhắn này trước đó.",
   "server.chat.issue.noProjects": "Bạn chưa thể tạo vấn đề trong dự án nào.",

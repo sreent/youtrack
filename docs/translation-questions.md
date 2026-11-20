@@ -155,6 +155,10 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - Die Lastanzeige: `plan.resources.nothingYet` = „Noch nichts“ neben einer Person ohne geplante Arbeit — passt das knappe Wort?
+
+Messages added with Teams' link unfurling:
+
+- Das Entfalten: `server.chat.issue.isShared` = „hat den Vorgang geteilt“ — passt das Verb auf der Karte?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -310,6 +314,10 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - La carga: `plan.resources.nothingYet` = “Nada aún” junto a una persona sin trabajo planificado — ¿encaja la palabra breve?
+
+Messages added with Teams' link unfurling:
+
+- El despliegue: `server.chat.issue.isShared` = “compartió la incidencia” — ¿encaja el verbo en la tarjeta?
 ## French
 
 Terms:
@@ -465,6 +473,10 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - La charge : `plan.resources.nothingYet` = “Rien encore” à côté d'une personne sans travail planifié — le mot bref convient-il ?
+
+Messages added with Teams' link unfurling:
+
+- Le dépliage : `server.chat.issue.isShared` = “a partagé le ticket” — le verbe convient-il sur la carte ?
 ## Japanese
 
 Terms:
@@ -612,6 +624,10 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - 負荷グリッド: 計画のない人の横の `plan.resources.nothingYet` = “まだ何も” — 短い言葉で伝わりますか。
+
+Messages added with Teams' link unfurling:
+
+- 展開: `server.chat.issue.isShared` = “がチケットを共有しました” — カードの動詞として自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -738,6 +754,10 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - A carga: `plan.resources.nothingYet` = “Nada ainda” ao lado de quem não tem trabalho planeado — a palavra breve serve?
+
+Messages added with Teams' link unfurling:
+
+- O desdobrar: `server.chat.issue.isShared` = “partilhou a tarefa” — o verbo assenta na carta?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -913,6 +933,10 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - 부하: 계획된 업무가 없는 사람 옆의 `plan.resources.nothingYet` = “아직 없음” — 짧은 말로 자연스럽나요?
+
+Messages added with Teams' link unfurling:
+
+- 펼침: `server.chat.issue.isShared` = “님이 이슈를 공유했습니다” — 카드의 동사로 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -1079,6 +1103,10 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - 负荷格：没有计划工作的人旁边的 `plan.resources.nothingYet` = “还没有” ——简短的词能传达吗？
+
+Messages added with Teams' link unfurling:
+
+- 展开：`server.chat.issue.isShared` = “分享了该问题” ——卡片上的动词自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1257,6 +1285,10 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - Tải: `plan.resources.nothingYet` = “Chưa có gì” cạnh người chưa có việc được lên kế hoạch — từ ngắn có ổn không?
+
+Messages added with Teams' link unfurling:
+
+- Mở rộng: `server.chat.issue.isShared` = “đã chia sẻ vấn đề” — động từ trên thẻ có ổn không?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1432,6 +1464,10 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - Beban: `plan.resources.nothingYet` = “Belum ada” di samping orang tanpa pekerjaan terencana — apakah kata singkatnya pas?
+
+Messages added with Teams' link unfurling:
+
+- Membentangkan: `server.chat.issue.isShared` = “membagikan tiketnya” — apakah kata kerjanya pas di kartu?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1608,6 +1644,10 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - ภาระ: `plan.resources.nothingYet` = “ยังไม่มี” ข้างคนที่ยังไม่มีงานที่วางแผน — คำสั้นๆ เหมาะสมไหม
+
+Messages added with Teams' link unfurling:
+
+- การขยาย: `server.chat.issue.isShared` = “แชร์ตั๋วแล้ว” — คำกริยาบนการ์ดเหมาะสมไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

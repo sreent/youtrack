@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "Este formulário expirou ou não é seu: comece novamente pela mensagem.",
   "server.chat.issue.files": "{n, plural, one {O item recebe um link para o ficheiro da mensagem, que não é copiado.} other {O item recebe links para os # ficheiros da mensagem, que não são copiados.}}",
   "server.chat.issue.from": "Da mensagem de {author} em {channel}.",
+  "server.chat.issue.isShared": "partilhou a tarefa",
   "server.chat.issue.made": "{id} criado a partir da mensagem.",
   "server.chat.issue.madeAlready": "{id} já foi criado a partir desta mensagem.",
   "server.chat.issue.noProjects": "Ainda não pode criar itens em nenhum projeto.",

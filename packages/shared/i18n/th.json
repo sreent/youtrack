@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "แบบฟอร์มนี้หมดอายุแล้ว หรือไม่ใช่ของคุณ เริ่มใหม่จากข้อความ",
   "server.chat.issue.files": "{n, plural, =1 {อิชชูลิงก์ไปยังไฟล์ในข้อความ โดยไม่ได้คัดลอกมา} other {อิชชูลิงก์ไปยังไฟล์ในข้อความ # ไฟล์ โดยไม่ได้คัดลอกมา}}",
   "server.chat.issue.from": "จากข้อความของ {author} ใน {channel}",
+  "server.chat.issue.isShared": "แชร์ตั๋วแล้ว",
   "server.chat.issue.made": "สร้าง {id} จากข้อความแล้ว",
   "server.chat.issue.madeAlready": "สร้าง {id} จากข้อความนี้ไปแล้ว",
   "server.chat.issue.noProjects": "ยังไม่มีโปรเจกต์ที่คุณสร้างอิชชูได้",

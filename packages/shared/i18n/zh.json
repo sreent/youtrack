@@ -5863,6 +5863,7 @@
   "server.chat.issue.expired": "此表单已过期或不属于你。请从消息重新开始。",
   "server.chat.issue.files": "{n, plural, =1 {问题会链接消息中的文件，而不是复制文件。} other {问题会链接消息中的 # 个文件，而不是复制文件。}}",
   "server.chat.issue.from": "来自 {author} 在 {channel} 中的消息。",
+  "server.chat.issue.isShared": "分享了该问题",
   "server.chat.issue.made": "已从消息创建 {id}。",
   "server.chat.issue.madeAlready": "已从这条消息创建过 {id}。",
   "server.chat.issue.noProjects": "你还没有可以创建问题的项目。",
