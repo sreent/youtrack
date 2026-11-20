@@ -129,7 +129,7 @@ export const samlProviderKey = (idp: Pick<IdpSettings, 'entityId'>) => `saml:${i
  * was made, the library reads), a second row holds what this sign-in needs back: the browser it
  * started in, and where to go. `takePending` gets it, once the library has taken the request.
  */
-class PostgresCache implements CacheProvider {
+export class PostgresCache implements CacheProvider {
   private consumedKey: string | null = null;
 
   constructor(

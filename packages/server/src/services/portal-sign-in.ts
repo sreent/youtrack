@@ -17,6 +17,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { HelpdeskSignIn, PortalProvider, PortalSignInMethods } from '@a4a/shared';
 import { langTag } from '@a4a/shared/i18n';
 import { and, eq, gt, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
+import { startPortalSaml } from './portal-saml';
 import * as oidc from 'openid-client';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
@@ -504,7 +505,7 @@ export async function changePassword(app: AppServices, requesterId: string, sess
 type Told = 'passwordSet' | 'passwordChanged' | 'provider';
 
 /** An email that how they sign in changed, so someone who did it in their name is found out. Without email, nothing. */
-async function tellOfSignIn(app: AppServices, requesterId: string, what: Told, provider?: string): Promise<void> {
+export async function tellOfSignIn(app: AppServices, requesterId: string, what: Told, provider?: string): Promise<void> {
   const queued = await enqueueMail(app.db, app, {
     kind: 'portal-account',
     dedupeKey: `portal-account:${requesterId}:${what}:${Date.now()}`,
@@ -561,6 +562,7 @@ export async function startPortalSso(app: AppServices, providerId: string, deskK
   const desk = openDesk(s.projectsByKey, deskKey);
   const offered = row && (desk ? deskSignIn(desk).providers.includes(row.id) : taking(s.projects.values()).some((p) => deskSignIn(p).providers.includes(row.id)));
   if (!row || !offered) throw new PortalSsoError('refused', 'No help desk here signs requesters in through that provider');
+  if (row.kind === 'saml') return startPortalSaml(app, row, desk?.key ?? null);
   const configuration = await configurationOf(app, row).catch((e: unknown) => {
     console.error(`portal sso: discovery of ${row.issuer} failed: ${e instanceof Error ? e.message : String(e)}`);
     throw new PortalSsoError('failed', `${row.name} can't be reached just now`);
