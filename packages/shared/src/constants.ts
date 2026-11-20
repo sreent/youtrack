@@ -352,6 +352,8 @@ export const WHITEBOARD_LIMITS = {
   elements: 500,
   /** Characters in a note's or a text block's words. */
   text: 2000,
+  /** Characters in a freehand drawing's stroke (D58's revisit): its points, in its own box. */
+  points: 4000,
   /** Characters in an arrow's label or a section's title. */
   label: 200,
   name: 120,
@@ -369,7 +371,7 @@ export const WHITEBOARD_LIMITS = {
 export const WHITEBOARD_TONES = ['plain', 'idea', 'agreed', 'question', 'problem', 'parked'] as const;
 export type WhiteboardTone = (typeof WHITEBOARD_TONES)[number];
 
-export const WHITEBOARD_KINDS = ['note', 'text', 'issue', 'article', 'arrow', 'section'] as const;
+export const WHITEBOARD_KINDS = ['note', 'text', 'issue', 'article', 'arrow', 'section', 'ink', 'image'] as const;
 export type WhiteboardKind = (typeof WHITEBOARD_KINDS)[number];
 
 /** Whose password sign-in owes a passkey (D68): nobody, everyone, or administrators. */

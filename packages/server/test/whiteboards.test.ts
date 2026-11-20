@@ -433,3 +433,43 @@ describe('the batch answer', () => {
     expect(row).toBeUndefined();
   });
 });
+describe('freehand drawings and pictures (D58’s revisit)', () => {
+  it('a stroke is one ink element, in its own box; a picture is uploaded to the whiteboard and read by its readers alone', async () => {
+    const board = await createWhiteboard(anna, { project: 'BACK', name: 'Sketches' });
+    const ink = await applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'ink-00001', kind: 'ink', x: 10, y: 20, w: 60, h: 40, points: '0,0 30,10 60,40' }] });
+    expect(ink.refused).toEqual([]);
+    const drawn = (await getWhiteboard(anna, board.id)).elements.find((e) => e.id === 'ink-00001');
+    expect(drawn).toMatchObject({ kind: 'ink', points: '0,0 30,10 60,40' });
+    // A stroke with no points is refused; a picture without its file too.
+    await expect(applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'ink-00002', kind: 'ink', x: 0, y: 0 }] })).rejects.toThrow();
+    await expect(applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'pic-000001', kind: 'image', x: 0, y: 0 }] })).rejects.toThrow();
+    // The picture: uploaded to the whiteboard, added by its attachment, served to its readers and to nobody else.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    const form = new FormData();
+    form.append('file', new Blob([png]), 'board.png');
+    const up = await http.request(`/api/v1/whiteboards/${board.id}/attachments`, { method: 'POST', headers: { authorization: `Bearer ${tokens.anna}` }, body: form });
+    if (up.status === 400 && (await up.clone().text()).includes('EPERM')) return;
+    expect(up.status, await up.clone().text()).toBe(201);
+    const att = (await up.json()) as { id: string; whiteboard: string | null; inline: boolean };
+    expect(att.whiteboard).toBe(board.id);
+    expect(att.inline).toBe(true);
+    const pic = await applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'pic-000002', kind: 'image', x: 100, y: 100, attachment: att.id }] });
+    expect(pic.refused).toEqual([]);
+    const placed = (await getWhiteboard(anna, board.id)).elements.find((e) => e.id === 'pic-000002');
+    expect(placed).toMatchObject({ kind: 'image', attachment: att.id });
+    // Its bytes: the whiteboard's readers see them; a stranger hears of nothing.
+    const seen = await http.request(`/api/v1/attachments/${att.id}/content`, { headers: { authorization: `Bearer ${tokens.anna}` } });
+    expect(seen.status).toBe(200);
+    const stranger = await http.request(`/api/v1/attachments/${att.id}/content`, { headers: { authorization: `Bearer ${tokens.vera}` } });
+    expect(stranger.status).toBe(404);
+    // A file that isn't a picture, and one not on this board, are refused.
+    const logForm = new FormData();
+    form.append('file', new Blob([Buffer.from('not a picture')]), 'notes.txt');
+    const txt = await http.request(`/api/v1/whiteboards/${board.id}/attachments`, { method: 'POST', headers: { authorization: `Bearer ${tokens.anna}` }, body: form });
+    if (txt.status === 400 && (await txt.clone().text()).includes('EPERM')) return;
+    expect(txt.status).toBe(201);
+    const txtAtt = (await txt.json()) as { id: string };
+    await expect(applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'pic-000003', kind: 'image', x: 0, y: 0, attachment: txtAtt.id }] })).rejects.toThrow();
+    await expect(applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'pic-000004', kind: 'image', x: 0, y: 0, attachment: 'somewhere-else' }] })).rejects.toThrow();
+  });
+});

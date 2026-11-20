@@ -50,6 +50,7 @@ import {
 import type { HttpEnv } from '../env';
 import { clientIp } from '../middleware';
 import { route } from '../route';
+import { uploadRoute } from './attachments';
 
 const Id = z.object({ id: z.string().min(1).max(40) });
 /** Signals waiting for a slow client before its stream is closed (it reconnects and resumes). */
@@ -172,6 +173,12 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, params, body }) => applyWhiteboardBatch(ctx, params.id, body),
   );
+  // A picture on the whiteboard (D58's revisit): uploaded as every file is, then added by its id.
+  uploadRoute(app, '/whiteboards/{id}/attachments', 'A picture for a whiteboard', 'Uploaded as every file is, in a part named `file`; the batch that adds it names its attachment. Whoever may change the whiteboard may put a picture there; whoever reads it sees the picture. Deleting the whiteboard takes its pictures with it.', async (ctx, id) => {
+    const board = await requireWhiteboard(ctx, id, 'edit');
+    return { kind: 'whiteboard', whiteboard: { id: board.id, projectId: board.projectId, name: board.name } };
+  });
+
   route(
     app,
     {

@@ -35,11 +35,12 @@ import {
 import { and, count, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { articles, issues, whiteboardChanges, whiteboardElements, whiteboards, whiteboardViewers } from '../db/schema';
+import { articles, attachments, issues, whiteboardChanges, whiteboardElements, whiteboards, whiteboardViewers } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { whiteboardLive } from '../events/whiteboard-live';
 import { AppError, badRequest, conflict, errorWords, forbidden, notFound, pageWords, unauthorized } from '../lib/errors';
 import { newId } from '../lib/ids';
+import { isInline } from '../attachments/sniff';
 import { assertCanProject, projectAccess, requireProject, seenArticleIds, seenIssueIds, type AccessView } from './access';
 import { articleReadableId, resolveArticle } from './article-refs';
 import { resolveVisibleTo, visibleToDtos } from './visibility';
@@ -66,6 +67,8 @@ const KINDS: Record<string, { w: number; h: number; sets: readonly Settable[] }>
   article: { w: 240, h: 112, sets: ['x', 'y', 'w', 'h', 'z'] },
   section: { w: 520, h: 360, sets: ['x', 'y', 'w', 'h', 'z', 'text'] },
   arrow: { w: WHITEBOARD_LIMITS.minSize, h: WHITEBOARD_LIMITS.minSize, sets: ['z', 'label'] },
+  ink: { w: 160, h: 120, sets: ['x', 'y', 'w', 'h', 'z'] },
+  image: { w: 320, h: 240, sets: ['x', 'y', 'w', 'h', 'z'] },
 };
 
 const missing = () => notFound('Whiteboard').said('notFound.whiteboard');
@@ -144,6 +147,8 @@ export function elementDto(s: SchemaSnapshot, r: ElementRow): WhiteboardElement 
     from: r.fromId,
     to: r.toId,
     linked: r.linked,
+    points: r.points,
+    attachment: r.attachmentId,
     seq: Number(r.seq),
     version: r.version,
     updatedAt: new Date(r.updatedAt).toISOString(),
@@ -423,6 +428,8 @@ async function writeRows(tx: Db, rows: ElementRow[]) {
           issueId: sql`excluded.issue_id`,
           articleId: sql`excluded.article_id`,
           linked: sql`excluded.linked`,
+          points: sql`excluded.points`,
+          attachmentId: sql`excluded.attachment_id`,
           seq: sql`excluded.seq`,
           version: sql`excluded.version`,
           updatedById: sql`excluded.updated_by_id`,
@@ -516,6 +523,15 @@ export async function applyWhiteboardBatch(ctx: Ctx, id: string, input: Whiteboa
     if (op.kind === 'arrow' && (!op.from || !op.to || op.from === op.to)) {
       throw badRequest('An arrow goes from one element to another', 'Give "from" and "to": two different elements on the whiteboard.').said('whiteboards.arrowNeedsTwoEnds');
     }
+    if (op.kind === 'ink' && !op.points?.trim()) {
+      throw badRequest('A drawing needs its stroke', 'Give "points": the stroke, as x,y pairs in the element\'s own box.').said('whiteboards.inkNeedsStroke');
+    }
+    if (op.kind === 'image') {
+      if (!op.attachment) throw badRequest('A picture needs its file', 'Upload the picture to this whiteboard, then add it by its attachment id.').said('whiteboards.imageNeedsFile');
+      const [file] = await ctx.db.select({ whiteboardId: attachments.whiteboardId, contentType: attachments.contentType }).from(attachments).where(eq(attachments.id, op.attachment));
+      if (!file || file.whiteboardId !== id.trim()) throw badRequest('That file is not on this whiteboard', 'Upload the picture to this whiteboard first, then name its attachment.').said('whiteboards.imageNotOnBoard');
+      if (!isInline(file.contentType)) throw badRequest('A picture on a whiteboard is a PNG, JPEG, GIF or WebP', 'Any other file stays a download in its issue or article.').said('whiteboards.imageNotPicture');
+    }
   }
   const out = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -568,6 +584,8 @@ export async function applyWhiteboardBatch(ctx: Ctx, id: string, input: Whiteboa
           issueId: targets.get(op.id)?.issueId ?? null,
           articleId: targets.get(op.id)?.articleId ?? null,
           linked: null,
+          points: op.kind === 'ink' ? (op.points ?? '') : null,
+          attachmentId: op.kind === 'image' ? (op.attachment ?? null) : null,
           seq,
           version: 1,
           updatedById: me,
