@@ -14,7 +14,7 @@ import { getQuickJS, shouldInterruptAfterDeadline } from 'quickjs-emscripten';
 /** SCRIPT_LIMITS, from the main thread: one definition of them. */
 const L = workerData.limits;
 
-const empty = () => ({ applies: [], comments: [], refusal: null, logs: [], response: undefined, stores: [] });
+const empty = () => ({ applies: [], comments: [], refusal: null, logs: [], calls: [], response: undefined, stores: [] });
 
 /** A value as JSON text, or null when it isn't JSON or is longer than `max` characters. */
 function jsonOf(v, max) {
@@ -88,13 +88,24 @@ function check(module, source) {
 }
 
 /** Run a script on its input (JSON), stopping it `limitMs` after it starts. */
-function run(module, source, inputJson, limitMs) {
+function run(module, source, inputJson, limitMs, extras) {
   const intents = empty();
   const started = Date.now();
   const { runtime, vm } = newVm(module);
   const fail = (message) => {
     throw new Error(message);
   };
+  // A project's shared code (D40's revisit) runs first, alone: its value is the `library` the script sees.
+  if (typeof extras.library === 'string' && extras.library.trim()) {
+    const lib = vm.evalCode(extras.library, 'library.js');
+    if (lib.error) {
+      const e = errorOf(vm, lib.error, limitMs);
+      lib.error.dispose();
+      throw new Error(e.kind === 'runtime' || e.kind === 'syntax' ? `Its library: ${e.message}` : e.message);
+    }
+    vm.setProp(vm.global, 'library', lib.value);
+    lib.value.dispose();
+  }
   try {
     const define = (name, fn) => {
       const h = vm.newFunction(name, (...args) => {
@@ -118,7 +129,18 @@ function run(module, source, inputJson, limitMs) {
       if (intents.comments.length >= L.comments) fail(`A run posts ${L.comments} comments at most`);
       intents.comments.push(clip(t.trim()));
     });
-    define('refuse', (message) => {
+      // A call out (D40's revisit): the webhook's name, as an administrator made it, and a body of its
+  // own. A guard (extras.canCall false) runs inside the write path: it writes no events, so it has no call.
+  // own. a4a signs and sends it; the script never holds the address or the secret.
+  if (extras.canCall !== false) define('call', (name, body) => {
+    const n = name ? vm.dump(name) : undefined;
+    if (typeof n !== 'string' || !n.trim()) fail('call() takes a webhook\'s name');
+    if (intents.calls.length >= L.calls) fail(`A run calls ${L.calls} webhooks at most`);
+    const text = jsonOf(body ? vm.dump(body) : null, L.callBody);
+    if (text === null) fail(`call()\'s body is JSON of ${L.callBody.toLocaleString('en')} characters at most`);
+    intents.calls.push({ webhook: n.trim(), body: text });
+  });
+  define('refuse', (message) => {
       const t = message ? vm.dump(message) : undefined;
       intents.refusal = clip(typeof t === 'string' && t.trim() ? t.trim() : 'A workflow script refuses this change');
     });
@@ -183,7 +205,7 @@ const module = await getQuickJS();
 parentPort.on('message', (job) => {
   let reply;
   try {
-    reply = { id: job.id, ok: true, result: job.kind === 'check' ? check(module, job.source) : run(module, job.source, job.input, job.timeMs) };
+    reply = { id: job.id, ok: true, result: job.kind === 'check' ? check(module, job.source) : run(module, job.source, job.input, job.timeMs, job.extras ?? {}) };
   } catch (e) {
     reply = { id: job.id, ok: false, error: e instanceof Error ? e.message : String(e) };
   }

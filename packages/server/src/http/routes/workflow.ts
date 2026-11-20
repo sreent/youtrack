@@ -23,9 +23,10 @@ import {
 import { z } from 'zod';
 import { createAction, deleteAction, issueWorkflow, listActions, runAction, runTransition, updateAction } from '../../workflow/actions';
 import { createMachine, deleteMachine, getMachine, listMachines, updateMachine } from '../../workflow/machines';
-import { checkRulePart, createRule, deleteRule, getRule, listRuleRuns, listRules, previewRule, testRule, updateRule } from '../../workflow/rules';
+import { checkRulePart, createRule, deleteRule, getRule, listRuleRuns, listRules, previewRule, scriptLibrary, setScriptLibrary, testRule, updateRule } from '../../workflow/rules';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
+import { SCRIPT_LIMITS } from '../../workflow/sandbox';
 
 const Id = z.object({ id: z.string() });
 
@@ -136,6 +137,35 @@ export function workflowRoutes(app: OpenAPIHono<HttpEnv>) {
       response: z.array(RuleRunSchema),
     },
     ({ ctx, query }) => listRuleRuns(ctx, query),
+  );
+
+  // A project's shared code for its scripts (D40's revisit): every script in it runs with it as `library`.
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/projects/{key}/script-library',
+      tags,
+      summary: "A project's script library",
+      description: "The shared code every script in the project runs with, as `library`. Its managers read it; its administrators write it, its syntax checked as a script's is.",
+      params: z.object({ key: z.string().min(1).max(40) }),
+      response: z.object({ source: z.string() }),
+    },
+    async ({ ctx, params }) => ({ source: await scriptLibrary(ctx, params.key) }),
+  );
+  route(
+    app,
+    {
+      method: 'put',
+      path: '/projects/{key}/script-library',
+      tags,
+      summary: "Save a project's script library",
+      description: "Administrators alone. Every script in the project runs with it as `library`, whatever the library returns. Nothing in it runs on its own: only as a script's shared code.",
+      params: z.object({ key: z.string().min(1).max(40) }),
+      body: z.object({ source: z.string().max(SCRIPT_LIMITS.librarySource) }),
+      response: z.object({ source: z.string() }),
+    },
+    async ({ ctx, params, body }) => ({ source: await setScriptLibrary(ctx, params.key, body.source) }),
   );
 
   const machineTags = ['State machines'];

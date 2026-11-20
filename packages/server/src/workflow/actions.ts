@@ -9,8 +9,12 @@
  * still turn it off.
  */
 import type { IssueDetail, IssueWorkflow, WorkflowAction, WorkflowActionInput, WorkflowProblem } from '@a4a/shared';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 import { parseCommand } from '../commands/parser';
+import { webhooks } from '../db/schema';
+import { callableUrl, webhookOrigin } from '../events/webhooks';
+import { recordActivity } from '../events/activity';
+import { readableId } from '../services/issue-refs';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
@@ -266,7 +270,7 @@ export async function runAction(ctx: Ctx, idOrReadable: string, actionId: string
   }
   // A scripted action: its script, then what it asked for, as the caller, all in one transaction.
   const input = await scriptInput(ctx.db, s, issue, changeOf('action', s.users.get(ctx.actor.user.id), [], { action: action.name }));
-  const out = await runScript(action.script, input);
+  const out = await runScript(action.script, input, { library: s.projects.get(issue.projectId)?.scriptLibrary ?? undefined });
   if (out.error) throw new AppError(422, 'action_failed', `The action “${action.name}” stopped: ${out.error.message}`, 'Nothing was changed. Its script needs fixing: tell an administrator.').said('workflow.actionStopped', { action: action.name, error: asSentence(out.error.message) });
   if (out.intents.refusal !== null) {
     throw new AppError(422, 'refused_by_action', out.intents.refusal, `The action “${action.name}” refuses it. Nothing was changed.`).said('workflow.actionRefused', {
@@ -275,7 +279,25 @@ export async function runAction(ctx: Ctx, idOrReadable: string, actionId: string
     });
   }
   const planned = await plannedChanges(ctx, ctx.db, s, issue, input.issue, out.intents);
-  const res = await ctx.db.transaction(async (tx) => applyPlanned(tx as unknown as Db, ctx, s, issue, planned, { action: action.name }));
+  const res = await ctx.db.transaction(async (tx) => {
+    const applied = await applyPlanned(tx as unknown as Db, ctx, s, issue, planned, { action: action.name });
+    const activities = [...applied.activities];
+    for (const x of out.intents.calls) {
+      const named = await tx.select().from(webhooks).where(or(eq(webhooks.projectId, issue.projectId), isNull(webhooks.projectId)));
+      const hook = named.filter((h) => webhookOrigin(h.url) === x.webhook);
+      if (hook.length === 1 && hook[0]!.active && callableUrl(hook[0]!.url)) {
+        activities.push(
+          await recordActivity(tx as unknown as Db, ctx, {
+            type: 'script.called',
+            projectId: issue.projectId,
+            issueId: issue.id,
+            payload: { issue: { id: readableId(s, issue), summary: issue.summary, resolved: issue.resolvedAt !== null, state: null }, data: { webhook: hook[0]!.id, name: x.webhook, body: JSON.parse(x.body) } },
+          }),
+        );
+      }
+    }
+    return { ...applied, activities };
+  });
   await publishActivities(ctx.app, res.activities);
   return issueDetail(ctx, (await findIssue(ctx.db, s, issue.id)) ?? issue);
 }
