@@ -143,6 +143,10 @@ Messages added in wave 18 (the HR calendar):
 Messages added with the timesheet's personal view:
 
 - Die eigene Sicht: `page.timesheet.bauOrAnythingYouKeep` = „BAU oder was du sonst führst“ und `problem.time.severalPersonalEntries` = „...Ändere sie einzeln.“ — klingen sie natürlich?
+
+Messages added with the queued scripts:
+
+- Die Warteschlange: `rules.ruleForm.runFromTheQueue` = „Aus der Warteschlange ausführen: es darf sich Zeit nehmen und handelt mit dem, was es beim Auslösen der Regel sah“ — liest sich die lange Beschriftung natürlich?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -286,6 +290,10 @@ Messages added in wave 18 (the HR calendar):
 Messages added with the timesheet's personal view:
 
 - La vista personal: `page.timesheet.bauOrAnythingYouKeep` = “BAU, o lo que tú lleves” y el rechazo “...Cámbialas una a una.” — ¿naturales?
+
+Messages added with the queued scripts:
+
+- La cola: `rules.ruleForm.runFromTheQueue` = “Ejecútalo desde la cola: puede tomarse su tiempo y actúa sobre lo que vio cuando su regla se disparó” — ¿natural, pese a lo largo?
 ## French
 
 Terms:
@@ -429,6 +437,10 @@ Messages added in wave 18 (the HR calendar):
 Messages added with the timesheet's personal view:
 
 - La vue personnelle : `page.timesheet.bauOrAnythingYouKeep` = “BAU, ou ce que vous suivez” et le refus “...Changez-les une par une.” — naturels ?
+
+Messages added with the queued scripts:
+
+- La file : `rules.ruleForm.runFromTheQueue` = “L'exécuter depuis la file : il peut prendre son temps et agit sur ce qu'il a vu quand sa règle s'est déclenchée” — naturel malgré la longueur ?
 ## Japanese
 
 Terms:
@@ -564,6 +576,10 @@ Messages added in wave 18 (the HR calendar):
 Messages added with the timesheet's personal view:
 
 - 個人ビュー: `page.timesheet.bauOrAnythingYouKeep` = “BAU、またはあなたが記録するもの”、拒否文 = “...1 件ずつ変更...” — 自然ですか。
+
+Messages added with the queued scripts:
+
+- キュー: `rules.ruleForm.runFromTheQueue` = “キューから実行: 時間をかけてもよく、ルールが発火した時点の内容に作用します” — 長いですが自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -678,6 +694,10 @@ Messages added in wave 18 (the HR calendar):
 Messages added with the timesheet's personal view:
 
 - A vista pessoal: `page.timesheet.bauOrAnythingYouKeep` = “BAU, ou o que registar” e a recusa “...Mude-as uma a uma.” — naturais?
+
+Messages added with the queued scripts:
+
+- A fila: `rules.ruleForm.runFromTheQueue` = “Executar a partir da fila: pode levar o seu tempo e age sobre o que viu quando a regra disparou” — natural, apesar de longo?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -841,6 +861,10 @@ Messages added in wave 18 (the HR calendar):
 Messages added with the timesheet's personal view:
 
 - 개인 보기: `page.timesheet.bauOrAnythingYouKeep` = “BAU, 또는 당신이 기록하는 것”, 거부문 = “...하나씩 바꾸세요.” — 자연스럽나요?
+
+Messages added with the queued scripts:
+
+- 대기열: `rules.ruleForm.runFromTheQueue` = “대기열에서 실행: 시간이 걸려도 되며, 규칙이 발동했을 때 본 내용에 작용합니다” — 길지만 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -995,6 +1019,10 @@ Messages added in wave 18 (the HR calendar):
 Messages added with the timesheet's personal view:
 
 - 个人视图：`page.timesheet.bauOrAnythingYouKeep` = “BAU，或任何你记录的内容”，拒绝说明 = “请逐条修改...” ——自然吗？
+
+Messages added with the queued scripts:
+
+- 队列：`rules.ruleForm.runFromTheQueue` = “从队列运行：它可以慢慢来，并作用于规则触发时所见的内容” ——虽然长，自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1161,6 +1189,10 @@ Messages added in wave 18 (the HR calendar):
 Messages added with the timesheet's personal view:
 
 - Góc nhìn cá nhân: `page.timesheet.bauOrAnythingYouKeep` = “BAU, hoặc bất cứ gì bạn theo dõi” và lời từ chối = “...Hãy sửa từng mục một.” — tự nhiên chứ?
+
+Messages added with the queued scripts:
+
+- Hàng đợi: `rules.ruleForm.runFromTheQueue` = “Chạy từ hàng đợi: nó được phép tốn thời gian, và tác động lên những gì nó thấy khi quy tắc kích hoạt” — dài nhưng tự nhiên chứ?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1324,6 +1356,10 @@ Messages added in wave 18 (the HR calendar):
 Messages added with the timesheet's personal view:
 
 - Tampilan pribadi: `page.timesheet.bauOrAnythingYouKeep` = “BAU, atau apa pun yang kamu catat” dan penolakan = “...Ubah satu per satu.” — apakah alami?
+
+Messages added with the queued scripts:
+
+- Antrean: `rules.ruleForm.runFromTheQueue` = “Jalankan dari antrean: ia boleh memakan waktu, dan bertindak atas yang dilihatnya saat aturannya terpicu” — apakah alami meski panjang?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1488,6 +1524,10 @@ Messages added in wave 18 (the HR calendar):
 Messages added with the timesheet's personal view:
 
 - มุมมองส่วนตัว: `page.timesheet.bauOrAnythingYouKeep` = “BAU หรืออะไรก็ตามที่คุณบันทึก” และข้อปฏิเสธ = “...เปลี่ยนทีละรายการ” — ธรรมชาติหรือไม่
+
+Messages added with the queued scripts:
+
+- คิว: `rules.ruleForm.runFromTheQueue` = “รันจากคิว: ใช้เวลาได้ และทำงานกับสิ่งที่เห็นตอนกฎทำงาน” — ยาวแต่เป็นธรรมชาติหรือไม่
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

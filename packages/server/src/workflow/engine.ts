@@ -386,7 +386,7 @@ export class RuleEngine {
     }
     let planned: Planned[] = [];
     try {
-      planned = await plannedChanges(ctx, this.app.db, s, issue, job.input as never, out.intents, { meId: undefined });
+      planned = await plannedChanges(ctx, this.app.db, s, issue, (job.input as { issue: never }).issue, out.intents, { meId: undefined });
     } catch (err) {
       await this.record(s, rule, issue, chain, 'failed', `${errorText(err)}${logged}`, [errorSaid(err), ...logSaid(out.intents.logs)]);
       return;
