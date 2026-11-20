@@ -6,7 +6,7 @@ import type { StopTimerInput, Timer, Timesheet, TimesheetCellInput, WorkItem } f
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 import { isAdmin, requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { issues, timers, timesheetWeeks, users, workItems, workTypes } from '../db/schema';
+import { issues, projects, timers, timesheetWeeks, users, workItems, workTypes } from '../db/schema';
 import { addDays, isISODate, startOfWeek, weekday } from '../lib/dates';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { publishActivities, recordActivity } from '../events/activity';
@@ -147,6 +147,13 @@ export async function discardTimer(ctx: Ctx, issueId: string): Promise<void> {
 // The weekly timesheet
 // ---------------------------------------------------------------------------
 
+/** A project shows its logged work in the weekly timesheet unless it says no (D43's revisit). */
+function timesheetOn(s: SchemaSnapshot, projectId: string): boolean {
+  const settings = s.projects.get(projectId)?.settings as { time?: { timesheetEnabled?: boolean } } | undefined;
+  return settings?.time?.timesheetEnabled !== false;
+}
+
+
 /** Whose timesheet: yours, or, for an administrator, anyone's. */
 function whose(ctx: Ctx, s: SchemaSnapshot, login: string | undefined): UserRow {
   if (!login) return ctx.actor.user;
@@ -191,7 +198,7 @@ export async function getTimesheet(ctx: Ctx, q: { week?: string; user?: string }
       .innerJoin(issues, eq(issues.id, workItems.issueId))
       .where(and(eq(workItems.authorId, person.id), gte(workItems.date, days[0]!), lte(workItems.date, days[6]!)))
       .orderBy(asc(workItems.createdAt))
-  ).filter((r) => view.canRead(r.projectId));
+  ).filter((r) => view.canRead(r.projectId) && timesheetOn(s, r.projectId));
   const refs = await issueRefsById(ctx.db, s, rows.map((r) => r.item.issueId));
   const names = await workTypeNames(ctx.db, rows.map((r) => r.item.workTypeId));
   const byRow = new Map<string, Timesheet['rows'][number]>();
@@ -231,6 +238,7 @@ export async function setTimesheetCell(ctx: Ctx, input: TimesheetCellInput): Pro
   await assertWeekOpen(ctx, person.id, startOfWeek(input.date));
   const issue = await resolveIssue(ctx, input.issue);
   await assertCanProject(ctx, issue.projectId, 'time');
+  if (!timesheetOn(s, issue.projectId)) throw badRequest('This project keeps its logged work off the weekly timesheet', 'Its time stays on its issues; ask a manager to turn the timesheet on.').said('time.timesheetOff');
   const project = s.projects.get(issue.projectId)!;
   let typeId: string | null = null;
   if (input.type) {
@@ -301,8 +309,14 @@ async function mayApprove(ctx: Ctx, personId: string, monday: string): Promise<v
     .from(workItems)
     .innerJoin(issues, eq(issues.id, workItems.issueId))
     .where(and(eq(workItems.authorId, personId), gte(workItems.date, monday), lte(workItems.date, addDays(monday, 6))));
-  const projects = [...new Set(rows.map((r) => r.projectId))];
-  if (!projects.length || projects.some((id) => !view.canManage(id))) throw forbidden('Only an administrator, or a manager of every project the week holds work in, approves a timesheet').said('time.onlyManagersApprove');
+  const projectIds = [...new Set(rows.map((r) => r.projectId))].filter((id) => timesheetOn(s, id));
+  if (!projectIds.length) throw forbidden('Only an administrator, or a manager of every project the week holds work in, approves a timesheet').said('time.onlyManagersApprove');
+  // How the projects in the week say it (D43's revisit): when every one of them is set to 'any',
+  // a manager of any of them approves the whole week; otherwise the strict rule holds.
+  const settings = await ctx.db.select({ id: projects.id, settings: projects.settings }).from(projects).where(inArray(projects.id, projectIds));
+  const lenient = settings.every((p) => (p.settings as { time?: { timesheetApproval?: string } } | null)?.time?.timesheetApproval === 'any');
+  const may = lenient ? projectIds.some((id) => view.canManage(id)) : projectIds.every((id) => view.canManage(id));
+  if (!may) throw forbidden(lenient ? 'Only an administrator, or a manager of one of the week\'s projects, approves a timesheet' : 'Only an administrator, or a manager of every project the week holds work in, approves a timesheet').said('time.onlyManagersApprove');
 }
 
 /** Submit the week: yours, or anyone's as an administrator. Its cells lock until it comes back. */

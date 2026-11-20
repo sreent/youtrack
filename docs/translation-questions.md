@@ -131,6 +131,10 @@ Messages added in wave 14 (a sprint's team, and timesheets submitted and approve
 Messages added in wave 16 (the script library's page):
 
 - Wave 16 (Skriptbibliothek): `page.rules.library` = „Skriptbibliothek“ und `page.rules.libraryCode` = „Der gemeinsame Code“ — klingen die Bezeichnungen natürlich?
+
+Messages added with the configurable approval rule:
+
+- Die einstellbare Genehmigung: `projects.workTypes.approvalEvery` = „Seine Manager, unter den Managern jedes Projekts, in dem die Woche Arbeit enthält“ — liest sich die lange Beschriftung natürlich?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -262,6 +266,10 @@ Messages added in wave 14 (a sprint's team, and timesheets submitted and approve
 Messages added in wave 16 (the script library's page):
 
 - Wave 16 (biblioteca de scripts): `page.rules.library` = “Biblioteca de scripts” y `page.rules.libraryCode` = “El código compartido” — ¿naturales?
+
+Messages added with the configurable approval rule:
+
+- La aprobación configurable: `projects.workTypes.approvalEvery` = “Sus gestores, entre los gestores de cada proyecto donde la semana tiene trabajo” — ¿natural, pese a lo largo?
 ## French
 
 Terms:
@@ -393,6 +401,10 @@ Messages added in wave 14 (a sprint's team, and timesheets submitted and approve
 Messages added in wave 16 (the script library's page):
 
 - Wave 16 (bibliothèque de scripts) : `page.rules.library` = “Bibliothèque de scripts” et `page.rules.libraryCode` = “Le code partagé” — naturels ?
+
+Messages added with the configurable approval rule:
+
+- L'approbation configurable : `projects.workTypes.approvalEvery` = “Ses gestionnaires, parmi les gestionnaires de chaque projet où la semaine a du travail” — naturel malgré la longueur ?
 ## Japanese
 
 Terms:
@@ -516,6 +528,10 @@ Messages added in wave 14 (a sprint's team, and timesheets submitted and approve
 Messages added in wave 16 (the script library's page):
 
 - Wave 16（スクリプトライブラリ）: `page.rules.library` = “スクリプトライブラリ”、`page.rules.libraryCode` = “共有コード” — 自然ですか。
+
+Messages added with the configurable approval rule:
+
+- 設定可能な承認: `projects.workTypes.approvalEvery` = “その週の作業を含む全プロジェクトのマネージャーのうち、このプロジェクトのマネージャー” — 長いですが自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -618,6 +634,10 @@ Messages added in wave 14 (a sprint's team, and timesheets submitted and approve
 Messages added in wave 16 (the script library's page):
 
 - Wave 16 (biblioteca de scripts): `page.rules.library` = “Biblioteca de scripts” e `page.rules.libraryCode` = “O código partilhado” — naturais?
+
+Messages added with the configurable approval rule:
+
+- A aprovação configurável: `projects.workTypes.approvalEvery` = “Os seus gestores, entre os gestores de cada projeto onde a semana tem trabalho” — natural, apesar de longo?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -769,6 +789,10 @@ Messages added in wave 14 (a sprint's team, and timesheets submitted and approve
 Messages added in wave 16 (the script library's page):
 
 - Wave 16(스크립트 라이브러리): `page.rules.library` = “스크립트 라이브러리”, `page.rules.libraryCode` = “공유 코드” — 자연스럽나요?
+
+Messages added with the configurable approval rule:
+
+- 설정 가능한 승인: `projects.workTypes.approvalEvery` = “그 주의 작업이 있는 모든 프로젝트의 관리자 중 이 프로젝트의 관리자” — 길지만 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -911,6 +935,10 @@ Messages added in wave 14 (a sprint's team, and timesheets submitted and approve
 Messages added in wave 16 (the script library's page):
 
 - Wave 16（脚本库）: `page.rules.library` = “脚本库”、`page.rules.libraryCode` = “共享代码” ——自然吗？
+
+Messages added with the configurable approval rule:
+
+- 可配置的审批: `projects.workTypes.approvalEvery` = “它的管理者，且是该周有工作的每个项目的管理者”——虽然长，读起来自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1065,6 +1093,10 @@ Messages added in wave 14 (a sprint's team, and timesheets submitted and approve
 Messages added in wave 16 (the script library's page):
 
 - Wave 16 (thư viện script): `page.rules.library` = “Thư viện script” và `page.rules.libraryCode` = “Mã dùng chung” — tự nhiên chứ?
+
+Messages added with the configurable approval rule:
+
+- Duyệt có thể cấu hình: `projects.workTypes.approvalEvery` = “Người quản lý của nó, trong số người quản lý của mọi dự án mà tuần đó có việc” — dài nhưng tự nhiên chứ?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1216,6 +1248,10 @@ Messages added in wave 14 (a sprint's team, and timesheets submitted and approve
 Messages added in wave 16 (the script library's page):
 
 - Wave 16 (pustaka skrip): `page.rules.library` = “Pustaka skrip” dan `page.rules.libraryCode` = “Kode bersama” — apakah alami?
+
+Messages added with the configurable approval rule:
+
+- Persetujuan yang dapat diatur: `projects.workTypes.approvalEvery` = “Manajernya, di antara manajer setiap proyek yang pekan itu memuat pekerjaan” — apakah alami meski panjang?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1368,6 +1404,10 @@ Messages added in wave 14 (a sprint's team, and timesheets submitted and approve
 Messages added in wave 16 (the script library's page):
 
 - Wave 16 (ไลบรารีสคริปต์): `page.rules.library` = “ไลบรารีสคริปต์” และ `page.rules.libraryCode` = “โค้ดที่ใช้ร่วมกัน” — ธรรมชาติหรือไม่
+
+Messages added with the configurable approval rule:
+
+- การอนุมัติที่ตั้งค่าได้: `projects.workTypes.approvalEvery` = “ผู้จัดการของมัน ในกลุ่มผู้จัดการของทุกโปรเจกต์ที่สัปดาห์นั้นมีงาน” — ยาวแต่เป็นธรรมชาติไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:
