@@ -468,8 +468,8 @@ describe('freehand drawings and pictures (D58’s revisit)', () => {
     expect(stranger.status).toBe(404);
     // A file that isn't a picture, and one not on this board, are refused.
     const logForm = new FormData();
-    form.append('file', new Blob([Buffer.from('not a picture')]), 'notes.txt');
-    const txt = await http.request(`/api/v1/whiteboards/${board.id}/attachments`, { method: 'POST', headers: { authorization: `Bearer ${tokens.anna}` }, body: form });
+    logForm.append('file', new Blob([Buffer.from('not a picture')]), 'notes.txt');
+    const txt = await http.request(`/api/v1/whiteboards/${board.id}/attachments`, { method: 'POST', headers: { authorization: `Bearer ${tokens.anna}` }, body: logForm });
     if (txt.status === 400 && (await txt.clone().text()).includes('EPERM')) return;
     expect(txt.status).toBe(201);
     const txtAtt = (await txt.json()) as { id: string };

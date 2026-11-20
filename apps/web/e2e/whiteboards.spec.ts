@@ -162,7 +162,7 @@ test("a whiteboard of one's own is drawn and pictured on, and shared with the pe
   await theo.goto(`/whiteboards/${id}`);
   await expect(outline(theo).getByRole('button', { name: /a drawing/ })).toBeVisible();
   await page.getByRole('button', { name: 'Who reads it' }).click();
-  await expect(page.getByLabel('Who reads it')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Who reads it' })).toBeVisible();
   await page.getByRole('button', { name: 'Save who reads it' }).click();
   await expect(theo.getByRole('group', { name: /elements?$/ })).toBeVisible();
   await theirs.close();
