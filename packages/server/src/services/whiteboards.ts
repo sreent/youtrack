@@ -32,7 +32,7 @@ import {
   type WhiteboardElement,
   type WhiteboardViewer,
 } from '@a4a/shared';
-import { and, count, desc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { articles, issues, whiteboardChanges, whiteboardElements, whiteboards, whiteboardViewers } from '../db/schema';
@@ -42,6 +42,7 @@ import { AppError, badRequest, conflict, errorWords, forbidden, notFound, pageWo
 import { newId } from '../lib/ids';
 import { assertCanProject, projectAccess, requireProject, seenArticleIds, seenIssueIds, type AccessView } from './access';
 import { articleReadableId, resolveArticle } from './article-refs';
+import { resolveVisibleTo, visibleToDtos } from './visibility';
 import { readableId } from './issue-refs';
 import { applyChanges, createIssueInTx, issueDtos, resolveIssue, resolveLinkPhrase } from './issues';
 import type { SchemaSnapshot } from './schema-cache';
@@ -74,6 +75,18 @@ const missing = () => notFound('Whiteboard').said('notFound.whiteboard');
 // ---------------------------------------------------------------------------
 
 /**
+ * Who the caller is on a person's own whiteboard: nobody at all for a guest; the owner, or a named
+ * person, or a named group's member, or everyone signed in, as its sharing says (D58's revisit).
+ */
+export function personalAccess(view: AccessView, row: BoardRow) {
+  const owner = !view.guest && row.createdById === view.userId;
+  if (row.share === 'everyone') return { owner, read: !view.guest, edit: !view.guest } as const;
+  const with_: { people?: string[]; groups?: string[] } = (row.sharedWith as { people?: string[]; groups?: string[] }) ?? {};
+  const named = Boolean((with_.people ?? []).includes(view.userId) || (with_.groups ?? []).some((g) => view.groupIds.includes(g)));
+  return { owner, read: owner || named, edit: owner || named } as const;
+}
+
+/**
  * The whiteboard, if the caller may do `need` with it: one in a project they can't read is missing, in
  * the words of one that doesn't exist; one they read but may not change is 403, naming the permission.
  */
@@ -82,25 +95,36 @@ export async function requireWhiteboard(ctx: Ctx, id: string, need: 'read' | 'ed
   const view = await projectAccess(ctx, db);
   const query = db.select().from(whiteboards).where(eq(whiteboards.id, id.trim()));
   const [row] = lock ? await query.for('no key update') : await query;
-  if (!row || !view.canRead(row.projectId)) throw missing();
-  if (need === 'edit') await assertCanProject(ctx, row.projectId, 'edit', db);
+  if (!row) throw missing();
+  if (row.projectId) {
+    if (!view.canRead(row.projectId)) throw missing();
+    if (need === 'edit') await assertCanProject(ctx, row.projectId, 'edit', db);
+    return row;
+  }
+  // A person's own whiteboard: its sharing says who reads and changes it.
+  const personal = personalAccess(view, row);
+  if (!personal.read) throw missing();
+  if (need === 'edit' && !personal.edit) throw forbidden('You may read this whiteboard, but its owner is the one who changes it', 'Ask its owner to share it with you.').said('whiteboards.readOnlyShared');
   return row;
 }
 
-function boardDto(s: SchemaSnapshot, view: AccessView, ctx: Ctx, row: BoardRow, elements: number): Whiteboard {
-  const p = s.projects.get(row.projectId);
+function boardDto(s: SchemaSnapshot, view: AccessView, ctx: Ctx, row: BoardRow, elements: number, shared: Whiteboard['sharedWith'] | null = null, personal: ReturnType<typeof personalAccess> | null = null): Whiteboard {
+  const p = row.projectId ? s.projects.get(row.projectId) : undefined;
   const by = row.createdById ? s.users.get(row.createdById) : undefined;
-  const edit = view.canWrite(row.projectId);
+  const edit = personal ? personal.edit : view.canWrite(row.projectId!);
   return {
     id: row.id,
     name: row.name,
-    project: { id: row.projectId, key: p?.key ?? '?', name: p?.name ?? '' },
+    project: row.projectId ? { id: row.projectId, key: p?.key ?? '?', name: p?.name ?? '' } : null,
+    owner: personal && by ? userRefDto(by) : null,
     createdBy: by ? userRefDto(by) : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     seq: Number(row.seq),
     elements,
-    access: { edit, delete: view.canManage(row.projectId) || (edit && row.createdById === ctx.actor.user.id) },
+    share: personal ? ((row.share as 'everyone' | 'limited') ?? 'everyone') : 'everyone',
+    sharedWith: personal ? (shared ?? { users: [], groups: [] }) : { users: [], groups: [] },
+    access: { edit, delete: personal ? personal.owner : view.canManage(row.projectId!) || (edit && row.createdById === ctx.actor.user.id), share: personal ? personal.owner : false },
   };
 }
 
@@ -137,21 +161,49 @@ async function countsOf(db: Db, ids: string[]): Promise<Map<string, number>> {
   return new Map(rows.map((r) => [r.id, Number(r.n)]));
 }
 
-/** The whiteboards the caller can see, in one project or all, the latest changed first. */
+/** Each personal whiteboard's named readers, as the API shows them: people and groups by name. */
+async function sharedWithDtos(ctx: Ctx, rows: BoardRow[]): Promise<Map<string, Whiteboard['sharedWith']>> {
+  const personal = rows.filter((r) => !r.projectId);
+  if (!personal.length) return new Map();
+  const [s, db] = [await ctx.app.schema.get(), ctx.db];
+  const dtos = await visibleToDtos(db, s, personal.map((r) => ({ limited: true, visibleUserIds: ((r.sharedWith as { people?: string[] })?.people ?? []), visibleGroupIds: ((r.sharedWith as { groups?: string[] })?.groups ?? []) })));
+  return new Map(personal.map((r, i) => [r.id, dtos[i] ?? { users: [], groups: [] }]));
+}
+
+/** The whiteboards the caller can see, in one project or all, the latest changed first. Without a
+ * project, a person's own whiteboards and those shared with them come too (D58's revisit). */
 export async function listWhiteboards(ctx: Ctx, opts: { project?: string } = {}): Promise<Whiteboard[]> {
   requireScope(ctx, 'read');
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
   let projectIds = view.visibleIds();
   if (opts.project) projectIds = [(await requireProject(ctx, opts.project)).id];
-  if (projectIds && !projectIds.length) return [];
+  if (projectIds && !projectIds.length && !view.userId) return [];
+  // A person's own whiteboards and those shared with them come with the rest, never beside a project's list.
+  const where = opts.project
+    ? inArray(whiteboards.projectId, projectIds!)
+    : projectIds === null
+      ? undefined
+      : projectIds.length
+        ? or(inArray(whiteboards.projectId, projectIds), isNull(whiteboards.projectId))
+        : isNull(whiteboards.projectId);
   const rows = await ctx.db
     .select()
     .from(whiteboards)
-    .where(projectIds ? inArray(whiteboards.projectId, projectIds) : undefined)
+    .where(where)
     .orderBy(desc(whiteboards.updatedAt))
     .limit(500);
   const counts = await countsOf(ctx.db, rows.map((r) => r.id));
-  return rows.filter((r) => view.canRead(r.projectId)).map((r) => boardDto(s, view, ctx, r, counts.get(r.id) ?? 0));
+  const shared = await sharedWithDtos(ctx, rows);
+  const out: Whiteboard[] = [];
+  for (const r of rows) {
+    if (r.projectId) {
+      if (view.canRead(r.projectId)) out.push(boardDto(s, view, ctx, r, counts.get(r.id) ?? 0));
+      continue;
+    }
+    const personal = personalAccess(view, r);
+    if (personal.read) out.push(boardDto(s, view, ctx, r, counts.get(r.id) ?? 0, shared.get(r.id), personal));
+  }
+  return out;
 }
 
 /** What each card holds, as the caller may see it now: nothing at all of what they may not (D58). */
@@ -199,8 +251,9 @@ export async function getWhiteboard(ctx: Ctx, id: string): Promise<WhiteboardDet
   const row = await requireWhiteboard(ctx, id);
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
   const rows = await elementRows(ctx.db, row.id);
+  const [shared, personal] = row.projectId ? [undefined, null] : [(await sharedWithDtos(ctx, [row])).get(row.id), personalAccess(view, row)];
   return {
-    whiteboard: boardDto(s, view, ctx, row, rows.length),
+    whiteboard: boardDto(s, view, ctx, row, rows.length, shared, personal),
     elements: rows.map((r) => elementDto(s, r)),
     cards: await cardsFor(ctx, rows),
     viewers: seesViewers(ctx) ? await viewersOf(ctx.db, s, row.id) : [],
@@ -226,19 +279,30 @@ export async function getWhiteboardCards(ctx: Ctx, id: string): Promise<Whiteboa
 // The whiteboard itself: made, renamed, deleted (events, D58)
 // ---------------------------------------------------------------------------
 
-export async function createWhiteboard(ctx: Ctx, input: { project: string; name: string }): Promise<Whiteboard> {
+export async function createWhiteboard(ctx: Ctx, input: { project?: string; name: string; share?: 'everyone' | 'limited'; sharedWith?: { users: string[]; groups: string[] } }): Promise<Whiteboard> {
   requireScope(ctx, 'write');
-  const project = await requireProject(ctx, input.project, 'edit');
   const name = input.name.trim();
   if (!name) throw badRequest('Give the whiteboard a name').said('whiteboards.nameNeeded');
+  // A person's own whiteboard (no project): its owner, shared as it says. A guest makes nothing (D37).
+  if (!input.project && ctx.actor.guest) throw unauthorized('Sign in to make a whiteboard of your own', 'Sign in, or make one on a project you may read.').said('whiteboards.signInForOwn');
+  const project = input.project ? await requireProject(ctx, input.project, 'edit') : null;
+  const sharing = project ? null : await resolveVisibleTo(ctx.db, await ctx.app.schema.get(), { users: input.sharedWith?.users ?? [], groups: input.sharedWith?.groups ?? [] });
+  if (!project && input.share === 'limited' && !sharing!.visibleUserIds.length && !sharing!.visibleGroupIds.length) {
+    throw badRequest('Name who else reads it, or share it with everyone', 'Limited to some, a whiteboard needs people or groups in sharedWith.').said('whiteboards.limitedNeedsPeople');
+  }
   const { row, activity } = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
-    const [row] = await tx.insert(whiteboards).values({ id: newId(), projectId: project.id, name, createdById: ctx.actor.user.id }).returning();
-    const activity = await recordActivity(tx, ctx, { type: 'whiteboard.created', projectId: project.id, issueId: null, payload: { data: { whiteboard: { id: row!.id, name } } } });
+    const [row] = await tx
+      .insert(whiteboards)
+      .values({ id: newId(), projectId: project?.id ?? null, name, createdById: ctx.actor.user.id, share: project ? 'everyone' : (input.share ?? 'everyone'), sharedWith: sharing ? { people: sharing.visibleUserIds, groups: sharing.visibleGroupIds } : { people: [], groups: [] } })
+      .returning();
+    const activity = await recordActivity(tx, ctx, { type: 'whiteboard.created', projectId: project?.id ?? null, issueId: null, payload: { data: { whiteboard: { id: row!.id, name, ...(personalFacts(row!) ? { personal: personalFacts(row!) } : {}) } } } });
     return { row: row!, activity };
   });
   await publishActivities(ctx.app, [activity]);
-  return boardDto(await ctx.app.schema.get(), await projectAccess(ctx), ctx, row, 0);
+  const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
+  const [shared, personal] = project ? [undefined, null] : [(await sharedWithDtos(ctx, [row])).get(row.id), personalAccess(view, row)];
+  return boardDto(s, view, ctx, row, 0, shared, personal);
 }
 
 export async function renameWhiteboard(ctx: Ctx, id: string, input: { name: string }): Promise<Whiteboard> {
@@ -251,12 +315,40 @@ export async function renameWhiteboard(ctx: Ctx, id: string, input: { name: stri
     const activity =
       before.name === name
         ? null
-        : await recordActivity(tx, ctx, { type: 'whiteboard.renamed', projectId: before.projectId, issueId: null, payload: { data: { whiteboard: { id: before.id, name }, from: before.name, to: name } } });
+        : await recordActivity(tx, ctx, { type: 'whiteboard.renamed', projectId: before.projectId, issueId: null, payload: { data: { whiteboard: { id: before.id, name, ...(personalFacts(before) ? { personal: personalFacts(before) } : {}) }, from: before.name, to: name } } });
     return { row: row!, activity, elements: (await countsOf(tx, [before.id])).get(before.id) ?? 0 };
   });
   if (activity) await publishActivities(ctx.app, [activity]);
   whiteboardLive(ctx.app).changed([row.id]);
-  return boardDto(await ctx.app.schema.get(), await projectAccess(ctx), ctx, row, elements);
+  const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
+  const [shared, personal] = row.projectId ? [undefined, null] : [(await sharedWithDtos(ctx, [row])).get(row.id), personalAccess(view, row)];
+  return boardDto(s, view, ctx, row, elements, shared, personal);
+}
+
+/** A personal whiteboard's owner says who else reads and changes it: everyone signed in, or the named people and groups. */
+export async function setWhiteboardSharing(ctx: Ctx, id: string, input: { share: 'everyone' | 'limited'; sharedWith?: { users: string[]; groups: string[] } }): Promise<Whiteboard> {
+  requireScope(ctx, 'write');
+  const sharing = await resolveVisibleTo(ctx.db, await ctx.app.schema.get(), { users: input.sharedWith?.users ?? [], groups: input.sharedWith?.groups ?? [] });
+  if (input.share === 'limited' && !sharing.visibleUserIds.length && !sharing.visibleGroupIds.length) {
+    throw badRequest('Name who else reads it, or share it with everyone', 'Limited to some, a whiteboard needs people or groups in sharedWith.').said('whiteboards.limitedNeedsPeople');
+  }
+  const row = await ctx.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    const before = await requireWhiteboard(ctx, id, 'edit', tx, true);
+    if (before.projectId) throw badRequest('A project’s whiteboard follows its project', 'Who reads the project reads it, and sharing is its project’s.').said('whiteboards.projectBoardNoShare');
+    const view = await projectAccess(ctx, tx);
+    if (!personalAccess(view, before).owner) throw forbidden('Only its owner says who else reads this whiteboard', 'Ask its owner.').said('whiteboards.onlyOwnerShares');
+    const [row] = await tx.update(whiteboards).set({ share: input.share, sharedWith: { people: sharing.visibleUserIds, groups: sharing.visibleGroupIds }, updatedAt: new Date() }).where(eq(whiteboards.id, before.id)).returning();
+    return row!;
+  });
+  const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
+  return boardDto(s, view, ctx, row, (await countsOf(ctx.db, [row.id])).get(row.id) ?? 0, (await sharedWithDtos(ctx, [row])).get(row.id), personalAccess(view, row));
+}
+
+/** What a personal whiteboard's life events carry, so its readers see them after it's gone (D58's revisit). */
+function personalFacts(row: Pick<BoardRow, 'projectId' | 'share' | 'sharedWith'>) {
+  if (row.projectId) return null;
+  return { share: (row.share ?? 'everyone') as 'everyone' | 'limited', people: ((row.sharedWith as { people?: string[] })?.people ?? []), groups: ((row.sharedWith as { groups?: string[] })?.groups ?? []) };
 }
 
 /** Its elements and their log go with it; the issues and articles on its cards stay as they are. */
@@ -265,14 +357,15 @@ export async function deleteWhiteboard(ctx: Ctx, id: string): Promise<void> {
     const tx = txRaw as unknown as Db;
     const row = await requireWhiteboard(ctx, id, 'read', tx, true);
     const view = await projectAccess(ctx, tx);
-    if (!(view.canManage(row.projectId) || (row.createdById === ctx.actor.user.id && view.canWrite(row.projectId)))) {
+    const may = row.projectId ? view.canManage(row.projectId) || (row.createdById === ctx.actor.user.id && view.canWrite(row.projectId)) : personalAccess(view, row).owner;
+    if (!may) {
       requireScope(ctx, 'write');
-      const key = view.keyOf(row.projectId) ?? 'its project';
+      const key = row.projectId ? (view.keyOf(row.projectId) ?? 'its project') : 'its owner';
       throw forbidden(`Only whoever made it, or a manager of ${key}, can delete this whiteboard`, `Ask a manager of ${key}.`).said('whiteboards.onlyMakerOrManagers', { key });
     }
     const elements = (await countsOf(tx, [row.id])).get(row.id) ?? 0;
     await tx.delete(whiteboards).where(eq(whiteboards.id, row.id));
-    return recordActivity(tx, ctx, { type: 'whiteboard.deleted', projectId: row.projectId, issueId: null, payload: { data: { whiteboard: { id: row.id, name: row.name }, elements } } });
+    return recordActivity(tx, ctx, { type: 'whiteboard.deleted', projectId: row.projectId, issueId: null, payload: { data: { whiteboard: { id: row.id, name: row.name, ...(personalFacts(row) ? { personal: personalFacts(row) } : {}) }, elements } } });
   });
   await publishActivities(ctx.app, [activity]);
   whiteboardLive(ctx.app).changed([id.trim()]);
@@ -516,7 +609,7 @@ export async function convertWhiteboard(ctx: Ctx, id: string, input: WhiteboardC
   }
   // A project they can't report in refuses the whole request: it would refuse every note.
   const project = body.project && body.notes.length ? await requireProject(ctx, body.project, 'create') : null;
-  const origin: Origin = { id: board.id, name: board.name, project: s.projects.get(board.projectId)?.key ?? '' };
+  const origin: Origin = { id: board.id, name: board.name, project: board.projectId ? (s.projects.get(board.projectId)?.key ?? '') : '' };
   const notes: WhiteboardConvertResult['notes'] = [];
   const links: WhiteboardConvertResult['links'] = [];
   let seq = Number(board.seq);
@@ -550,7 +643,7 @@ export async function convertWhiteboard(ctx: Ctx, id: string, input: WhiteboardC
         type: 'whiteboard.converted',
         projectId: board.projectId,
         issueId: null,
-        payload: { data: { whiteboard: { id: board.id, name: board.name }, issues: made, links: linked, failed: [...notes, ...links].filter((n) => !n.ok).length } },
+        payload: { data: { whiteboard: { id: board.id, name: board.name, ...(personalFacts(board) ? { personal: personalFacts(board) } : {}) }, issues: made, links: linked, failed: [...notes, ...links].filter((n) => !n.ok).length } },
       }),
     );
     await publishActivities(ctx.app, [activity]);

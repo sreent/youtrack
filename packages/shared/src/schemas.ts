@@ -4503,15 +4503,22 @@ export const WhiteboardSchema = z
   .object({
     id: z.string(),
     name: z.string(),
-    project: ProjectRefSchema,
+    /** Null for a person's own whiteboard, shared with people and groups or limited to some (D58's revisit). */
+    project: ProjectRefSchema.nullable(),
+    /** Its project's whiteboards have no owner; a person's does, whoever made it. */
+    owner: UserRefSchema.nullable().describe('Who it belongs to, for a person’s own whiteboard'),
     createdBy: UserRefSchema.nullable(),
     createdAt: timestamp,
     updatedAt: timestamp,
     seq: z.number().int().describe('Its latest change; its live stream resumes after it'),
     elements: z.number().int(),
+    /** A personal whiteboard's readers: everyone signed in, or the people and groups named. */
+    share: z.enum(['everyone', 'limited']),
+    sharedWith: VisibleToSchema,
     access: z.object({
-      edit: z.boolean().describe('May change it: whoever may change its project’s issues'),
-      delete: z.boolean().describe('May delete it: whoever made it, and its project’s managers'),
+      edit: z.boolean().describe('May change it: whoever may change its project’s issues, or a personal whiteboard’s owner and its named people'),
+      delete: z.boolean().describe('May delete it: whoever made it, and its project’s managers; a personal whiteboard’s owner'),
+      share: z.boolean().describe('A personal whiteboard’s owner may say who else reads it'),
     }),
   })
   .meta({ id: 'Whiteboard' });
@@ -4528,10 +4535,16 @@ export const WhiteboardDetailSchema = z
 export type WhiteboardDetail = z.infer<typeof WhiteboardDetailSchema>;
 
 export const WhiteboardCreateBody = z.object({
-  project: z.string().trim().min(1).max(40).describe('Its project, by key: who reads the project reads it, and who may change its issues changes it'),
+  project: z.string().trim().min(1).max(40).optional().describe('Its project, by key: who reads the project reads it, and who may change its issues changes it. Without one, a whiteboard of your own'),
   name: z.string().trim().min(1).max(WHITEBOARD_LIMITS.name),
+  share: z.enum(['everyone', 'limited']).default('everyone').describe('A personal whiteboard’s readers: everyone signed in, or the people and groups named'),
+  sharedWith: VisibleToInput.optional().describe('The people (logins) and groups (ids or names) it is shared with, when it is limited to some'),
 });
 export const WhiteboardRenameBody = z.object({ name: z.string().trim().min(1).max(WHITEBOARD_LIMITS.name) });
+export const WhiteboardShareBody = z.object({
+  share: z.enum(['everyone', 'limited']).describe('A personal whiteboard’s readers: everyone signed in, or the people and groups named'),
+  sharedWith: VisibleToInput.optional().describe('The people (logins) and groups (ids or names) it is shared with, when it is limited to some'),
+});
 
 const wbSet = z.object({ x: wbCoord, y: wbCoord, w: wbSize, h: wbSize, z: wbZ, text: wbText, tone: z.enum(WHITEBOARD_TONES), label: wbLabel }).partial();
 

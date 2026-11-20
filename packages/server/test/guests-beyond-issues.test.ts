@@ -327,7 +327,7 @@ describe('whiteboards', () => {
     expect(words(await guest('GET', `/whiteboards/${ids.backRoom}`), ids.backRoom)).toBe(words(await guest('GET', '/whiteboards/nope'), 'nope'));
 
     const d = (await guest('GET', `/whiteboards/${ids.roadmap}`)).body as WhiteboardDetail;
-    expect(d.whiteboard.access).toEqual({ edit: false, delete: false });
+    expect(d.whiteboard.access).toEqual({ edit: false, delete: false, share: false });
     const byElement = new Map(d.cards.map((c) => [c.element, c]));
     expect(byElement.get('card-open')).toMatchObject({ shown: true, id: ids.open, summary: 'Public roadmap page' });
     expect(byElement.get('card-article')).toMatchObject({ shown: true, summary: 'How to contribute' });
