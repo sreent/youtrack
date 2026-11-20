@@ -432,6 +432,66 @@ async function writeRows(tx: Db, rows: ElementRow[]) {
   }
 }
 
+/** The longest common subsequence of two line arrays, as the pairs of indexes it keeps. */
+function lcsPairs(a: string[], b: string[]): [number, number][] {
+  // A plain DP: a note's words are a few dozen lines at most, so this stays small.
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+  for (let i = m - 1; i >= 0; i--) for (let j = n - 1; j >= 0; j--) dp[i]![j] = a[i] === b[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
+  const out: [number, number][] = [];
+  let i = 0;
+  let j = 0;
+  while (i < m && j < n) {
+    if (a[i] === b[j]) {
+      out.push([i, j]);
+      i++;
+      j++;
+    } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) i++;
+    else j++;
+  }
+  return out;
+}
+
+/**
+ * Two people's changes to the same note's words, merged rather than refused (D58's revisit): each
+ * side's lines kept and changed land, by the lines both kept in order; a line both changed keeps
+ * both, so nobody's typing is lost.
+ */
+export function mergeWords(base: string, mine: string, theirs: string): string {
+  if (mine === theirs || mine === base) return theirs;
+  if (theirs === base) return mine;
+  const b = base.split('\n');
+  const m = mine.split('\n');
+  const t = theirs.split('\n');
+  const mPairs = lcsPairs(b, m);
+  const tPairs = lcsPairs(b, t);
+  const mAt = new Map<number, number>(mPairs.map(([bi, mi]) => [bi, mi]));
+  const tAt = new Map<number, number>(tPairs.map(([bi, ti]) => [bi, ti]));
+  /** The side's lines after its kept pair at `bi`, before its next kept one: its changes for what follows. */
+  const gapAfter = (pairs: [number, number][], side: string[], bi: number): string[] => {
+    const k = pairs.findIndex(([x]) => x === bi);
+    if (k < 0) return [];
+    return side.slice(pairs[k]![1] + 1, k + 1 < pairs.length ? pairs[k + 1]![1] : side.length);
+  };
+  const out: string[] = [];
+  // What each side put before its first kept line: its changes to the top of the note.
+  out.push(...(mPairs.length ? m.slice(0, mPairs[0]![1]) : m.slice()), ...(tPairs.length ? t.slice(0, tPairs[0]![1]) : t.slice()));
+  for (let bi = 0; bi < b.length; bi++) {
+    const mm = mAt.get(bi);
+    const tt = tAt.get(bi);
+    if (mm !== undefined && tt !== undefined) {
+      // Kept by both: once when it reads alike; both when each changed it, so nobody's typing is lost.
+      if (m[mm] === t[tt]) out.push(m[mm]!);
+      else out.push(m[mm]!, t[tt]!);
+    }
+    // Kept by one side alone, the other's change stands in its place: the base line the keeper kept is gone there.
+    if (mm !== undefined) out.push(...gapAfter(mPairs, m, bi));
+    if (tt !== undefined) out.push(...gapAfter(tPairs, t, bi));
+  }
+  return out.join('\n');
+}
+
 /**
  * Apply a batch of changes to a whiteboard's elements, in order, in one transaction. Each operation
  * stands alone: one whose element has gone, or no longer has what it `expect`s, or whose id is taken,
@@ -474,7 +534,7 @@ export async function applyWhiteboardBatch(ctx: Ctx, id: string, input: Whiteboa
       if (current.some((r) => r.id === rid)) removed.add(rid);
     };
     let top = Math.max(0, ...current.map((r) => r.z));
-    for (const op of body.ops) {
+    for (let op of body.ops) {
       if (op.op === 'add') {
         const there = els.get(op.id);
         if (there) {
@@ -524,8 +584,14 @@ export async function applyWhiteboardBatch(ctx: Ctx, id: string, input: Whiteboa
         continue;
       }
       if (!holds(row, op.expect)) {
-        refused.push({ id: op.id, op: op.op, reason: 'changed', element: elementDto(s, row) });
-        continue;
+        // Words are merged rather than refused (D58's revisit): when only the words have moved on,
+        // the change is merged into what's there, and the rest of its expect must still hold.
+        if (op.op === 'update' && typeof op.expect?.text === 'string' && typeof op.set?.text === 'string' && (() => { const { text: _held, ...rest } = op.expect ?? {}; return holds(row, rest); })()) {
+          op = { ...op, set: { ...op.set, text: mergeWords(op.expect.text, op.set.text, row.text ?? '') } };
+        } else {
+          refused.push({ id: op.id, op: op.op, reason: 'changed', element: elementDto(s, row) });
+          continue;
+        }
       }
       if (op.op === 'remove') {
         drop(op.id);

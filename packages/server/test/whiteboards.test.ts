@@ -193,19 +193,27 @@ describe('two people at once', () => {
     expect((await getWhiteboard(anna, board.id)).elements[0]).toMatchObject({ x: 320, y: 40, text: 'After', version: 3 });
   });
 
-  it('lets one of two rewrites of the same words through, and gives the other what’s there now', async () => {
+  it('merges two rewrites of the same words rather than refusing one (D58’s revisit)', async () => {
     const board = await createWhiteboard(anna, { project: 'BACK', name: 'Same words' });
     const id = await note(board.id, 'Draft');
     const results = await Promise.all([
       applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'update', id, set: { text: 'Anna’s' }, expect: { text: 'Draft' } }] }),
       applyWhiteboardBatch(ben, board.id, { ops: [{ op: 'update', id, set: { text: 'Ben’s' }, expect: { text: 'Draft' } }] }),
     ]);
-    const won = results.filter((r) => r.applied.includes(id));
-    const lost = results.filter((r) => r.refused.length);
-    expect(won).toHaveLength(1);
-    expect(lost).toHaveLength(1);
+    expect(results.every((r) => r.applied.includes(id) && !r.refused.length)).toBe(true);
+    // Both people's lines stay: a line both changed keeps both, in order.
     const now = (await getWhiteboard(anna, board.id)).elements[0]!.text;
-    expect(lost[0]!.refused[0]).toMatchObject({ id, reason: 'changed', element: { text: now } });
+    expect(now?.split('\n').sort()).toEqual(['Anna’s', 'Ben’s']);
+    // Each side's own lines land when they change different lines of one note.
+    const two = await note(board.id, 'First line\nSecond line');
+    const edits = await Promise.all([
+      applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'update', id: two, set: { text: 'Anna’s line\nSecond line' }, expect: { text: 'First line\nSecond line' } }] }),
+      applyWhiteboardBatch(ben, board.id, { ops: [{ op: 'update', id: two, set: { text: 'First line\nBen’s line' }, expect: { text: 'First line\nSecond line' } }] }),
+    ]);
+    expect(edits.every((r) => !r.refused.length)).toBe(true);
+    const merged = (await getWhiteboard(anna, board.id)).elements.find((e) => e.id === two)?.text;
+    // Each person's typed line stays; the line mine rewrote away is gone, theirs kept it or not.
+    expect(merged).toBe('Anna’s line\nBen’s line');
   });
 
   it('puts two moves of one note where the later put it, and refuses an undo of a move someone made since', async () => {
