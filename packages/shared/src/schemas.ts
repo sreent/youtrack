@@ -890,7 +890,8 @@ export const LinkBody = z.object({
 export const WorkItemSchema = z
   .object({
     id: z.string(),
-    issueId: z.string(),
+    issueId: z.string().nullable().describe('The readable id, or null on their own row (D43\'s revisit)'),
+    activity: z.string().nullable().describe("Their own row's name (D43's revisit), or null on an issue's work"),
     author: UserRefSchema.nullable(),
     date: isoDate,
     minutes: z.number().int(),
@@ -3465,6 +3466,15 @@ export const TimesheetSchema = z
     days: z.array(isoDate).length(7),
     hours: z.array(z.number()).length(7).describe('Their working hours each day: their working week, less days away'),
     totals: z.array(z.number().int()).length(7).describe('Minutes logged each day'),
+    personal: z
+      .array(
+        z.object({
+          activity: z.string().describe("Their own row's name (D43's revisit): BAU, or anything they keep"),
+          minutes: z.array(z.number().int()).length(7),
+          entries: z.array(z.number().int()).length(7),
+        }),
+      )
+      .describe("Their own rows, each a name of their choosing, beside their issues'"),
     rows: z.array(
       z.object({
         issue: IssueRefSchema,
@@ -3483,6 +3493,13 @@ export const TimesheetQuery = z.object({
 export const TimesheetWeekBody = z.object({
   week: isoDate.optional().describe('Any day of the week; this week by default'),
   user: z.string().optional().describe('Whose (a login); yours by default'),
+});
+export type TimesheetPersonalInput = z.infer<typeof TimesheetPersonalBody>;
+export const TimesheetPersonalBody = z.object({
+  date: isoDate,
+  minutes: z.number().int().min(0).max(24 * 60),
+  activity: z.string().min(1).max(100).describe('Their own row\'s name: BAU, or anything they keep'),
+  user: z.string().optional().describe('Whose (a login); yours by default. Administrators only for others'),
 });
 export const TimesheetCellBody = z.object({
   issue: z.string(),

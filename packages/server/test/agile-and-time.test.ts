@@ -21,7 +21,7 @@ import { createIssue, findVisibleIssue, updateIssue } from '../src/services/issu
 import { addMember } from '../src/services/members';
 import { getResourceLoad, getSchedule } from '../src/services/planning';
 import { createProject, updateProject } from '../src/services/projects';
-import { approveTimesheet, discardTimer, getTimesheet, listTimers, pauseTimer, reopenTimesheet, setTimesheetCell, startTimer, stopTimer, submitTimesheet } from '../src/services/time';
+import { approveTimesheet, discardTimer, getTimesheet, listTimers, pauseTimer, reopenTimesheet, setPersonalCell, setTimesheetCell, startTimer, stopTimer, submitTimesheet } from '../src/services/time';
 import { updateUser } from '../src/services/users';
 import { listWorkItems, logWork } from '../src/services/workitems';
 import { createWorkType, deleteWorkType, listWorkTypes, updateWorkType } from '../src/services/work-types';
@@ -413,5 +413,21 @@ describe("the timesheet itself is each project's to turn off (D43's revisit)", (
     await updateProject(w.adminCtx, 'BACK', { settings: { time: { timesheetEnabled: true } } });
     const again = await getTimesheet(anna, { week: next });
     expect(again.rows.some((r) => r.issue.id === back.id)).toBe(true);
+  });
+});
+describe("the personal view (D43's revisit)", () => {
+  it('fills one of their own rows, no issue under it, and empties it away', async () => {
+    const anna = w.as(w.anna);
+    const next = addDays(mon, 14);
+    const filled = await setPersonalCell(anna, { activity: 'BAU', date: next, minutes: 90 });
+    expect(filled.personal).toContainEqual(expect.objectContaining({ activity: 'BAU', minutes: expect.arrayContaining([90]) }));
+    // Their own row, beside the issues', still there after another day joins it.
+    await setPersonalCell(anna, { activity: 'Training', date: addDays(next, 1), minutes: 60 });
+    const both = await getTimesheet(anna, { week: next });
+    expect(both.personal.map((p) => p.activity).sort()).toEqual(['BAU', 'Training']);
+    // Emptied, the row goes.
+    await setPersonalCell(anna, { activity: 'Training', date: addDays(next, 1), minutes: 0 });
+    const after = await getTimesheet(anna, { week: next });
+    expect(after.personal.map((p) => p.activity)).toEqual(['BAU']);
   });
 });

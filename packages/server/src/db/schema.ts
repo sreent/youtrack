@@ -468,9 +468,9 @@ export const workItems = pgTable(
   'work_items',
   {
     id: text('id').primaryKey(),
-    issueId: text('issue_id')
-      .notNull()
-      .references(() => issues.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'cascade' }),
+    /** Their own row's name (D43's revisit): BAU or any activity they keep; null on an issue's work. */
+    activity: text('activity'),
     authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
     date: date('date', { mode: 'string' }).notNull(),
     minutes: integer('minutes').notNull(),

@@ -140,7 +140,7 @@ export async function loadPlan(
     for (const e of ext) if (view.canRead(e.projectId) && seen.has(e.id)) rid.set(e.id, readableId(s, e));
   }
 
-  const work = ids.length ? await ctx.db.select().from(workItems).where(inArray(workItems.issueId, ids)) : [];
+  const work = ids.length ? (await ctx.db.select().from(workItems).where(inArray(workItems.issueId, ids))).filter((w): w is typeof w & { issueId: string } => w.issueId !== null) : [];
   const spent = new Map<string, number>();
   const firstWork = new Map<string, string>();
   for (const w of work) {

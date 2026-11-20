@@ -2,7 +2,7 @@
  * Time tracking (docs/architecture.md, D43): a timer on an issue that becomes a work item, and a
  * weekly timesheet where people enter and correct their time across issues.
  */
-import type { StopTimerInput, Timer, Timesheet, TimesheetCellInput, WorkItem } from '@a4a/shared';
+import type { StopTimerInput, Timer, Timesheet, TimesheetCellInput, TimesheetPersonalInput, WorkItem } from '@a4a/shared';
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 import { isAdmin, requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
@@ -195,15 +195,26 @@ export async function getTimesheet(ctx: Ctx, q: { week?: string; user?: string }
     await ctx.db
       .select({ item: workItems, projectId: issues.projectId })
       .from(workItems)
-      .innerJoin(issues, eq(issues.id, workItems.issueId))
+      .leftJoin(issues, eq(issues.id, workItems.issueId))
       .where(and(eq(workItems.authorId, person.id), gte(workItems.date, days[0]!), lte(workItems.date, days[6]!)))
       .orderBy(asc(workItems.createdAt))
-  ).filter((r) => view.canRead(r.projectId) && timesheetOn(s, r.projectId));
-  const refs = await issueRefsById(ctx.db, s, rows.map((r) => r.item.issueId));
+  ).filter((r) => (r.item.issueId === null ? true : view.canRead(r.projectId!) && timesheetOn(s, r.projectId!)));
+  const refs = await issueRefsById(ctx.db, s, rows.flatMap((r) => (r.item.issueId ? [r.item.issueId] : [])));
   const names = await workTypeNames(ctx.db, rows.map((r) => r.item.workTypeId));
   const byRow = new Map<string, Timesheet['rows'][number]>();
   const totals = days.map(() => 0);
+  const personal = new Map<string, { activity: string; minutes: number[]; entries: number[] }>();
   for (const { item } of rows) {
+    if (item.issueId === null) {
+      const name = item.activity?.trim() || 'BAU';
+      const prow = personal.get(name) ?? { activity: name, minutes: days.map(() => 0), entries: days.map(() => 0) };
+      personal.set(name, prow);
+      const pi = days.indexOf(item.date);
+      prow.minutes[pi]! += item.minutes;
+      prow.entries[pi]! += 1;
+      totals[pi]! += item.minutes;
+      continue;
+    }
     const issue = refs.get(item.issueId);
     if (!issue) continue;
     const key = `${item.issueId}|${item.workTypeId ?? ''}`;
@@ -222,7 +233,7 @@ export async function getTimesheet(ctx: Ctx, q: { week?: string; user?: string }
   const ordered = [...byRow.values()].sort((a, b) => a.issue.id.localeCompare(b.issue.id, undefined, { numeric: true }) || (a.type?.name ?? '').localeCompare(b.type?.name ?? ''));
   const [fresh] = await ctx.db.select().from(users).where(eq(users.id, person.id));
   const weekRow = await weekOf(ctx.db, person.id, monday);
-  return { user: userRefDto(person), week: monday, status: weekRow.status as Timesheet['status'], submittedAt: weekRow.submittedAt?.toISOString() ?? null, approvedBy: weekRow.approvedById ? (s.users.get(weekRow.approvedById) ? userRefDto(s.users.get(weekRow.approvedById)!) : null) : null, days, hours: await workingHours(ctx.db, fresh ?? person, days), totals, rows: ordered };
+  return { user: userRefDto(person), week: monday, status: weekRow.status as Timesheet['status'], submittedAt: weekRow.submittedAt?.toISOString() ?? null, approvedBy: weekRow.approvedById ? (s.users.get(weekRow.approvedById) ? userRefDto(s.users.get(weekRow.approvedById)!) : null) : null, days, hours: await workingHours(ctx.db, fresh ?? person, days), totals, rows: ordered, personal: [...personal.values()].sort((a, b) => a.activity.localeCompare(b.activity)) };
 }
 
 /**
@@ -365,4 +376,31 @@ export async function reopenTimesheet(ctx: Ctx, input: { week?: string; user?: s
   await mayApprove(ctx, person.id, monday);
   await ctx.db.update(timesheetWeeks).set({ status: 'open', submittedAt: null, approvedAt: null, approvedById: null, updatedAt: new Date() }).where(and(eq(timesheetWeeks.userId, person.id), eq(timesheetWeeks.week, monday)));
   return getTimesheet(ctx, { week: monday, user: person.login }, { approver: true });
+}
+/**
+ * Sets one cell of the person's own rows (D43's revisit): their time on BAU or any activity they
+ * name, no issue under it. As the issue's cells: one entry per activity and day, corrected by the
+ * cell, 0 deletes it. Their own rows ride the week's submission and approval, needing no project.
+ */
+export async function setPersonalCell(ctx: Ctx, input: TimesheetPersonalInput): Promise<Timesheet> {
+  requireScope(ctx, 'write');
+  const s = await ctx.app.schema.get();
+  const person = whose(ctx, s, input.user);
+  if (!isISODate(input.date)) throw badRequest('date must be YYYY-MM-DD').said('time.dateFormat');
+  await assertWeekOpen(ctx, person.id, startOfWeek(input.date));
+  const activity = input.activity.trim().slice(0, 100);
+  if (!activity) throw badRequest('An activity needs a name', 'Name the row: BAU, or anything you keep.').said('time.activityNeedsAName');
+  const existing = await ctx.db
+    .select()
+    .from(workItems)
+    .where(and(eq(workItems.authorId, person.id), isNull(workItems.issueId), eq(workItems.activity, activity), eq(workItems.date, input.date)));
+  if (existing.length > 1) throw conflict(`That day has ${existing.length} entries on ${activity}`, 'Change them one by one.').said('time.severalPersonalEntries', { n: existing.length, activity });
+  const [one] = existing;
+  if (one) {
+    if (input.minutes === 0) await deleteWorkItem(ctx, one.id);
+    else if (input.minutes !== one.minutes) await updateWorkItem(ctx, one.id, { duration: input.minutes });
+  } else if (input.minutes > 0) {
+    await ctx.db.insert(workItems).values({ id: newId(), issueId: null, activity, authorId: person.id, date: input.date, minutes: input.minutes, description: '', workTypeId: null });
+  }
+  return getTimesheet(ctx, { week: startOfWeek(input.date), user: person.login });
 }

@@ -139,6 +139,10 @@ Messages added with the configurable approval rule:
 Messages added in wave 18 (the HR calendar):
 
 - Wave 18 (HR-Kalender): `page.admin.hrCalendar` = „HR-Kalender“ und `problem.absences.fromHr` = „Diese Tage kommen aus dem HR-Kalender...“ — klingt die Erklärung natürlich?
+
+Messages added with the timesheet's personal view:
+
+- Die eigene Sicht: `page.timesheet.bauOrAnythingYouKeep` = „BAU oder was du sonst führst“ und `problem.time.severalPersonalEntries` = „...Ändere sie einzeln.“ — klingen sie natürlich?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -278,6 +282,10 @@ Messages added with the configurable approval rule:
 Messages added in wave 18 (the HR calendar):
 
 - Wave 18 (calendario de RR. HH.): `page.admin.hrCalendar` = “Calendario de RR. HH.” y el rechazo “Estos días vienen del calendario de RR. HH...” — ¿naturales?
+
+Messages added with the timesheet's personal view:
+
+- La vista personal: `page.timesheet.bauOrAnythingYouKeep` = “BAU, o lo que tú lleves” y el rechazo “...Cámbialas una a una.” — ¿naturales?
 ## French
 
 Terms:
@@ -417,6 +425,10 @@ Messages added with the configurable approval rule:
 Messages added in wave 18 (the HR calendar):
 
 - Wave 18 (calendrier RH) : `page.admin.hrCalendar` = “Calendrier RH” et le refus “Ces jours viennent du calendrier RH...” — naturels ?
+
+Messages added with the timesheet's personal view:
+
+- La vue personnelle : `page.timesheet.bauOrAnythingYouKeep` = “BAU, ou ce que vous suivez” et le refus “...Changez-les une par une.” — naturels ?
 ## Japanese
 
 Terms:
@@ -548,6 +560,10 @@ Messages added with the configurable approval rule:
 Messages added in wave 18 (the HR calendar):
 
 - Wave 18（HR カレンダー）: `page.admin.hrCalendar` = “HR カレンダー”、拒否の文言 = “この日々は HR カレンダーから...” — 自然ですか。
+
+Messages added with the timesheet's personal view:
+
+- 個人ビュー: `page.timesheet.bauOrAnythingYouKeep` = “BAU、またはあなたが記録するもの”、拒否文 = “...1 件ずつ変更...” — 自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -658,6 +674,10 @@ Messages added with the configurable approval rule:
 Messages added in wave 18 (the HR calendar):
 
 - Wave 18 (calendário de RH): `page.admin.hrCalendar` = “Calendário de RH” e a recusa “Estes dias vêm do calendário de RH...” — naturais?
+
+Messages added with the timesheet's personal view:
+
+- A vista pessoal: `page.timesheet.bauOrAnythingYouKeep` = “BAU, ou o que registar” e a recusa “...Mude-as uma a uma.” — naturais?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -817,6 +837,10 @@ Messages added with the configurable approval rule:
 Messages added in wave 18 (the HR calendar):
 
 - Wave 18(HR 달력): `page.admin.hrCalendar` = “HR 달력”, 거부 문구 = “이 날짜들은 HR 달력에서...” — 자연스럽나요?
+
+Messages added with the timesheet's personal view:
+
+- 개인 보기: `page.timesheet.bauOrAnythingYouKeep` = “BAU, 또는 당신이 기록하는 것”, 거부문 = “...하나씩 바꾸세요.” — 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -967,6 +991,10 @@ Messages added with the configurable approval rule:
 Messages added in wave 18 (the HR calendar):
 
 - Wave 18（人事日历）: `page.admin.hrCalendar` = “人事日历”，拒绝说明 = “这些日子来自人事日历...” ——自然吗？
+
+Messages added with the timesheet's personal view:
+
+- 个人视图：`page.timesheet.bauOrAnythingYouKeep` = “BAU，或任何你记录的内容”，拒绝说明 = “请逐条修改...” ——自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1129,6 +1157,10 @@ Messages added with the configurable approval rule:
 Messages added in wave 18 (the HR calendar):
 
 - Wave 18 (lịch nhân sự): `page.admin.hrCalendar` = “Lịch nhân sự” và lời từ chối = “Những ngày này đến từ lịch nhân sự...” — tự nhiên chứ?
+
+Messages added with the timesheet's personal view:
+
+- Góc nhìn cá nhân: `page.timesheet.bauOrAnythingYouKeep` = “BAU, hoặc bất cứ gì bạn theo dõi” và lời từ chối = “...Hãy sửa từng mục một.” — tự nhiên chứ?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1288,6 +1320,10 @@ Messages added with the configurable approval rule:
 Messages added in wave 18 (the HR calendar):
 
 - Wave 18 (kalender SDM): `page.admin.hrCalendar` = “Kalender SDM” dan penolakan = “Hari-hari ini datang dari kalender SDM...” — apakah alami?
+
+Messages added with the timesheet's personal view:
+
+- Tampilan pribadi: `page.timesheet.bauOrAnythingYouKeep` = “BAU, atau apa pun yang kamu catat” dan penolakan = “...Ubah satu per satu.” — apakah alami?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1448,6 +1484,10 @@ Messages added with the configurable approval rule:
 Messages added in wave 18 (the HR calendar):
 
 - Wave 18 (ปฏิทิน HR): `page.admin.hrCalendar` = “ปฏิทิน HR” และข้อความปฏิเสธ = “วันเหล่านี้มาจากปฏิทิน HR...” — ธรรมชาติหรือไม่
+
+Messages added with the timesheet's personal view:
+
+- มุมมองส่วนตัว: `page.timesheet.bauOrAnythingYouKeep` = “BAU หรืออะไรก็ตามที่คุณบันทึก” และข้อปฏิเสธ = “...เปลี่ยนทีละรายการ” — ธรรมชาติหรือไม่
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

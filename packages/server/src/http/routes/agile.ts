@@ -7,6 +7,7 @@ import {
   StopTimerResultSchema,
   TimerSchema,
   TimesheetCellBody,
+  TimesheetPersonalBody,
   TimesheetQuery,
   TimesheetSchema,
   UpdateWorkTypeBody,
@@ -19,7 +20,7 @@ import {
 } from '@a4a/shared';
 import { z } from 'zod';
 import { getBacklog, rankIssue, sprintPlan, velocity } from '../../services/agile';
-import { approveTimesheet, discardTimer, getTimesheet, listTimers, pauseTimer, reopenTimesheet, setTimesheetCell, startTimer, stopTimer, submitTimesheet } from '../../services/time';
+import { approveTimesheet, discardTimer, getTimesheet, listTimers, pauseTimer, reopenTimesheet, setPersonalCell, setTimesheetCell, startTimer, stopTimer, submitTimesheet } from '../../services/time';
 import { updateWorkItem } from '../../services/workitems';
 import { createWorkType, deleteWorkType, listWorkTypes, updateWorkType } from '../../services/work-types';
 import type { HttpEnv } from '../env';
@@ -121,6 +122,20 @@ export function agileRoutes(app: OpenAPIHono<HttpEnv>) {
     { method: 'get', path: '/timesheet', tags: time, summary: 'A week of your logged time, by issue and work type', query: TimesheetQuery, response: TimesheetSchema },
     ({ ctx, query }) => getTimesheet(ctx, query),
   );
+  route(
+    app,
+    {
+      method: 'put',
+      path: '/timesheet/personal',
+      tags: time,
+      summary: 'Set your time in one cell of your own rows (BAU, or anything you name)',
+      description: 'As the issue cells: one entry per activity and day, corrected by the cell, 0 deletes it. Your own rows ride the week\'s submission and approval, needing no project.',
+      body: TimesheetPersonalBody,
+      response: TimesheetSchema,
+    },
+    ({ ctx, body }) => setPersonalCell(ctx, body),
+  );
+
   route(
     app,
     {
