@@ -5720,6 +5720,7 @@
   "rules.ruleForm.overdueIssuesGetTaggedDaily": "Itens em atraso recebem uma etiqueta, diariamente",
   "rules.ruleForm.refuseTheChangeInThe": "recusar a alteração, com as palavras que o script passa a refuse()",
   "rules.ruleForm.refuseTheChangeSaying": "recusar a alteração, dizendo",
+  "rules.ruleForm.runFromTheQueue": "Executar a partir da fila: pode levar o seu tempo e age sobre o que viu quando a regra disparou",
   "rules.ruleForm.runIt": "Executar",
   "rules.ruleForm.runThisScript": "executar este script",
   "rules.ruleForm.running": "A executar…",

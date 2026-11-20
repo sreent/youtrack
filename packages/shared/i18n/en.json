@@ -5720,6 +5720,7 @@
   "rules.ruleForm.overdueIssuesGetTaggedDaily": "Overdue issues get tagged, daily",
   "rules.ruleForm.refuseTheChangeInThe": "refuse the change, in the words its script gives refuse()",
   "rules.ruleForm.refuseTheChangeSaying": "refuse the change, saying",
+  "rules.ruleForm.runFromTheQueue": "Run it from the queue: it may take its time, and acts on what it saw when its rule fired",
   "rules.ruleForm.runIt": "Run it",
   "rules.ruleForm.runThisScript": "run this script",
   "rules.ruleForm.running": "Running…",

@@ -5720,6 +5720,7 @@
   "rules.ruleForm.overdueIssuesGetTaggedDaily": "Gắn nhãn vấn đề quá hạn, hằng ngày",
   "rules.ruleForm.refuseTheChangeInThe": "từ chối thay đổi, bằng lời mà script truyền cho refuse()",
   "rules.ruleForm.refuseTheChangeSaying": "từ chối thay đổi, với lời nhắn",
+  "rules.ruleForm.runFromTheQueue": "Chạy từ hàng đợi: nó được phép tốn thời gian, và tác động lên những gì nó thấy khi quy tắc kích hoạt",
   "rules.ruleForm.runIt": "Chạy",
   "rules.ruleForm.runThisScript": "chạy script này",
   "rules.ruleForm.running": "Đang chạy…",

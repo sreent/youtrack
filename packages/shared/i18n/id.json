@@ -5720,6 +5720,7 @@
   "rules.ruleForm.overdueIssuesGetTaggedDaily": "Isu yang melewati tenggat diberi tag, setiap hari",
   "rules.ruleForm.refuseTheChangeInThe": "tolak perubahan dengan pesan yang diberikan skrip ke refuse()",
   "rules.ruleForm.refuseTheChangeSaying": "tolak perubahan, dengan pesan",
+  "rules.ruleForm.runFromTheQueue": "Jalankan dari antrean: ia boleh memakan waktu, dan bertindak atas yang dilihatnya saat aturannya terpicu",
   "rules.ruleForm.runIt": "Jalankan",
   "rules.ruleForm.runThisScript": "jalankan skrip ini",
   "rules.ruleForm.running": "Menjalankan…",

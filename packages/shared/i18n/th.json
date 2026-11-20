@@ -5720,6 +5720,7 @@
   "rules.ruleForm.overdueIssuesGetTaggedDaily": "ติดแท็กอิชชูที่เลยกำหนดทุกวัน",
   "rules.ruleForm.refuseTheChangeInThe": "ปฏิเสธการเปลี่ยนแปลง ด้วยข้อความที่สคริปต์ส่งให้ refuse()",
   "rules.ruleForm.refuseTheChangeSaying": "ปฏิเสธการเปลี่ยนแปลง โดยแจ้งว่า",
+  "rules.ruleForm.runFromTheQueue": "รันจากคิว: ใช้เวลาได้ และทำงานกับสิ่งที่เห็นตอนกฎทำงาน",
   "rules.ruleForm.runIt": "รัน",
   "rules.ruleForm.runThisScript": "รันสคริปต์นี้",
   "rules.ruleForm.running": "กำลังรัน…",

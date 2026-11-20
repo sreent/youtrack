@@ -5720,6 +5720,7 @@
   "rules.ruleForm.overdueIssuesGetTaggedDaily": "每天给逾期问题加标签",
   "rules.ruleForm.refuseTheChangeInThe": "拒绝更改，并显示脚本在 refuse() 中给出的说明",
   "rules.ruleForm.refuseTheChangeSaying": "拒绝更改，并说明",
+  "rules.ruleForm.runFromTheQueue": "从队列运行：它可以慢慢来，并作用于规则触发时所见的内容",
   "rules.ruleForm.runIt": "运行",
   "rules.ruleForm.runThisScript": "运行此脚本",
   "rules.ruleForm.running": "正在运行……",

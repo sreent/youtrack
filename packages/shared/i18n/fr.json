@@ -5720,6 +5720,7 @@
   "rules.ruleForm.overdueIssuesGetTaggedDaily": "Les tickets en retard reçoivent une étiquette, chaque jour",
   "rules.ruleForm.refuseTheChangeInThe": "refuser la modification, avec les mots que son script donne à refuse()",
   "rules.ruleForm.refuseTheChangeSaying": "refuser la modification, en disant",
+  "rules.ruleForm.runFromTheQueue": "L'exécuter depuis la file : il peut prendre son temps et agit sur ce qu'il a vu quand sa règle s'est déclenchée",
   "rules.ruleForm.runIt": "L’exécuter",
   "rules.ruleForm.runThisScript": "exécuter ce script",
   "rules.ruleForm.running": "Exécution…",

@@ -5720,6 +5720,7 @@
   "rules.ruleForm.overdueIssuesGetTaggedDaily": "期限切れの課題に毎日タグを付ける",
   "rules.ruleForm.refuseTheChangeInThe": "変更を拒否（スクリプトがrefuse()に渡す言葉で）",
   "rules.ruleForm.refuseTheChangeSaying": "変更を拒否し、次のように伝える",
+  "rules.ruleForm.runFromTheQueue": "キューから実行: 時間をかけてもよく、ルールが発火した時点の内容に作用します",
   "rules.ruleForm.runIt": "実行",
   "rules.ruleForm.runThisScript": "このスクリプトを実行",
   "rules.ruleForm.running": "実行中…",

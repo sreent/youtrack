@@ -5720,6 +5720,7 @@
   "rules.ruleForm.overdueIssuesGetTaggedDaily": "기한이 지난 이슈에 매일 태그 추가",
   "rules.ruleForm.refuseTheChangeInThe": "refuse()에 스크립트가 넘긴 메시지로 변경 거부",
   "rules.ruleForm.refuseTheChangeSaying": "다음 메시지로 변경 거부",
+  "rules.ruleForm.runFromTheQueue": "대기열에서 실행: 시간이 걸려도 되며, 규칙이 발동했을 때 본 내용에 작용합니다",
   "rules.ruleForm.runIt": "실행",
   "rules.ruleForm.runThisScript": "이 스크립트 실행",
   "rules.ruleForm.running": "실행하는 중…",

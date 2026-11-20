@@ -5720,6 +5720,7 @@
   "rules.ruleForm.overdueIssuesGetTaggedDaily": "Überfällige Vorgänge bekommen täglich ein Tag",
   "rules.ruleForm.refuseTheChangeInThe": "die Änderung ablehnen, mit den Worten, die ihr Skript refuse() gibt",
   "rules.ruleForm.refuseTheChangeSaying": "die Änderung ablehnen, mit der Meldung",
+  "rules.ruleForm.runFromTheQueue": "Aus der Warteschlange ausführen: es darf sich Zeit nehmen und handelt mit dem, was es beim Auslösen der Regel sah",
   "rules.ruleForm.runIt": "Ausführen",
   "rules.ruleForm.runThisScript": "dieses Skript ausführen",
   "rules.ruleForm.running": "Läuft…",

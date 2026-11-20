@@ -2267,6 +2267,10 @@ export const RuleBody = z.object({
     .describe(
       'JavaScript run in a sandbox (D40) in place of the command (a change or scheduled rule) or of `requires` (a guard). Its globals: `issue`, `change`, `project`, and apply(command[, issueId]), comment(text), refuse(message), log(...). Administrators only',
     ),
+  queued: z
+    .boolean()
+    .default(false)
+    .describe("A scripted rule (D40's revisit): its worker runs it, so it may take its time. Administrators only"),
   enabled: z.boolean().default(true),
 });
 export type RuleInput = z.input<typeof RuleBody>;
