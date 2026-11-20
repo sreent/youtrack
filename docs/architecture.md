@@ -1126,7 +1126,7 @@ The team works in Microsoft Teams, or Slack: an issue's news should reach them t
 - It's checked when the outbox's consumer writes a post, and again when the post is sent: an issue limited in between isn't posted, and isn't posted about again.
 - Whoever subscribes a channel vouches for its people, and every post is read as they would read the issue. A project open to everyone takes anyone who reads it (a read-only account excepted); one open to its members alone, someone who manages it, since the channel's people may not be members. A subscriber who loses the project, or is banned, ends a project's subscription, saying why; a saved search's only stops telling of that project.
 - What goes to one person (an answer, a card refreshed for them) follows their own access, as anywhere else in a4a: Slack's ephemeral messages, Teams' personal chat and `refresh.userIds`. A question asked in a Teams channel is answered in the asker's personal chat, with a word in the channel; only a subscription's confirmation is answered in the channel, since it says what the channel will hear.
-- A channel hears of what happens from when it's subscribed, however late the outbox hands an event over.
+- A channel hears of what happens from when it's subscribed, however late the outbox hands an event over. A post is remembered by issue (`chat_posts`); the issue's next news changes it in place (Teams' `updateActivity`, Slack's `chat.update`, Matrix's edit of the same event), so a channel isn't re-told in a fresh message.
 
 **Posting.** As mail is (D23): the consumer writes one row per channel per event (`chat_outbox`, keyed so a second hand-over writes nothing), and a sender on every instance claims due rows (`FOR UPDATE SKIP LOCKED`, with a lease) and posts them, rendered from the issue as it is then. A 429 or a 5xx waits as long as the service asks (`Retry-After`), and at least 30 s, 2 min, 10 min, 30 min, then 2 h; a channel that's gone (Teams' `ConversationNotFound`, Slack's `channel_not_found`, `is_archived`, `not_in_channel`) is marked so and its subscriptions end, saying why; a revoked token or a bot taken out of a team ends every subscription in that workspace. Ended subscriptions stay on the page with their reason until someone takes them off.
 
@@ -2243,7 +2243,7 @@ D68 left passkeys required of everyone or of administrators only, and an id that
 
 Planned, with the seams already in place:
 
-- Google Chat or Mattermost, Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);
+- Google Chat or Mattermost, and Teams' own link unfurling (a message extension) (D42);
 - a thread's replies in an issue made from a Teams message (through Microsoft Graph), and a message's files brought into the issue rather than linked (D60);
 - SAML for requesters' identity providers, a desk's own provider limited to its customers, and the desk's emails in a requester's own language (D63);
 - customers that several desks serve, a requester in several groups at a desk, and members told of their group's requests (D56);

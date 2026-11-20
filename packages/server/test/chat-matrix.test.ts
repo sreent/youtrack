@@ -17,7 +17,7 @@ let outbox: OutboxWorker;
 let sender: ChatWorker;
 let homeserver: Server;
 let port: number;
-const sent: { room: string; body: Record<string, unknown> }[] = [];
+const sent: { room: string; method: string; body: Record<string, unknown> }[] = [];
 let syncSeen = 0;
 
 async function call(method: string, path: string, token: string, body?: unknown) {
@@ -44,7 +44,7 @@ beforeAll(async () => {
       if (url.endsWith('/joined_rooms')) return res.end(JSON.stringify({ joined_rooms: ['!room:mock'] }));
       if (url.includes('/state/m.room.name')) return res.end(JSON.stringify({ name: 'Engineering' }));
       if (url.includes('/send/m.room.message/')) {
-        sent.push({ room: '!room:mock', body: JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as Record<string, unknown> });
+        sent.push({ room: '!room:mock', method: req.method ?? 'GET', body: JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as Record<string, unknown> });
         return res.end(JSON.stringify({ event_id: `$e${sent.length}` }));
       }
       res.statusCode = 404;
@@ -83,7 +83,7 @@ describe('Matrix', () => {
     // Subscribe it to the project, and an issue's news reaches it as text.
     const sub = await call('POST', '/chat/subscriptions', token, { channel: room!.id, project: 'BACK' });
     expect(sub.status).toBe(201);
-    await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Ring the room' });
+    const made = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Ring the room' });
     for (let i = 0; i < 6 && !sent.length; i++) {
       await outbox.drain();
       await sender.drain();
@@ -93,6 +93,14 @@ describe('Matrix', () => {
     expect(String(sent[0]!.body.body)).toContain('Ring the room');
     expect(sent[0]!.body.format).toBe('org.matrix.custom.html');
     // Disconnecting forgets it.
+    // The issue changes again: the same post, edited in place (D42's revisit).
+    await (await import('../src/services/issues')).updateIssue(w.as(w.anna), made.id, { fields: { Assignee: 'ben' } });
+    for (let i = 0; i < 6 && !sent.some((s) => s.body['m.new_content'] !== undefined); i++) { await outbox.drain(); await sender.drain(); }
+    const edit = sent.find((s) => s.body['m.new_content'] !== undefined);
+    expect(edit).toBeDefined();
+    expect(String((edit!.body['m.new_content'] as { body?: unknown }).body)).toContain('changed Assignee');
+    expect(edit!.method).toBe('PUT');
+
     const off = await call('DELETE', '/chat/matrix', token);
     expect(off.status).toBe(204);
     const after = await call('GET', '/chat/status', token);

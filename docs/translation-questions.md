@@ -147,6 +147,10 @@ Messages added with the timesheet's personal view:
 Messages added with the queued scripts:
 
 - Die Warteschlange: `rules.ruleForm.runFromTheQueue` = „Aus der Warteschlange ausführen: es darf sich Zeit nehmen und handelt mit dem, was es beim Auslösen der Regel sah“ — liest sich die lange Beschriftung natürlich?
+
+With the posts that change in place:
+
+- Die Beiträge ändern sich an Ort und Stelle – keine neuen Wörter; eine Frage: soll die Änderung im Kanal als „bearbeitet“ erkennbar sein, oder reicht der stille Austausch des Inhalts?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -294,6 +298,10 @@ Messages added with the timesheet's personal view:
 Messages added with the queued scripts:
 
 - La cola: `rules.ruleForm.runFromTheQueue` = “Ejecútalo desde la cola: puede tomarse su tiempo y actúa sobre lo que vio cuando su regla se disparó” — ¿natural, pese a lo largo?
+
+With the posts that change in place:
+
+- Las publicaciones cambian en su sitio – sin palabras nuevas; una pregunta: ¿debería verse en el canal que se editó, o basta con el contenido reemplazado en silencio?
 ## French
 
 Terms:
@@ -441,6 +449,10 @@ Messages added with the timesheet's personal view:
 Messages added with the queued scripts:
 
 - La file : `rules.ruleForm.runFromTheQueue` = “L'exécuter depuis la file : il peut prendre son temps et agit sur ce qu'il a vu quand sa règle s'est déclenchée” — naturel malgré la longueur ?
+
+With the posts that change in place:
+
+- Les messages changent sur place – pas de mots nouveaux ; une question : faut-il montrer dans le canal que c'est une édition, ou le contenu remplacé en silence suffit-il ?
 ## Japanese
 
 Terms:
@@ -580,6 +592,10 @@ Messages added with the timesheet's personal view:
 Messages added with the queued scripts:
 
 - キュー: `rules.ruleForm.runFromTheQueue` = “キューから実行: 時間をかけてもよく、ルールが発火した時点の内容に作用します” — 長いですが自然ですか。
+
+With the posts that change in place:
+
+- 投稿はその場で変わります（新しい言葉はありません）。質問: チャネルに編集したことを示すべきですか、静かに差し替えるだけで良いですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -698,6 +714,10 @@ Messages added with the timesheet's personal view:
 Messages added with the queued scripts:
 
 - A fila: `rules.ruleForm.runFromTheQueue` = “Executar a partir da fila: pode levar o seu tempo e age sobre o que viu quando a regra disparou” — natural, apesar de longo?
+
+With the posts that change in place:
+
+- As publicações mudam no sítio – sem palavras novas; uma pergunta: deve ver-se no canal que foi editada, ou basta o conteúdo trocado em silêncio?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -865,6 +885,10 @@ Messages added with the timesheet's personal view:
 Messages added with the queued scripts:
 
 - 대기열: `rules.ruleForm.runFromTheQueue` = “대기열에서 실행: 시간이 걸려도 되며, 규칙이 발동했을 때 본 내용에 작용합니다” — 길지만 자연스럽나요?
+
+With the posts that change in place:
+
+- 게시물은 제자리에서 바뀝니다 – 새 문구는 없습니다. 질문: 채널에서 편집했음을 보여주어야 할까요, 아니면 조용히 바뀌는 것으로 충분할까요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -1023,6 +1047,10 @@ Messages added with the timesheet's personal view:
 Messages added with the queued scripts:
 
 - 队列：`rules.ruleForm.runFromTheQueue` = “从队列运行：它可以慢慢来，并作用于规则触发时所见的内容” ——虽然长，自然吗？
+
+With the posts that change in place:
+
+- 帖子就地变化，没有新词。问题：应该在频道里标明“已编辑”，还是静静替换内容就好？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1193,6 +1221,10 @@ Messages added with the timesheet's personal view:
 Messages added with the queued scripts:
 
 - Hàng đợi: `rules.ruleForm.runFromTheQueue` = “Chạy từ hàng đợi: nó được phép tốn thời gian, và tác động lên những gì nó thấy khi quy tắc kích hoạt” — dài nhưng tự nhiên chứ?
+
+With the posts that change in place:
+
+- Bài đăng thay đổi ngay tại chỗ – không có từ mới. Câu hỏi: có nên cho kênh thấy là đã sửa, hay chỉ cần thay nội dung trong im lặng?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1360,6 +1392,10 @@ Messages added with the timesheet's personal view:
 Messages added with the queued scripts:
 
 - Antrean: `rules.ruleForm.runFromTheQueue` = “Jalankan dari antrean: ia boleh memakan waktu, dan bertindak atas yang dilihatnya saat aturannya terpicu” — apakah alami meski panjang?
+
+With the posts that change in place:
+
+- Kiriman berubah di tempatnya – tanpa kata baru. Pertanyaan: perlukah saluran menandai bahwa kiriman diedit, atau cukup isinya diganti diam-diam?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1528,6 +1564,10 @@ Messages added with the timesheet's personal view:
 Messages added with the queued scripts:
 
 - คิว: `rules.ruleForm.runFromTheQueue` = “รันจากคิว: ใช้เวลาได้ และทำงานกับสิ่งที่เห็นตอนกฎทำงาน” — ยาวแต่เป็นธรรมชาติหรือไม่
+
+With the posts that change in place:
+
+- โพสต์เปลี่ยนที่เดิม – ไม่มีถ้อยคำใหม่ คำถาม: ควรให้ช่องเห็นว่าแก้ไขแล้ว หรือแทนที่เนื้อหาเงียบๆ ก็พอ
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:
