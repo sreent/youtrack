@@ -46,6 +46,9 @@ interface Props {
   onOpen: (id: string) => void;
   describe: (e: WhiteboardElement) => string;
   canEdit: boolean;
+  /** Freehand drawing is on: the pointer draws, the page makes one ink element of each stroke (D58's revisit). */
+  draw: boolean;
+  onDraw: (points: { x: number; y: number }[]) => void;
   words: CanvasWords;
   /** Pixels on screen, for the page to place what it adds in view. */
   onSize?: (size: { width: number; height: number }) => void;
@@ -55,7 +58,8 @@ type Gesture =
   | { kind: 'pan'; pointer: number; startX: number; startY: number; view: View; moved: boolean }
   | { kind: 'pinch'; pointers: Map<number, { x: number; y: number }>; distance: number; view: View; mid: { x: number; y: number } }
   | { kind: 'drag'; pointer: number; startX: number; startY: number; start: Map<string, { x: number; y: number }>; moved: boolean; id: string; toggle: boolean }
-  | { kind: 'resize'; pointer: number; startX: number; startY: number; id: string; w: number; h: number };
+  | { kind: 'resize'; pointer: number; startX: number; startY: number; id: string; w: number; h: number }
+  | { kind: 'stroke'; pointer: number; points: { x: number; y: number }[] };
 
 export function Canvas(p: Props) {
   const svg = useRef<SVGSVGElement>(null);
@@ -134,6 +138,10 @@ export function Canvas(p: Props) {
     }
     const id = target?.getAttribute('data-element');
     if (!id) {
+      if (p.draw && p.canEdit) {
+        gesture.current = { kind: 'stroke', pointer: e.pointerId, points: [toCanvas(e.clientX, e.clientY)] };
+        return;
+      }
       gesture.current = { kind: 'pan', pointer: e.pointerId, startX: e.clientX, startY: e.clientY, view: p.view, moved: false };
       return;
     }
@@ -169,6 +177,12 @@ export function Canvas(p: Props) {
       return;
     }
     if (e.pointerId !== g.pointer) return;
+    if (g.kind === 'stroke') {
+      const pt = toCanvas(e.clientX, e.clientY);
+      const last = g.points[g.points.length - 1]!;
+      if (Math.hypot(pt.x - last.x, pt.y - last.y) >= 2) g.points.push({ x: Math.round(pt.x * 10) / 10, y: Math.round(pt.y * 10) / 10 });
+      return;
+    }
     const dx = (e.clientX - g.startX) / p.view.scale;
     const dy = (e.clientY - g.startY) / p.view.scale;
     if (g.kind === 'pan') {
@@ -197,6 +211,11 @@ export function Canvas(p: Props) {
     if (e.pointerId !== g.pointer) return;
     gesture.current = null;
     setPanning(false);
+    if (g.kind === 'stroke') {
+      if (g.points.length >= 2) p.onDraw(g.points);
+      else p.onChoose(null, 'only');
+      return;
+    }
     const dx = (e.clientX - g.startX) / p.view.scale;
     const dy = (e.clientY - g.startY) / p.view.scale;
     if (g.kind === 'pan') {
@@ -340,6 +359,25 @@ function Element({ e, p }: { e: WhiteboardElement; p: Props }) {
           <div className="whiteboard-words">{e.text}</div>
         </foreignObject>
         {handle}
+      </g>
+    );
+  }
+  if (e.kind === 'ink') {
+    const d = (e.points ?? '').trim().split(/\s+/).map((pt, i) => `${i === 0 ? 'M' : 'L'}${pt.replace(',', ' ')}`).join(' ');
+    return (
+      <g className={[...classes, 'whiteboard-ink'].join(' ')} transform={at} {...focus}>
+        <title>{p.describe(e)}</title>
+        {ring}
+        {d ? <path className="whiteboard-ink-stroke" d={d} fill="none" /> : null}
+      </g>
+    );
+  }
+  if (e.kind === 'image') {
+    return (
+      <g className={[...classes, 'whiteboard-image'].join(' ')} transform={at} {...focus}>
+        <title>{p.describe(e)}</title>
+        {ring}
+        {e.attachment ? <image className="whiteboard-image-pic" href={`/api/v1/attachments/${e.attachment}/content`} width={e.w} height={e.h} preserveAspectRatio="xMidYMid meet" /> : null}
       </g>
     );
   }

@@ -48,10 +48,10 @@ export type Scope = (typeof SCOPES)[number];
 export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'chat', 'ci', 'email', 'app'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
-/** The chats a4a talks in (D42): Microsoft Teams, through a bot, and Slack, through an app. */
-export const CHAT_PLATFORMS = ['teams', 'slack'] as const;
+/** The chats a4a talks in (D42): Microsoft Teams, through a bot; Slack, through an app; Matrix, through a homeserver's bot account. */
+export const CHAT_PLATFORMS = ['teams', 'slack', 'matrix'] as const;
 export type ChatPlatform = (typeof CHAT_PLATFORMS)[number];
-export const CHAT_PLATFORM_NAMES: Record<ChatPlatform, string> = { teams: 'Microsoft Teams', slack: 'Slack' };
+export const CHAT_PLATFORM_NAMES: Record<ChatPlatform, string> = { teams: 'Microsoft Teams', slack: 'Slack', matrix: 'Matrix' };
 
 /**
  * The kinds of change a channel can hear of (D42): a new issue, its state, who it's assigned to, a
@@ -152,6 +152,8 @@ export const EVENT_TYPES = [
   // Someone was copied on a help desk request, or stopped being (D57).
   'request.cc_added',
   'request.cc_removed',
+  // A script's call out (D40's revisit): sent to the one webhook it names, like a rule's.
+  'script.called',
   // A whiteboard's life, and what came of it (D58). Its elements' edits aren't events: they go to its own live stream.
   'whiteboard.created',
   'whiteboard.renamed',
@@ -352,6 +354,8 @@ export const WHITEBOARD_LIMITS = {
   elements: 500,
   /** Characters in a note's or a text block's words. */
   text: 2000,
+  /** Characters in a freehand drawing's stroke (D58's revisit): its points, in its own box. */
+  points: 4000,
   /** Characters in an arrow's label or a section's title. */
   label: 200,
   name: 120,
@@ -369,7 +373,7 @@ export const WHITEBOARD_LIMITS = {
 export const WHITEBOARD_TONES = ['plain', 'idea', 'agreed', 'question', 'problem', 'parked'] as const;
 export type WhiteboardTone = (typeof WHITEBOARD_TONES)[number];
 
-export const WHITEBOARD_KINDS = ['note', 'text', 'issue', 'article', 'arrow', 'section'] as const;
+export const WHITEBOARD_KINDS = ['note', 'text', 'issue', 'article', 'arrow', 'section', 'ink', 'image'] as const;
 export type WhiteboardKind = (typeof WHITEBOARD_KINDS)[number];
 
 /** Whose password sign-in owes a passkey (D68): nobody, everyone, or administrators. */

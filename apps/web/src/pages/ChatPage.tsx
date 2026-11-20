@@ -72,6 +72,95 @@ function Teams({ status }: { status: ChatStatus }) {
   );
 }
 
+/** Matrix: one homeserver, connected with its bot account's access token. */
+function Matrix({ status }: { status: ChatStatus }) {
+  const qc = useQueryClient();
+  const s = status.matrix;
+  const [homeserver, setHomeserver] = useState('');
+  const [token, setToken] = useState('');
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const connect = useMutation({
+    mutationFn: () => post<ChatStatus>('/chat/matrix', { homeserver: homeserver.trim(), accessToken: token.trim() }),
+    onSuccess: (next) => {
+      qc.setQueryData(chatKeys.status, next);
+      void qc.invalidateQueries({ queryKey: chatKeys.all });
+      setHomeserver('');
+      setToken('');
+      setSaid({ text: tx('page.chat.connectedToMatrix', { home: next.matrix.homeserver }) });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  const disconnect = useMutation({
+    mutationFn: () => del('/chat/matrix'),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.all });
+      setSaid({ text: tx('page.chat.disconnectedItsChannelsSubscriptionsHave') });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  const refresh = useMutation({
+    mutationFn: () => post<ChatStatus>('/chat/matrix/rooms', {}),
+    onSuccess: (next) => {
+      qc.setQueryData(chatKeys.status, next);
+      void qc.invalidateQueries({ queryKey: chatKeys.all });
+      setSaid({ text: tx('page.chat.readItsRooms') });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  return (
+    <div className="stack">
+      {s.connected ? (
+        <div className="cluster spread">
+          <span>
+            <span className="item-name">{s.userId}</span>
+            <span className="item-about">{tr('page.chat.connectedBy', { v: s.connectedAt ? agoSaid(s.connectedAt) : '', el: <UserWho user={s.connectedBy} small /> })}</span>
+          </span>
+          <span className="cluster">
+            <button type="button" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
+              {tx('page.chat.readRooms')}
+            </button>
+            <Confirm
+              small
+              label={tx('page.chat.disconnect')}
+              title={tx('page.chat.disconnectMatrix', { home: s.homeserver })}
+              about={tx('page.chat.itsChannelsSubscriptionsStopAnd')}
+              confirm={tx('page.chat.disconnectIt')}
+              disabled={disconnect.isPending}
+              onConfirm={() => disconnect.mutate()}
+            />
+          </span>
+        </div>
+      ) : (
+        <form
+          className="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            connect.mutate();
+          }}
+        >
+          {s.removed ? (
+            <p className="note">
+              <Badge tone="idle">{tx('chat.chat.stopped')}</Badge> {problemWords(s.removedSaid) ?? s.removed}
+            </p>
+          ) : null}
+          <FormField label={tx('page.chat.matrixHomeserver')} help={tx('page.chat.matrixHomeserverHelp')}>
+            {(id, help) => <input id={id} aria-describedby={help} value={homeserver} onChange={(e) => setHomeserver(e.target.value)} placeholder="https://matrix.org" required className="mono" />}
+          </FormField>
+          <FormField label={tx('page.chat.matrixToken')} help={tx('page.chat.matrixTokenHelp')}>
+            {(id, help) => <input id={id} aria-describedby={help} type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" required className="mono" />}
+          </FormField>
+          <div className="cluster">
+            <button type="submit" className="primary" disabled={!homeserver.trim() || !token.trim() || connect.isPending}>
+              {connect.isPending ? tx('page.chat.connecting') : tx('page.chat.connectMatrix')}
+            </button>
+          </div>
+        </form>
+      )}
+      {said ? <Said text={said.text} tone={said.bad ? 'bad' : undefined} /> : null}
+    </div>
+  );
+}
+
 /** Slack: one workspace, connected with its app's token and signing secret. */
 function Slack({ status }: { status: ChatStatus }) {
   const qc = useQueryClient();
@@ -213,6 +302,12 @@ export default function ChatPage() {
                 {status.data.slack.connected ? <Badge tone="good">{tx('page.chat.connected')}</Badge> : <Badge tone="idle">{tx('page.chat.notConnected')}</Badge>}
               </div>
               <Slack status={status.data} />
+      <section className="card" aria-labelledby="chat-matrix">
+        <h2 id="chat-matrix">{tx('page.chat.matrix')}</h2>
+        {status.data.matrix.connected ? <Badge tone="good">{tx('page.chat.connected')}</Badge> : <Badge tone="idle">{tx('page.chat.notConnected')}</Badge>}
+        <p className="note">{tx('page.chat.matrixAbout')}</p>
+        <Matrix status={status.data} />
+      </section>
             </section>
           </div>
           <section className="card" aria-labelledby="chat-where">

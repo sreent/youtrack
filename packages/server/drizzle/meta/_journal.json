@@ -337,6 +337,27 @@
       "when": 1795016131172,
       "tag": "0047_ai_drafted_words",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795016132172,
+      "tag": "0048_personal_whiteboards",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795016133172,
+      "tag": "0049_drawings_and_pictures",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795016134172,
+      "tag": "0050_script_library",
+      "breakpoints": true
     }
   ]
 }

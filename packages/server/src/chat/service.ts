@@ -26,6 +26,7 @@ import { problemIn } from '@a4a/shared/notes';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
+import type { SchemaSnapshot } from '../services/schema-cache';
 import { chatAccounts, chatChannels, chatLinkTokens, chatSubscriptions, chatWorkspaces, projects, savedSearches, userIdentities, users } from '../db/schema';
 import { randomToken, sha256 } from '../lib/crypto';
 import { problemFor, translatorFor } from '../i18n';
@@ -173,6 +174,21 @@ export async function listChatChannels(ctx: Ctx): Promise<ChatChannel[]> {
 // Status, for administrators
 // ---------------------------------------------------------------------------
 
+/** The connected Matrix homeserver, as the status page shows it. */
+function matrixStatus(s: SchemaSnapshot, workspaces: WorkspaceRow[]) {
+  const mx = workspaces.filter((w) => w.platform === 'matrix').sort((a, b) => Number(Boolean(a.removedAt)) - Number(Boolean(b.removedAt)))[0];
+  const by = mx?.connectedById ? s.users.get(mx.connectedById) : undefined;
+  return {
+    connected: Boolean(mx && !mx.removedAt),
+    homeserver: mx?.serviceUrl ?? null,
+    userId: mx?.name ?? null,
+    connectedBy: by ? userRefDto(by) : null,
+    connectedAt: mx ? mx.createdAt.toISOString() : null,
+    removed: mx?.removedAt ? (mx.removedReason ?? 'removed') : null,
+    removedSaid: mx?.removedAt ? (mx.removedSaid ?? null) : null,
+  };
+}
+
 export async function chatStatus(ctx: Ctx): Promise<ChatStatus> {
   requireScope(ctx, 'admin');
   const base = `${ctx.app.config.publicUrl}/api/v1/chat`;
@@ -201,6 +217,7 @@ export async function chatStatus(ctx: Ctx): Promise<ChatStatus> {
       removedSaid: slack?.removedAt ? (slack.removedSaid ?? null) : null,
       requestUrls: { commands: `${base}/slack/commands`, interactivity: `${base}/slack/interactions`, events: `${base}/slack/events` },
     },
+    matrix: matrixStatus(s, workspaces),
     channels: [...all.values()].map((r) => channelDto(r.channel, r.workspace)),
   };
 }

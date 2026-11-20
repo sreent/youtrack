@@ -49,7 +49,7 @@ function need(c: Context<HttpEnv>): Ctx {
 }
 
 /** Document a multipart upload in OpenAPI; the handler reads the body itself, as a stream. */
-function uploadRoute(app: OpenAPIHono<HttpEnv>, path: string, summary: string, description: string, target: (ctx: Ctx, id: string) => Promise<UploadTarget>) {
+export function uploadRoute(app: OpenAPIHono<HttpEnv>, path: string, summary: string, description: string, target: (ctx: Ctx, id: string) => Promise<UploadTarget>) {
   app.openAPIRegistry.registerPath(
     createRoute({
       method: 'post',

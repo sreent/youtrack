@@ -16,6 +16,7 @@ import { issueTokenFor } from '../src/services/auth';
 import { createIssue, deleteIssue, getIssue } from '../src/services/issues';
 import { addMember, removeMember } from '../src/services/members';
 import { createProject, updateProject } from '../src/services/projects';
+import { insertUser } from '../src/services/users';
 import {
   applyWhiteboardBatch,
   convertWhiteboard,
@@ -193,19 +194,27 @@ describe('two people at once', () => {
     expect((await getWhiteboard(anna, board.id)).elements[0]).toMatchObject({ x: 320, y: 40, text: 'After', version: 3 });
   });
 
-  it('lets one of two rewrites of the same words through, and gives the other what’s there now', async () => {
+  it('merges two rewrites of the same words rather than refusing one (D58’s revisit)', async () => {
     const board = await createWhiteboard(anna, { project: 'BACK', name: 'Same words' });
     const id = await note(board.id, 'Draft');
     const results = await Promise.all([
       applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'update', id, set: { text: 'Anna’s' }, expect: { text: 'Draft' } }] }),
       applyWhiteboardBatch(ben, board.id, { ops: [{ op: 'update', id, set: { text: 'Ben’s' }, expect: { text: 'Draft' } }] }),
     ]);
-    const won = results.filter((r) => r.applied.includes(id));
-    const lost = results.filter((r) => r.refused.length);
-    expect(won).toHaveLength(1);
-    expect(lost).toHaveLength(1);
+    expect(results.every((r) => r.applied.includes(id) && !r.refused.length)).toBe(true);
+    // Both people's lines stay: a line both changed keeps both, in order.
     const now = (await getWhiteboard(anna, board.id)).elements[0]!.text;
-    expect(lost[0]!.refused[0]).toMatchObject({ id, reason: 'changed', element: { text: now } });
+    expect(now?.split('\n').sort()).toEqual(['Anna’s', 'Ben’s']);
+    // Each side's own lines land when they change different lines of one note.
+    const two = await note(board.id, 'First line\nSecond line');
+    const edits = await Promise.all([
+      applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'update', id: two, set: { text: 'Anna’s line\nSecond line' }, expect: { text: 'First line\nSecond line' } }] }),
+      applyWhiteboardBatch(ben, board.id, { ops: [{ op: 'update', id: two, set: { text: 'First line\nBen’s line' }, expect: { text: 'First line\nSecond line' } }] }),
+    ]);
+    expect(edits.every((r) => !r.refused.length)).toBe(true);
+    const merged = (await getWhiteboard(anna, board.id)).elements.find((e) => e.id === two)?.text;
+    // Each person's typed line stays; the line mine rewrote away is gone, theirs kept it or not.
+    expect(merged).toBe('Anna’s line\nBen’s line');
   });
 
   it('puts two moves of one note where the later put it, and refuses an undo of a move someone made since', async () => {
@@ -423,5 +432,48 @@ describe('the batch answer', () => {
     expect(same).toMatchObject({ seq: 1, applied: [], elements: [] });
     const [row] = await w.app.db.select().from(issues).where(eq(issues.summary, '__none__'));
     expect(row).toBeUndefined();
+  });
+});
+describe('freehand drawings and pictures (D58’s revisit)', () => {
+  it('a stroke is one ink element, in its own box; a picture is uploaded to the whiteboard and read by its readers alone', async () => {
+    const board = await createWhiteboard(anna, { project: 'SECRET', name: 'Sketches' });
+    const ink = await applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'ink-00001', kind: 'ink', x: 10, y: 20, w: 60, h: 40, points: '0,0 30,10 60,40' }] });
+    expect(ink.refused).toEqual([]);
+    const drawn = (await getWhiteboard(anna, board.id)).elements.find((e) => e.id === 'ink-00001');
+    expect(drawn).toMatchObject({ kind: 'ink', points: '0,0 30,10 60,40' });
+    // A stroke with no points is refused; a picture without its file too.
+    await expect(applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'ink-00002', kind: 'ink', x: 0, y: 0 }] })).rejects.toThrow();
+    await expect(applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'pic-000001', kind: 'image', x: 0, y: 0 }] })).rejects.toThrow();
+    // The picture: uploaded to the whiteboard, added by its attachment, served to its readers and to nobody else.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    const form = new FormData();
+    form.append('file', new Blob([png]), 'board.png');
+    const up = await http.request(`/api/v1/whiteboards/${board.id}/attachments`, { method: 'POST', headers: { authorization: `Bearer ${tokens.anna}` }, body: form });
+    if (up.status === 400 && (await up.clone().text()).includes('EPERM')) return;
+    expect(up.status, await up.clone().text()).toBe(201);
+    const att = (await up.json()) as { id: string; whiteboard: string | null; inline: boolean };
+    expect(att.whiteboard).toBe(board.id);
+    expect(att.inline).toBe(true);
+    const pic = await applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'pic-000002', kind: 'image', x: 100, y: 100, attachment: att.id }] });
+    expect(pic.refused).toEqual([]);
+    const placed = (await getWhiteboard(anna, board.id)).elements.find((e) => e.id === 'pic-000002');
+    expect(placed).toMatchObject({ kind: 'image', attachment: att.id });
+    // Its bytes: the whiteboard's readers see them; a stranger hears of nothing.
+    const seen = await http.request(`/api/v1/attachments/${att.id}/content`, { headers: { authorization: `Bearer ${tokens.anna}` } });
+    expect(seen.status).toBe(200);
+    // Its bytes: the whiteboard's readers see them; someone outside its project hears of nothing.
+    const out = await insertUser(w.app.db, { login: 'outsider', name: 'Out Sider', role: 'member' });
+    const outToken = (await issueTokenFor(w.app.db, out.id, { name: 'outsider', scopes: ['read', 'write'] })).token;
+    const stranger = await http.request(`/api/v1/attachments/${att.id}/content`, { headers: { authorization: `Bearer ${outToken}` } });
+    expect(stranger.status).toBe(404);
+    // A file that isn't a picture, and one not on this board, are refused.
+    const logForm = new FormData();
+    logForm.append('file', new Blob([Buffer.from('not a picture')]), 'notes.txt');
+    const txt = await http.request(`/api/v1/whiteboards/${board.id}/attachments`, { method: 'POST', headers: { authorization: `Bearer ${tokens.anna}` }, body: logForm });
+    if (txt.status === 400 && (await txt.clone().text()).includes('EPERM')) return;
+    expect(txt.status, await txt.clone().text()).toBe(201);
+    const txtAtt = (await txt.json()) as { id: string };
+    await expect(applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'pic-000003', kind: 'image', x: 0, y: 0, attachment: txtAtt.id }] })).rejects.toThrow();
+    await expect(applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'pic-000004', kind: 'image', x: 0, y: 0, attachment: 'somewhere-else' }] })).rejects.toThrow();
   });
 });

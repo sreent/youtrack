@@ -200,6 +200,8 @@ export const projects = pgTable(
     visibility: text('visibility').notNull().default('open'),
     /** Anyone may read it without signing in (D37). */
     guestAccess: boolean('guest_access').notNull().default(false),
+    /** A project's shared code for its scripts (D40's revisit): every script in it runs with it as `library`. */
+    scriptLibrary: text('script_library'),
     settings: jsonb('settings').notNull(),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -1081,13 +1083,13 @@ export const attachments = pgTable(
   'attachments',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    // An issue's file, or a comment's (which also names the comment's issue), or an article's.
+    /** The issue's or the article's project; a whiteboard's picture keeps its board instead. */
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    // An issue's file, or a comment's (which also names the comment's issue), or an article's, or a whiteboard's picture (D58's revisit).
     issueId: text('issue_id').references(() => issues.id, { onDelete: 'cascade' }),
     commentId: text('comment_id').references(() => comments.id, { onDelete: 'cascade' }),
     articleId: text('article_id').references(() => articles.id, { onDelete: 'cascade' }),
+    whiteboardId: text('whiteboard_id').references(() => whiteboards.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     contentType: text('content_type').notNull(),
     size: bigint('size', { mode: 'number' }).notNull(),
@@ -1105,7 +1107,7 @@ export const attachments = pgTable(
     index('attachments_article').on(t.articleId, t.createdAt),
     index('attachments_comment').on(t.commentId),
     uniqueIndex('attachments_blob').on(t.blobKey),
-    check('attachments_one_owner', sql`(${t.issueId} IS NULL) <> (${t.articleId} IS NULL) AND (${t.commentId} IS NULL OR ${t.issueId} IS NOT NULL)`),
+    check('attachments_one_owner', sql`((${t.issueId} IS NOT NULL AND ${t.articleId} IS NULL AND ${t.whiteboardId} IS NULL) OR (${t.issueId} IS NULL AND ${t.articleId} IS NOT NULL AND ${t.whiteboardId} IS NULL) OR (${t.issueId} IS NULL AND ${t.articleId} IS NULL AND ${t.whiteboardId} IS NOT NULL)) AND (${t.commentId} IS NULL OR ${t.issueId} IS NOT NULL) AND (${t.projectId} IS NOT NULL OR ${t.whiteboardId} IS NOT NULL)`),
   ],
 );
 
@@ -3004,15 +3006,19 @@ export const whiteboards = pgTable(
   'whiteboards',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
+    /** A project's whiteboard; null for a person's own, shared as below (D58's revisit). */
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     /** Its latest change. Each change takes the next under the whiteboard's row lock, so they never cross. */
     seq: bigint('seq', { mode: 'number' }).notNull().default(0),
+    /** Who it belongs to: for a person's whiteboard, whoever made it (createdById). */
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
+    /** Who besides its owner reads and changes a personal whiteboard: everyone signed in, or the people and groups named. */
+    share: text('share').notNull().default('everyone'),
+    /** Its people (logins) and groups (ids), when share is 'limited'. */
+    sharedWith: jsonb('shared_with').notNull().default({ people: [], groups: [] }),
   },
   (t) => [index('whiteboards_project').on(t.projectId)],
 );
@@ -3045,6 +3051,10 @@ export const whiteboardElements = pgTable(
     articleId: text('article_id').references(() => articles.id, { onDelete: 'set null' }),
     /** An arrow made into a link between its issues: the link as it reads from the arrow's start. */
     linked: text('linked'),
+    /** A freehand drawing's stroke (D58's revisit): points in its own box, `x,y x,y`... */
+    points: text('points'),
+    /** A picture on the whiteboard: its attachment, uploaded and kept like every file. */
+    attachmentId: text('attachment_id').references(() => attachments.id, { onDelete: 'set null' }),
     /** The whiteboard's change that last changed it. */
     seq: bigint('seq', { mode: 'number' }).notNull(),
     version: integer('version').notNull().default(1),

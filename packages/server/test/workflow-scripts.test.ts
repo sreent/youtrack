@@ -21,7 +21,8 @@ import { presentField } from '../src/tools/registry';
 import { createAction, issueWorkflow, runAction, runTransition, updateAction } from '../src/workflow/actions';
 import { RuleEngine } from '../src/workflow/engine';
 import { createMachine, updateMachine } from '../src/workflow/machines';
-import { checkRulePart, createRule, listRuleRuns, previewRule, testRule, updateRule } from '../src/workflow/rules';
+import { checkRulePart, createRule, listRuleRuns, previewRule, setScriptLibrary, testRule, updateRule } from '../src/workflow/rules';
+import { createWebhook } from '../src/events/webhooks';
 import { translatorFor } from '../src/i18n';
 import { createWorld, type TestWorld } from './helpers';
 
@@ -425,5 +426,28 @@ describe('over REST', () => {
     const test = { project: 'WEB', name: 'T', kind: 'change', trigger: 'created', script: "log(issue.id)", issue: issue.id };
     expect((await call(anna, 'POST', '/rules/test', test)).status).toBe(403);
     expect((await call(admin, 'POST', '/rules/test', test)).body).toMatchObject({ ok: true, logs: [issue.id] });
+  });
+});
+describe("a script calls out, and a project's scripts share a library (D40's revisit)", () => {
+  it('calls only the webhook it names, by its origin, with its own body', async () => {
+    const hook = await createWebhook(w.adminCtx, { url: 'https://hooks.example/deliver', events: ['*'], project: 'BACK' });
+    const rule = await createRule(w.adminCtx, { project: 'BACK', name: 'Ring the hook', kind: 'change', trigger: 'created', query: 'Type: Bug', script: `call('https://hooks.example', { n: 1 }); log('asked');` });
+    const ring = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Ring it', fields: { Type: 'Bug' } });
+    await settle();
+    const events = await issueActivity(w.adminCtx, ring.id);
+    const called = events.filter((e) => e.type === 'script.called');
+    const runs = await listRuleRuns(w.adminCtx, { project: 'BACK' });
+    expect(called.length, runs[0]?.message).toBe(1);
+    expect(called[0]!.data).toMatchObject({ webhook: hook.id });
+    expect(runs[0]!.message).toContain('Called https://hooks.example');
+  });
+  it('runs its project\'s library before every script in it, as `library`', async () => {
+    await setScriptLibrary(w.adminCtx, 'BACK', '({ twice: (n) => n * 2 })');
+    const rule = await createRule(w.adminCtx, { project: 'BACK', name: 'Twice', kind: 'change', trigger: 'created', query: 'Type: Bug', script: `apply('tag doubled'); comment('Twice ' + library.twice(4));` });
+    const issue = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Twice four', fields: { Type: 'Bug' } });
+    await settle();
+    const after = await getIssue(w.adminCtx, issue.id);
+    const runs = await listRuleRuns(w.adminCtx, { project: 'BACK', rule: rule.id });
+    expect(tagsOf(after), runs[0]?.message).toContain('doubled');
   });
 });

@@ -10,7 +10,7 @@ import { and, asc, eq, exists, isNotNull, isNull, lt, notExists, or, sql, type S
 import { pipeline, type Readable } from 'node:stream';
 import { isAdmin, requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { articles, attachmentBlobs, attachments, comments, issues } from '../db/schema';
+import { articles, attachmentBlobs, attachments, comments, issues, whiteboards } from '../db/schema';
 import { publishActivities, recordActivity } from '../events/activity';
 import type { OutboxConsumer } from '../events/worker';
 import { AppError, asSentence, badRequest, forbidden, notFound } from '../lib/errors';
@@ -34,6 +34,7 @@ import { articleReadableId, articleRef, articleRefsById, resolveArticle, type Ar
 import { issueRefsById, readableId, type IssueRow } from './issue-refs';
 import { findVisibleIssue, resolveIssue } from './issues';
 import { userRefDto } from './values';
+import { requireWhiteboard } from './whiteboards';
 
 export type AttachmentRow = typeof attachments.$inferSelect;
 
@@ -41,7 +42,8 @@ export type AttachmentRow = typeof attachments.$inferSelect;
 export type UploadTarget =
   | { kind: 'issue'; issue: IssueRow }
   | { kind: 'comment'; issue: IssueRow; commentId: string }
-  | { kind: 'article'; article: ArticleRow };
+  | { kind: 'article'; article: ArticleRow }
+  | { kind: 'whiteboard'; whiteboard: { id: string; projectId: string | null; name: string } };
 
 export interface UploadSource {
   name: string;
@@ -106,6 +108,7 @@ async function toDtos(ctx: Ctx, rows: AttachmentRow[]): Promise<Attachment[]> {
       issue: r.issueId ? (issueRefs.get(r.issueId)?.id ?? null) : null,
       comment: r.commentId,
       article: r.articleId ? (articleRefs.get(r.articleId)?.id ?? null) : null,
+      whiteboard: r.whiteboardId,
       uploadedBy: by ? userRefDto(by) : null,
       channel: r.channel as Attachment['channel'],
       token: r.tokenName,
@@ -154,12 +157,18 @@ async function loadVisible(ctx: Ctx, id: string): Promise<AttachmentRow> {
   const missing = () => notFound('Attachment', 'List the files on the issue or article to find its id.').said('attachments.notFoundListFiles');
   if (!found || found.comment?.deletedAt) throw missing();
   // One the caller can't see answers in the very words of one that doesn't exist.
-  await assertCanReadProject(ctx, found.a.projectId).catch(() => {
-    throw missing();
-  });
+  if (found.a.whiteboardId) {
+    await requireWhiteboard(ctx, found.a.whiteboardId).catch(() => {
+      throw missing();
+    });
+  } else {
+    await assertCanReadProject(ctx, found.a.projectId!).catch(() => {
+      throw missing();
+    });
+  }
   // So does one on an issue, or a comment, limited away from them (D37).
   if (found.a.issueId && !(await findVisibleIssue(ctx, found.a.issueId))) throw missing();
-  if (found.comment && !seesCommentRow(await projectAccess(ctx), found.a.projectId, found.comment)) throw missing();
+  if (found.comment && !seesCommentRow(await projectAccess(ctx), found.a.projectId!, found.comment)) throw missing();
   // And one on an article limited away from them, or under one that is (D51): its preview and its bytes too.
   if (found.a.articleId && !(await seenArticleIds(ctx, [found.a.articleId])).has(found.a.articleId)) throw missing();
   return found.a;
@@ -241,6 +250,7 @@ export async function articleUploadTarget(ctx: Ctx, articleId: string): Promise<
 
 /** Bytes of files the target's owner holds now (an issue counts its comments' files). */
 async function usedBytes(db: Db, target: UploadTarget): Promise<number> {
+  if (target.kind === 'whiteboard') return 0;
   const [row] =
     target.kind === 'article'
       ? await db
@@ -256,7 +266,9 @@ async function usedBytes(db: Db, target: UploadTarget): Promise<number> {
 }
 
 function ownerId(s: Awaited<ReturnType<Ctx['app']['schema']['get']>>, target: UploadTarget): string {
-  return target.kind === 'article' ? articleReadableId(s, target.article) : readableId(s, target.issue);
+  if (target.kind === 'article') return articleReadableId(s, target.article);
+  if (target.kind === 'whiteboard') return target.whiteboard.name;
+  return readableId(s, target.issue);
 }
 
 async function removeBlob(app: AppServices, key: string): Promise<void> {
@@ -352,6 +364,9 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
         const [locked] = await tx.select({ id: articles.id }).from(articles).where(eq(articles.id, target.article.id)).for('update');
         if (!locked) throw notFound(`Article ${owner}`, 'It was deleted while the file was uploading.').said('attachments.articleDeletedWhileUploading', { owner });
         article = articleRef(s, target.article);
+      } else if (target.kind === 'whiteboard') {
+        const [locked] = await tx.select({ id: whiteboards.id }).from(whiteboards).where(eq(whiteboards.id, target.whiteboard.id)).for('update');
+        if (!locked) throw notFound(`Whiteboard ${owner}`, 'It was deleted while the file was uploading.').said('attachments.whiteboardDeletedWhileUploading', { owner });
       } else {
         const [locked] = await tx.select({ id: issues.id }).from(issues).where(eq(issues.id, target.issue.id)).for('update');
         if (!locked) throw notFound(`Issue ${owner}`, 'It was deleted while the file was uploading.').said('attachments.issueDeletedWhileUploading', { owner });
@@ -373,10 +388,11 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
         .insert(attachments)
         .values({
           id: newId(),
-          projectId: target.kind === 'article' ? target.article.projectId : target.issue.projectId,
-          issueId: target.kind === 'article' ? null : target.issue.id,
+          projectId: target.kind === 'article' ? target.article.projectId : target.kind === 'whiteboard' ? target.whiteboard.projectId : target.issue.projectId,
+          issueId: target.kind === 'issue' || target.kind === 'comment' ? target.issue.id : null,
           commentId: target.kind === 'comment' ? target.commentId : null,
           articleId: target.kind === 'article' ? target.article.id : null,
+          whiteboardId: target.kind === 'whiteboard' ? target.whiteboard.id : null,
           name,
           contentType,
           size,
@@ -389,7 +405,7 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
           ...(opts.imported ? { createdAt: opts.imported.createdAt } : {}),
         })
         .returning();
-      if (target.kind !== 'article' && !opts.imported) await tx.update(issues).set({ updatedAt: new Date() }).where(eq(issues.id, target.issue.id));
+      if ((target.kind === 'issue' || target.kind === 'comment') && !opts.imported) await tx.update(issues).set({ updatedAt: new Date() }).where(eq(issues.id, target.issue.id));
       const activity = opts.quiet ? null : await recordActivity(tx, ctx, {
         type: 'attachment.added',
         projectId: row!.projectId,
@@ -400,6 +416,7 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
             attachment: { id: row!.id, name, size, contentType, sha256, url: contentUrl(ctx.app, row!.id) },
             ...(row!.commentId ? { commentId: row!.commentId } : {}),
             ...(article ? { article } : {}),
+            ...(target.kind === 'whiteboard' ? { whiteboard: { id: target.whiteboard.id, name: target.whiteboard.name } } : {}),
             ...(opts.imported ? { imported: opts.imported.data } : {}),
           },
         },
@@ -487,7 +504,8 @@ export async function deleteAttachment(ctx: Ctx, id: string): Promise<void> {
   const s = await ctx.app.schema.get();
   const row = await loadVisible(ctx, id);
   if (row.uploadedById !== ctx.actor.user.id) {
-    await assertCanWriteProject(ctx, row.projectId).catch((e) => {
+    const may = row.whiteboardId ? requireWhiteboard(ctx, row.whiteboardId, 'edit').then(() => true) : assertCanWriteProject(ctx, row.projectId!).then(() => true);
+    await may.catch((e) => {
       throw e instanceof AppError && e.status === 404
         ? notFound('Attachment').said('notFound.attachmentUnnamed')
         : forbidden('Only the person who added a file, or someone who may change the project, can delete it').said('attachments.onlyAdderDeletes');

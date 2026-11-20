@@ -13,6 +13,7 @@ import {
   WhiteboardDetailSchema,
   WhiteboardRenameBody,
   WhiteboardSchema,
+  WhiteboardShareBody,
   WhiteboardViewerSchema,
   WHITEBOARD_LIMITS,
   type WhiteboardChangeFrame,
@@ -38,15 +39,18 @@ import {
   listWhiteboards,
   lookAt,
   markViewing,
+  personalAccess,
   renameWhiteboard,
   requireWhiteboard,
   seesViewers,
+  setWhiteboardSharing,
   stopViewing,
   viewersOf,
 } from '../../services/whiteboards';
 import type { HttpEnv } from '../env';
 import { clientIp } from '../middleware';
 import { route } from '../route';
+import { uploadRoute } from './attachments';
 
 const Id = z.object({ id: z.string().min(1).max(40) });
 /** Signals waiting for a slow client before its stream is closed (it reconnects and resumes). */
@@ -89,7 +93,7 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/whiteboards', guests: true,
       tags,
       summary: 'Whiteboards you can see',
-      description: 'The whiteboards of every project you read, or of one, the latest changed first.',
+      description: 'The whiteboards of every project you read, or of one, and your own and those shared with you, the latest changed first.',
       query: z.object({ project: z.string().max(40).optional().describe('A project’s key') }),
       response: z.array(WhiteboardSchema),
     },
@@ -102,7 +106,7 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/whiteboards',
       tags,
       summary: 'Make a whiteboard',
-      description: 'In a project where you may change issues. Everyone who reads the project reads it, and whoever may change its issues changes it.',
+      description: 'In a project where you may change issues, or, without a project, a whiteboard of your own: shared with everyone signed in, or limited to the people and groups you name.',
       body: WhiteboardCreateBody,
       response: WhiteboardSchema,
     },
@@ -126,6 +130,20 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     { method: 'patch', path: '/whiteboards/{id}', tags, summary: 'Rename a whiteboard', params: Id, body: WhiteboardRenameBody, response: WhiteboardSchema },
     ({ ctx, params, body }) => renameWhiteboard(ctx, params.id, body),
+  );
+  route(
+    app,
+    {
+      method: 'patch',
+      path: '/whiteboards/{id}/sharing',
+      tags,
+      summary: 'Say who else reads a personal whiteboard',
+      description: 'Its owner’s alone: everyone signed in, or the people and groups named. A project’s whiteboard follows its project.',
+      params: Id,
+      body: WhiteboardShareBody,
+      response: WhiteboardSchema,
+    },
+    ({ ctx, params, body }) => setWhiteboardSharing(ctx, params.id, body),
   );
   route(
     app,
@@ -155,6 +173,12 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, params, body }) => applyWhiteboardBatch(ctx, params.id, body),
   );
+  // A picture on the whiteboard (D58's revisit): uploaded as every file is, then added by its id.
+  uploadRoute(app, '/whiteboards/{id}/attachments', 'A picture for a whiteboard', 'Uploaded as every file is, in a part named `file`; the batch that adds it names its attachment. Whoever may change the whiteboard may put a picture there; whoever reads it sees the picture. Deleting the whiteboard takes its pictures with it.', async (ctx, id) => {
+    const board = await requireWhiteboard(ctx, id, 'edit');
+    return { kind: 'whiteboard', whiteboard: { id: board.id, projectId: board.projectId, name: board.name } };
+  });
+
   route(
     app,
     {
@@ -252,7 +276,9 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
         // Whether they may still see it, as access stands now (two seconds old at most): someone taken off its project stops hearing.
         const current = async () => {
           const [row] = await ctx.db.select().from(whiteboards).where(eq(whiteboards.id, board.id));
-          return row && (await projectAccess(ctx)).canRead(row.projectId) ? row : null;
+          if (!row) return null;
+          const view = await projectAccess(ctx);
+          return row.projectId ? (view.canRead(row.projectId) ? row : null) : personalAccess(view, row).read ? row : null;
         };
         let name = board.name;
         let viewers = '';

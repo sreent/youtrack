@@ -1725,6 +1725,7 @@ export const AttachmentSchema = z
     issue: z.string().nullable().describe('The issue it belongs to, also for a file on one of its comments'),
     comment: z.string().nullable().describe('The comment it was attached to, if any'),
     article: z.string().nullable().describe('The article it belongs to, if any'),
+    whiteboard: z.string().nullable().describe('The whiteboard whose picture it is, if any (D58\'s revisit)'),
     uploadedBy: UserRefSchema.nullable(),
     channel: z.enum(CHANNELS),
     token: z.string().nullable().describe('The token it came with, for an agent or a script'),
@@ -3570,11 +3571,24 @@ export const ChatStatusSchema = z
         .object({ commands: z.string(), interactivity: z.string(), events: z.string() })
         .describe("Where Slack sends what people do, for the app's settings"),
     }),
+    matrix: z.object({
+      connected: z.boolean(),
+      homeserver: z.string().nullable(),
+      userId: z.string().nullable().describe("The bot account's Matrix id, e.g. @a4a:matrix.org"),
+      connectedBy: UserRefSchema.nullable(),
+      connectedAt: timestamp.nullable(),
+      removed: z.string().nullable().describe("Why it stopped: an administrator disconnected it, or its token was refused"),
+      removedSaid: z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }).nullable().describe("Why it stopped as a problem's words, problem.<key> in the catalogs, for a page in another language (D49)"),
+    }),
     channels: z.array(ChatChannelSchema),
   })
   .meta({ id: 'ChatStatus' });
 export type ChatStatus = z.infer<typeof ChatStatusSchema>;
 
+export const ConnectMatrixBody = z.object({
+  homeserver: z.string().trim().min(1).max(200).describe("The homeserver's address, e.g. https://matrix.org"),
+  accessToken: z.string().trim().min(1).max(500).describe("The bot account's access token, from its settings, kept sealed"),
+});
 export const ConnectSlackBody = z.object({
   botToken: z.string().trim().regex(/^xoxb-/, "A bot token starts with xoxb-: it's under OAuth & Permissions in the app's settings"),
   signingSecret: z.string().trim().min(16).describe("Under Basic Information in the app's settings"),
@@ -4457,7 +4471,7 @@ export const WhiteboardElementId = z
 export const WhiteboardElementSchema = z
   .object({
     id: z.string(),
-    kind: z.enum(WHITEBOARD_KINDS).describe('note, text (a label or heading), issue or article (a card), arrow, or section (a frame that groups what lies inside it)'),
+    kind: z.enum(WHITEBOARD_KINDS).describe('note, text (a label or heading), issue or article (a card), arrow, section (a frame that groups what lies inside it), ink (a freehand drawing) or image (a picture)'),
     x: z.number(),
     y: z.number(),
     w: z.number(),
@@ -4469,6 +4483,8 @@ export const WhiteboardElementSchema = z
     from: z.string().nullable().describe("An arrow's start: an element's id"),
     to: z.string().nullable().describe("An arrow's end: an element's id"),
     linked: z.string().nullable().describe('An arrow made into a link between its two issues: the link, as said from its start, e.g. "depends on"'),
+    points: z.string().nullable().describe("A freehand drawing's stroke (D58's revisit): points in its own box, as `x,y x,y`..."),
+    attachment: z.string().nullable().describe("A picture on the whiteboard: its attachment's id, uploaded through the whiteboard's own route"),
     seq: z.number().int().describe('The whiteboard’s change that last changed it'),
     version: z.number().int().describe('Raised by each change to it'),
     updatedAt: timestamp,
@@ -4503,15 +4519,22 @@ export const WhiteboardSchema = z
   .object({
     id: z.string(),
     name: z.string(),
-    project: ProjectRefSchema,
+    /** Null for a person's own whiteboard, shared with people and groups or limited to some (D58's revisit). */
+    project: ProjectRefSchema.nullable(),
+    /** Its project's whiteboards have no owner; a person's does, whoever made it. */
+    owner: UserRefSchema.nullable().describe('Who it belongs to, for a person’s own whiteboard'),
     createdBy: UserRefSchema.nullable(),
     createdAt: timestamp,
     updatedAt: timestamp,
     seq: z.number().int().describe('Its latest change; its live stream resumes after it'),
     elements: z.number().int(),
+    /** A personal whiteboard's readers: everyone signed in, or the people and groups named. */
+    share: z.enum(['everyone', 'limited']),
+    sharedWith: VisibleToSchema,
     access: z.object({
-      edit: z.boolean().describe('May change it: whoever may change its project’s issues'),
-      delete: z.boolean().describe('May delete it: whoever made it, and its project’s managers'),
+      edit: z.boolean().describe('May change it: whoever may change its project’s issues, or a personal whiteboard’s owner and its named people'),
+      delete: z.boolean().describe('May delete it: whoever made it, and its project’s managers; a personal whiteboard’s owner'),
+      share: z.boolean().describe('A personal whiteboard’s owner may say who else reads it'),
     }),
   })
   .meta({ id: 'Whiteboard' });
@@ -4528,10 +4551,16 @@ export const WhiteboardDetailSchema = z
 export type WhiteboardDetail = z.infer<typeof WhiteboardDetailSchema>;
 
 export const WhiteboardCreateBody = z.object({
-  project: z.string().trim().min(1).max(40).describe('Its project, by key: who reads the project reads it, and who may change its issues changes it'),
+  project: z.string().trim().min(1).max(40).optional().describe('Its project, by key: who reads the project reads it, and who may change its issues changes it. Without one, a whiteboard of your own'),
   name: z.string().trim().min(1).max(WHITEBOARD_LIMITS.name),
+  share: z.enum(['everyone', 'limited']).default('everyone').describe('A personal whiteboard’s readers: everyone signed in, or the people and groups named'),
+  sharedWith: VisibleToInput.optional().describe('The people (logins) and groups (ids or names) it is shared with, when it is limited to some'),
 });
 export const WhiteboardRenameBody = z.object({ name: z.string().trim().min(1).max(WHITEBOARD_LIMITS.name) });
+export const WhiteboardShareBody = z.object({
+  share: z.enum(['everyone', 'limited']).describe('A personal whiteboard’s readers: everyone signed in, or the people and groups named'),
+  sharedWith: VisibleToInput.optional().describe('The people (logins) and groups (ids or names) it is shared with, when it is limited to some'),
+});
 
 const wbSet = z.object({ x: wbCoord, y: wbCoord, w: wbSize, h: wbSize, z: wbZ, text: wbText, tone: z.enum(WHITEBOARD_TONES), label: wbLabel }).partial();
 
@@ -4550,6 +4579,8 @@ export const WhiteboardOpSchema = z.discriminatedUnion('op', [
     label: wbLabel.optional(),
     issue: z.string().trim().min(1).max(40).optional().describe('An issue card: the issue, e.g. BACK-12'),
     article: z.string().trim().min(1).max(40).optional().describe('An article card: the article, e.g. BACK-A-3'),
+    points: z.string().max(WHITEBOARD_LIMITS.points).optional().describe("A freehand drawing's stroke, in its own box: `x,y x,y`..."),
+    attachment: z.string().trim().min(1).max(64).optional().describe("A picture: its attachment's id, from the whiteboard's own upload"),
     from: WhiteboardElementId.optional().describe("An arrow's start"),
     to: WhiteboardElementId.optional().describe("An arrow's end"),
   }),
