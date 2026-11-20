@@ -40,6 +40,13 @@ async function mockWrite(page: Page, write: (asked: WriteInput) => string) {
     asked.push(body);
     await route.fulfill({ json: { action: body.action, text: write(body), model: 'stand-in' } satisfies WriteResult });
   });
+  // A draft streams (D59's revisit): the stand-in answers its own route, the whole text as one done event.
+  await page.route('**/api/v1/ai/write/stream', async (route) => {
+    const body = route.request().postDataJSON() as WriteInput;
+    asked.push(body);
+    const text = write(body);
+    await route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: `event: draft\ndata: ${JSON.stringify({ text })}\n\nevent: done\ndata: ${JSON.stringify({ text, model: 'stand-in' })}\n\n` });
+  });
   return asked;
 }
 
