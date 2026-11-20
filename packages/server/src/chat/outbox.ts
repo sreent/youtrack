@@ -22,7 +22,7 @@ import { meets } from '../workflow/match';
 import { ChatCallError, stopError, stopReason } from './common';
 import { pruneChatIssues } from './issues';
 import { issueForCard, markChannelGone, markWorkspaceRemoved, whyNotFor } from './service';
-import { matrixPost } from './matrix';
+import { matrixPost, syncMatrix } from './matrix';
 import { slackPost } from './slack';
 import { teamsChannelPost, teamsSend } from './teams';
 
@@ -281,5 +281,7 @@ export class ChatWorker {
       for (const row of batch) await sendChatPost(this.app, row, now);
       if (batch.length < BATCH) return;
     }
+    // The Matrix bot's turn (D42's revisit): its own polling, throttled to once every ten seconds.
+    await syncMatrix(this.app).catch(() => {});
   }
 }

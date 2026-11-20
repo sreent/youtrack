@@ -12,8 +12,8 @@ import { newId } from '../lib/ids';
 import { badRequest } from '../lib/errors';
 import { callableUrl } from '../events/webhooks';
 import { cardChange, fallbackText, type CardIssue } from './cards';
-import { callable, channelTr, ChatCallError, chatCtx, openSecret, retryAfterMs, sealSecret, stopError, stopReason } from './common';
-import { chatStatus, markWorkspaceRemoved, platformName, upsertChannel, upsertWorkspace } from './service';
+import { channelByExternal, chatStatus, linkUrl, markWorkspaceRemoved, personFor, platformName, runChatCommand, upsertChannel, upsertWorkspace, type ChatPerson } from './service';
+import { callable, channelTr, ChatCallError, chatCtx, openSecret, personTr, retryAfterMs, sealSecret, stopError, stopReason } from './common';
 
 type WorkspaceRow = typeof chatWorkspaces.$inferSelect;
 
@@ -118,4 +118,77 @@ export async function matrixPost(app: AppServices, ws: WorkspaceRow, roomId: str
   const txn = newId();
   const res = await matrixCall(app, tokenOf(app, ws), ws.serviceUrl!, `/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${txn}`, { msgtype: 'm.text', body: text, format: 'org.matrix.custom.html', formatted_body: html }, 'PUT');
   return typeof res.event_id === 'string' ? res.event_id : null;
+}
+// ---------------------------------------------------------------------------
+// The bot listens (D42's revisit): what people say to it in its rooms
+// ---------------------------------------------------------------------------
+
+const personOf = (ws: WorkspaceRow, userId: string): ChatPerson => ({
+  platform: 'matrix',
+  workspaceExternalId: ws.externalId,
+  workspaceName: ws.name,
+  externalUserId: userId,
+  name: userId,
+});
+
+/** A message is for the bot when it names it: its user id, or the !a4a word. */
+function addressed(botId: string, text: string): boolean {
+  return text.startsWith('!a4a') || text.includes(botId);
+}
+
+/** One plain-text message to a room: the bot's answers and links. */
+export async function matrixSendText(app: AppServices, ws: WorkspaceRow, roomId: string, text: string): Promise<void> {
+  const txn = newId();
+  await matrixCall(app, tokenOf(app, ws), ws.serviceUrl!, `/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${txn}`, { msgtype: 'm.text', body: text }, 'PUT');
+}
+
+// What the bot has seen, briefly: a cursor reset re-reads recent events, and each is answered once.
+const seen = new Map<string, { events: Set<string>; since: string; at: number }>();
+
+/**
+ * The bot's one turn: long-poll /sync once, and answer what names it, as the person who said it. A
+ * workspace not connected does nothing; the homeserver must be https, as every call to it is.
+ */
+export async function syncMatrix(app: AppServices): Promise<void> {
+  const ws = await matrixWorkspace(app);
+  if (!ws || !ws.serviceUrl) return;
+  const key = ws.id;
+  const memory = seen.get(key) ?? { events: new Set<string>(), since: '', at: 0 };
+  seen.set(key, memory);
+  if (Date.now() - memory.at < 10_000) return;
+  memory.at = Date.now();
+  for (const id of [...memory.events]) if (memory.events.size > 500) memory.events.delete(id);
+  let res: Record<string, unknown>;
+  try {
+    res = await matrixCall(app, tokenOf(app, ws), ws.serviceUrl, `/sync?since=${encodeURIComponent(memory.since)}&timeout=15000`, undefined, 'GET');
+  } catch (e) {
+    if (e instanceof ChatCallError && e.outcome !== 'retry') throw e;
+    return;
+  }
+  if (typeof res.next_batch === 'string') memory.since = res.next_batch;
+  const rooms = (res.rooms as { join?: Record<string, { timeline?: { events?: Record<string, unknown>[] } }> } | undefined)?.join ?? {};
+  for (const roomId of Object.keys(rooms)) {
+    const events = rooms[roomId]!.timeline?.events ?? [];
+    for (const raw of events) {
+      const e = raw as { type?: string; event_id?: string; sender?: string; content?: { body?: string; msgtype?: string } };
+      if (e.type !== 'm.room.message' || !e.event_id || !e.sender || e.sender === ws.externalId) continue;
+      if (memory.events.has(e.event_id)) continue;
+      memory.events.add(e.event_id);
+      const text = (e.content?.body ?? '').trim();
+      if (!text || !addressed(ws.externalId, text)) continue;
+      // The room, as a channel, so a subscription works from here too.
+      const channel = (await channelByExternal(app.db, ws.id, roomId)) ?? (await upsertChannel(app.db, ws.id, roomId, roomId));
+      const who = personOf(ws, e.sender);
+      const user = await personFor(app, who);
+      const clean = text.replace(/^!a4a\s*/i, '').replace(new RegExp(`^${ws.externalId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`), '').trim();
+      if (!user || /^link$/i.test(clean)) {
+        const url = await linkUrl(app, who);
+        const tr = user ? personTr(app, user) : channelTr(app);
+        await matrixSendText(app, ws, roomId, tr.t(user ? 'server.chat.linkAgain' : 'server.chat.linkFirst', { platform: platformName('matrix'), url })).catch(() => {});
+        continue;
+      }
+      const answer = await runChatCommand(app, 'matrix', user, clean, { channelId: channel?.id ?? null });
+      await matrixSendText(app, ws, roomId, answer.text).catch(() => {});
+    }
+  }
 }

@@ -18,6 +18,7 @@ let sender: ChatWorker;
 let homeserver: Server;
 let port: number;
 const sent: { room: string; body: Record<string, unknown> }[] = [];
+let syncSeen = 0;
 
 async function call(method: string, path: string, token: string, body?: unknown) {
   const headers: Record<string, string> = { authorization: `Bearer ${token}` };
@@ -34,6 +35,11 @@ beforeAll(async () => {
     req.on('end', () => {
       const url = req.url ?? '';
       res.setHeader('content-type', 'application/json');
+      if (url.includes('/sync')) {
+        // The bot's one turn: the first sync reads the message, the rest are empty.
+        const first = syncSeen++ === 0 ? [{ type: 'm.room.message', event_id: '$e1', sender: '@anna:mock', content: { body: '!a4a help', msgtype: 'm.text' } }, { type: 'm.room.message', event_id: '$e2', sender: '@vera:mock', content: { body: '!a4a link', msgtype: 'm.text' } }] : [];
+        return res.end(JSON.stringify({ next_batch: `b${syncSeen}`, rooms: { join: { '!room:mock': { timeline: { events: first } } } } }));
+      }
       if (url.endsWith('/account/whoami')) return res.end(JSON.stringify({ user_id: '@a4a:mock', device_id: 'D' }));
       if (url.endsWith('/joined_rooms')) return res.end(JSON.stringify({ joined_rooms: ['!room:mock'] }));
       if (url.includes('/state/m.room.name')) return res.end(JSON.stringify({ name: 'Engineering' }));
@@ -91,5 +97,15 @@ describe('Matrix', () => {
     expect(off.status).toBe(204);
     const after = await call('GET', '/chat/status', token);
     expect((after.body as { matrix: { connected: boolean } }).matrix.connected).toBe(false);
+  });
+  it('the bot listens over /sync: what names it is answered in the room, and a stranger is sent the link', async () => {
+    const token = (await (await import('../src/services/auth')).issueTokenFor(w.app.db, w.admin.id, { name: 'admin', scopes: ['read', 'write', 'admin'] })).token;
+    await call('POST', '/chat/matrix', token, { homeserver: `http://127.0.0.1:${port}`, accessToken: 'syt_bot' });
+    await (await import('../src/chat/matrix')).syncMatrix(w.app);
+    // @anna:mock is known (an a4a account by the same login? none is linked yet) - their !a4a help
+    // is answered in the room; @vera:mock, nobody a4a knows, is sent the one-time link.
+    const posts = sent.filter((s) => s.body.msgtype === 'm.text' && typeof s.body.body === 'string').map((s) => String(s.body.body));
+    expect(posts.filter((p) => p.includes('/chat/link')).length, JSON.stringify(posts)).toBeGreaterThanOrEqual(2);
+    expect(posts.length).toBeGreaterThanOrEqual(2);
   });
 });
