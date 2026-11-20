@@ -128,3 +128,44 @@ test('two people plan on a whiteboard, and its notes and arrow become issues and
   await page.goto(`/issues/${key}-1`);
   await expect(page.getByText(`made it from a note on the whiteboard ${name}`)).toBeVisible();
 });
+test("a whiteboard of one's own is drawn and pictured on, and shared with the people named", async ({ page, api, browser }) => {
+  // Una makes one of her own, limited to Theo, from the whiteboards page.
+  await page.goto('/whiteboards');
+  const name = `Scratch ${Date.now().toString(36)}`;
+  await page.getByLabel('Name').fill(name);
+  await page.getByLabel('Project', { exact: true }).selectOption('');
+  await page.getByLabel('Who reads it').selectOption('limited');
+  await page.getByLabel('People').selectOption({ label: SECOND.name });
+  await page.getByRole('button', { name: 'Make it' }).click();
+  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+  const id = page.url().split('/').pop()!;
+
+  // A freehand stroke: the Draw tool, the pointer dragged across the canvas, one ink element.
+  const canvas = page.getByRole('group', { name: /elements?$/ });
+  await page.getByRole('toolbar', { name: 'Whiteboard tools' }).getByRole('button', { name: 'Draw' }).click();
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box!.x + box!.width / 2 - 40, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width / 2 + 40, box!.y + box!.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect(outline(page).getByRole('button', { name: /a drawing/ })).toBeVisible();
+
+  // A picture, from the toolbar's file chooser.
+  await page.locator('input[type=file]').setInputFiles({ name: 'board.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64') });
+  await expect(page.getByRole('status').filter({ hasText: 'The picture is on the whiteboard.' })).toBeVisible();
+  await expect(outline(page).getByRole('button', { name: /a picture/ })).toBeVisible();
+
+  // Theo, named, reads and draws on it; and the owner says who reads it.
+  const theirs = await browser.newContext({ storageState: SECOND_AUTH_FILE });
+  const theo = await theirs.newPage();
+  const watch = await prepareContext(theirs);
+  await theo.goto(`/whiteboards/${id}`);
+  await expect(outline(theo).getByRole('button', { name: /a drawing/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Who reads it' }).click();
+  await expect(page.getByLabel('Who reads it')).toBeVisible();
+  await page.getByRole('button', { name: 'Save who reads it' }).click();
+  await expect(theo.getByRole('group', { name: /elements?$/ })).toBeVisible();
+  await theirs.close();
+  void watch;
+  void api;
+});

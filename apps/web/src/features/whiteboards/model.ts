@@ -23,6 +23,8 @@ export const SIZES: Record<WhiteboardKind, { w: number; h: number }> = {
   article: { w: 240, h: 112 },
   section: { w: 520, h: 360 },
   arrow: { w: 8, h: 8 },
+  ink: { w: 160, h: 120 },
+  image: { w: 320, h: 240 },
 };
 
 /** Each tone's word, as its message. */
@@ -36,7 +38,7 @@ export const TONE_KEY: Record<WhiteboardTone, string> = {
 };
 
 /** Each kind's word, as its message, where it's said alone; a note's and a card's take more. */
-export const KIND_KEY = { text: 'whiteboards.kind.text', section: 'whiteboards.kind.section', issue: 'whiteboards.kind.issue', article: 'whiteboards.kind.article' } as const;
+export const KIND_KEY = { text: 'whiteboards.kind.text', section: 'whiteboards.kind.section', issue: 'whiteboards.kind.issue', article: 'whiteboards.kind.article', ink: 'whiteboards.kind.ink', image: 'whiteboards.kind.image' } as const;
 
 /** a4a's tone of a note, as Ocean's meaning (components/Whiteboard). */
 export const TONE_CLASS: Record<WhiteboardTone, string> = { plain: '', idea: 'writes', agreed: 'good', question: 'warn', problem: 'bad', parked: 'idle' };
@@ -86,6 +88,8 @@ export function applyOps(current: Elements, ops: readonly WhiteboardOp[]): Map<s
         from: op.from ?? null,
         to: op.to ?? null,
         linked: null,
+        points: op.kind === 'ink' ? (op.points ?? '') : null,
+        attachment: op.kind === 'image' ? (op.attachment ?? null) : null,
         seq: 0,
         version: 0,
         updatedAt: new Date().toISOString(),

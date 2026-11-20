@@ -17,6 +17,7 @@ import { usePlaces } from '../app/places';
 import { Avatar } from '../components/Who';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Confirm } from '../features/common/Confirm';
+import { uploadFile } from '../features/attachments/api';
 import { deleteWhiteboard, renameWhiteboard, sendBatch, useWhiteboard, useWhiteboardCards, whiteboardKeys } from '../features/whiteboards/api';
 import { SharingDialog } from '../features/whiteboards/SharingDialog';
 import { Canvas, MAX_SCALE, MIN_SCALE, type View } from '../features/whiteboards/Canvas';
@@ -70,6 +71,8 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
   const [said, setSaid] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null);
   const [sharing, setSharing] = useState(false);
+  const [draw, setDraw] = useState(false);
+  const pickFile = useRef<HTMLInputElement>(null);
   const streamSeq = useRef(board.seq);
   const undoStack = useRef<Step[]>([]);
   const redoStack = useRef<Step[]>([]);
@@ -152,6 +155,30 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
     [size],
   );
 
+  /** A stroke becomes one ink element, its points in its own box (D58's revisit). */
+  const drew = (points: { x: number; y: number }[]) => {
+    const xs = points.map((q) => q.x);
+    const ys = points.map((q) => q.y);
+    const x = Math.floor(Math.min(...xs));
+    const y = Math.floor(Math.min(...ys));
+    const w = Math.max(Math.ceil(Math.max(...xs) - x), WHITEBOARD_LIMITS.minSize);
+    const h = Math.max(Math.ceil(Math.max(...ys) - y), WHITEBOARD_LIMITS.minSize);
+    const rel = points.map((q) => `${Math.round((q.x - x) * 10) / 10},${Math.round((q.y - y) * 10) / 10}`).join(' ');
+    void send([{ op: 'add', id: newElementId(), kind: 'ink', x, y, w, h, points: rel }], null, t('page.whiteboard.said.drew'));
+  };
+
+  /** A picture, uploaded to the whiteboard and put where the view is (D58's revisit). */
+  const picture = async (file: File) => {
+    try {
+      const att = await uploadFile(`/whiteboards/${board.id}/attachments`, file, () => {});
+      const x = Math.round(view.x + size.width / view.scale / 2 - 160);
+      const y = Math.round(view.y + size.height / view.scale / 2 - 120);
+      await send([{ op: 'add', id: newElementId(), kind: 'image', x, y, attachment: att.id }], null, t('page.whiteboard.said.picture'));
+    } catch (e) {
+      announce(problemWords(e) ?? (e instanceof Error ? e.message : t('ui.states.somethingWentWrong')));
+    }
+  };
+
   /** Send a batch: shown at once, merged by its answer; the person's step goes on their undo. */
   const send = async (ops: WhiteboardOp[], step: Step | null, words?: string) => {
     const key = ++counter.current;
@@ -218,7 +245,7 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
     if (e.kind === 'note') return t('whiteboards.kind.note', { tone: e.tone ?? 'plain' });
     if (e.kind === 'issue' || e.kind === 'article') return card?.shown ? t(KIND_KEY[e.kind], { id: card.id ?? '' }) : t('whiteboards.kind.card');
     if (e.kind === 'arrow') return e.linked ? t('whiteboards.kind.arrowLinked', { link: e.linked }) : t('whiteboards.kind.arrow');
-    return t(KIND_KEY[e.kind]);
+    return t(KIND_KEY[e.kind] ?? 'whiteboards.kind.card');
   };
   const wordsOf = (e: WhiteboardElement): string => {
     if (e.kind === 'note') return e.text?.trim() || t('whiteboards.note.empty');
@@ -229,6 +256,8 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
       if (!card?.shown) return t('whiteboards.card.hidden');
       return formatItems([card.summary, card.state?.name, card.assignee ? (card.assignee.isBot ? card.assignee.login : card.assignee.name) : null].filter((x): x is string => Boolean(x)));
     }
+    if (e.kind === 'ink') return t('whiteboards.ink.words');
+    if (e.kind === 'image') return t('whiteboards.image.words');
     const end = (id: string | null) => {
       const x = id ? shown.get(id) : undefined;
       if (!x) return '?';
@@ -577,6 +606,18 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
         <div className="whiteboard-tools" role="toolbar" aria-label={t('page.whiteboard.tools')}>
           {canEdit ? (
             <>
+              <button type="button" aria-pressed={draw} onClick={() => setDraw((d) => !d)}>
+                {t('page.whiteboard.draw')}
+              </button>
+              <button type="button" onClick={() => pickFile.current?.click()}>
+                {t('page.whiteboard.picture')}
+              </button>
+              <input ref={pickFile} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) void picture(f);
+              }}
+              />
               <button type="button" aria-keyshortcuts="N" onClick={() => setDialog({ kind: 'note', edit: null, conflict: null })}>
                 {t('page.whiteboard.addNote')}
               </button>
@@ -658,6 +699,8 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
               onKey={onKey}
               onOpen={edit}
               describe={describe}
+      draw={draw}
+      onDraw={drew}
               canEdit={canEdit}
               words={{ hidden: t('whiteboards.card.hidden'), emptyNote: t('whiteboards.note.empty'), resize: '', tones: Object.fromEntries((['plain', 'idea', 'agreed', 'question', 'problem', 'parked'] as const).map((x) => [x, toneWord(x)])) }}
               onSize={(s) => {

@@ -115,6 +115,10 @@ Messages added in wave 9 (a guest's article page, and a report's count opening i
 Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
 
 - `editor.visualEditor.link` und `linkTo` folgen den vorhandenen Werkzeugnamen. `writing.draftedWithTheAssistant` ist “Diese Worte hat der Assistent entworfen.” — passt “entworfen”, oder eher “formuliert”?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = „Zeichnen“, `page.whiteboard.picture` = „Bild“, `whiteboards.kind.ink` = „eine Zeichnung“): passen die Werkzeugnamen so, oder eher „Skizzieren“ und „Foto“?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -230,6 +234,10 @@ Messages added in wave 9 (a guest's article page, and a report's count opening i
 Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
 
 - `editor.visualEditor.link` y `linkTo` siguen los nombres de las herramientas existentes. `writing.draftedWithTheAssistant` es “El asistente redactó estas palabras.” — ¿o “escribió”?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “Dibujar”, `page.whiteboard.picture` = “Imagen”, `whiteboards.kind.ink` = “un dibujo”): ¿natural, o mejor “Trazar” y “Foto”?
 ## French
 
 Terms:
@@ -345,6 +353,10 @@ Messages added in wave 9 (a guest's article page, and a report's count opening i
 Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
 
 - `editor.visualEditor.link` et `linkTo` suivent les outils existants. `writing.draftedWithTheAssistant` est “L’assistant a rédigé ces mots.” — naturel, ou “a écrit” ?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “Dessiner”, `page.whiteboard.picture` = “Image”, `whiteboards.kind.ink` = “un dessin”): naturel, ou “Tracer” et “Photo” ?
 ## Japanese
 
 Terms:
@@ -452,6 +464,10 @@ Messages added in wave 9 (a guest's article page, and a report's count opening i
 Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
 
 - `editor.visualEditor.link` 系は既存のツール名に合わせました。`writing.draftedWithTheAssistant` は「この文章はアシスタントが下書きしました。」—「作成しました」のほうがいいですか。
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “描く”、`page.whiteboard.picture` = “画像”、`whiteboards.kind.ink` = “手書きの線”): 道具の名前として自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -538,6 +554,10 @@ Messages added in wave 9 (a guest's article page, and a report's count opening i
 Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
 
 - `editor.visualEditor.link` e `linkTo` seguem as ferramentas existentes. `writing.draftedWithTheAssistant` é “O assistente redigiu estas palavras.” — ou “escreveu”?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “Desenhar”, `page.whiteboard.picture` = “Imagem”, `whiteboards.kind.ink` = “um desenho”): natural, ou “Traçar” e “Foto”?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -673,6 +693,10 @@ Messages added in wave 9 (a guest's article page, and a report's count opening i
 Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
 
 - `editor.visualEditor.link` 계열은 기존 도구 이름을 따랐습니다. `writing.draftedWithTheAssistant`는 “어시스턴트가 이 문장의 초안을 썼습니다.” — “작성했습니다”가 더 자연스러운가요?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “그리기”, `page.whiteboard.picture` = “그림”, `whiteboards.kind.ink` = “낙서”): 자연스러운가요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -799,6 +823,10 @@ Messages added in wave 9 (a guest's article page, and a report's count opening i
 Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
 
 - `editor.visualEditor.link` 系列沿用了现有工具名。`writing.draftedWithTheAssistant` 是“这些文字由助手起草。”——用“撰写”会不会更自然？
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “画”、`page.whiteboard.picture` = “图片”、`whiteboards.kind.ink` = “随手画的线”): 工具栏上读起来自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -937,6 +965,10 @@ Messages added in wave 9 (a guest's article page, and a report's count opening i
 Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
 
 - `editor.visualEditor.link` theo các công cụ sẵn có. `writing.draftedWithTheAssistant` là “Trợ lý đã soạn những lời này.” — hay “viết”?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “Vẽ”, `page.whiteboard.picture` = “Hình ảnh”, `whiteboards.kind.ink` = “một nét vẽ”): tự nhiên chứ?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1072,6 +1104,10 @@ Messages added in wave 9 (a guest's article page, and a report's count opening i
 Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
 
 - `editor.visualEditor.link` mengikuti nama alat yang ada. `writing.draftedWithTheAssistant` adalah “Asisten menyusun kata-kata ini.” — atau “menulis”?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “Menggambar”, `page.whiteboard.picture` = “Gambar”, `whiteboards.kind.ink` = “sebuah gambar”): apakah alami?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1208,6 +1244,10 @@ Messages added in wave 9 (a guest's article page, and a report's count opening i
 Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
 
 - `editor.visualEditor.link` ตามชื่อเครื่องมือที่มีอยู่ `writing.draftedWithTheAssistant` คือ “ผู้ช่วยร่างข้อความเหล่านี้” — ควรมีจุดท้ายประโยคตามหลักหรือไม่
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “วาด”, `page.whiteboard.picture` = “รูปภาพ”, `whiteboards.kind.ink` = “เส้นที่วาด”): ดูเป็นธรรมชาติไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:
