@@ -313,6 +313,7 @@ export async function portalRequest(app: AppServices, r: PortalViewer, id: strin
         name: c.requesterId ? (other?.name ?? 'Someone') : author ? (author.isBot ? author.login : author.name) : 'The team',
         text: c.text,
         at: c.createdAt.toISOString(),
+        aiDrafted: c.aiDrafted,
       };
     }),
   };
@@ -324,7 +325,17 @@ export async function portalRequest(app: AppServices, r: PortalViewer, id: strin
  * the tracking page. A colleague's reaches the request's requester by email too; a4a carries no words
  * of someone copied to anyone (D57).
  */
-export async function portalReply(app: AppServices, r: PortalViewer, id: string, text: string): Promise<PortalRequestDetail> {
+/** A request of theirs, their group's (where it shares) or one they're copied on, for what their
+ * pages' own seam needs (D39's pictures, D59's writing help): its issue and whether they may
+ * answer it. Missing to anyone else, in the portal's words.
+ */
+export async function requesterRequest(app: AppServices, r: PortalViewer, id: string): Promise<{ issue: Row['issue']; canReply: boolean }> {
+  const groups = sharingOf(await sharingGroups(app, r));
+  const row = await oneRow(app, r, id, groups);
+  return { issue: row.issue, canReply: requesterMayComment(row.request, r, groups, row.copied) };
+}
+
+export async function portalReply(app: AppServices, r: PortalViewer, id: string, text: string, aiDrafted = false): Promise<PortalRequestDetail> {
   const groups = sharingOf(await sharingGroups(app, r));
   const row = await oneRow(app, r, id, groups);
   if (!requesterMayComment(row.request, r, groups, row.copied)) {
@@ -333,7 +344,7 @@ export async function portalReply(app: AppServices, r: PortalViewer, id: string,
   // Theirs, or a colleague's; one copied on it writes as themselves. Signed in, a4a knows who wrote it, so
   // where the desk relays, everyone else on it hears it (D67).
   const colleague = row.requester.id !== r.id && !row.copied;
-  await postRequesterReply(app, row.issue, { id: r.id, name: r.name }, text, 'page', { colleague, relay: { on: 'portal', sender: r.email, trusted: true } });
+  await postRequesterReply(app, row.issue, { id: r.id, name: r.name }, text, 'page', { colleague, relay: { on: 'portal', sender: r.email, trusted: true }, aiDrafted });
   return portalRequest(app, r, id);
 }
 

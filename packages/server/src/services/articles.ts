@@ -121,6 +121,7 @@ export async function articleDetail(ctx: Ctx, row: ArticleRow): Promise<ArticleD
     attachmentCount: Number(files[0]?.n ?? 0),
     visibleTo: visibleTo ?? null,
     limitedAbove: path.filter((p) => p.limited).map((p) => articleRef(s, p)),
+    aiDrafted: row.aiDrafted,
   };
 }
 

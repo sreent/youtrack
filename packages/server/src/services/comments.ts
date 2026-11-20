@@ -43,6 +43,7 @@ export async function commentDto(
     requester: outside !== null ? (ctx.actor.guest ? { name: 'The requester', as: 'requester' } : { name: outside.name, as: outside.as }) : null,
     reactions: reacted.get(`comment:${row.id}`) ?? [],
     visibleTo: visibleTo ?? null,
+    aiDrafted: row.aiDrafted,
   };
 }
 
@@ -73,7 +74,7 @@ export async function addComment(
   ctx: Ctx,
   issueId: string,
   text: string,
-  opts: { visibility?: CommentVisibility; visibleTo?: VisibleToInput | null } = {},
+  opts: { visibility?: CommentVisibility; visibleTo?: VisibleToInput | null; aiDrafted?: boolean } = {},
 ): Promise<Comment> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
@@ -93,7 +94,7 @@ export async function addComment(
     throw badRequest('A public comment goes to the requester, so it can’t be limited to some people too', 'Send it as internal to limit it, or leave out "visibleTo".').said('comments.publicCantBeLimited');
   }
   const result = await ctx.db.transaction(async (tx) =>
-    applyChanges(tx as unknown as Db, ctx, issue, { comment: text, commentVisibility: visibility, commentVisibleTo }),
+    applyChanges(tx as unknown as Db, ctx, issue, { comment: text, commentVisibility: visibility, commentVisibleTo, commentAiDrafted: opts.aiDrafted ?? false }),
   );
   await publishActivities(ctx.app, result.activities);
   const created = result.activities.find((a) => a.type === 'comment.created');
@@ -122,7 +123,7 @@ async function loadOwnComment(ctx: Ctx, id: string): Promise<CommentRow> {
  * Change a comment's words. With `expectedVersion`, only the version the editor read: an edit made
  * meanwhile refuses this one (409) rather than being written over, as an issue's and an article's do.
  */
-export async function updateComment(ctx: Ctx, id: string, text: string, expectedVersion?: number): Promise<Comment> {
+export async function updateComment(ctx: Ctx, id: string, text: string, expectedVersion?: number, aiDrafted?: boolean): Promise<Comment> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const row = await loadOwnComment(ctx, id);
@@ -133,7 +134,7 @@ export async function updateComment(ctx: Ctx, id: string, text: string, expected
     const tx = txRaw as unknown as Db;
     const [updated] = await tx
       .update(comments)
-      .set({ text, updatedAt: new Date(), version: sql`${comments.version} + 1` })
+      .set({ text, updatedAt: new Date(), version: sql`${comments.version} + 1`, aiDrafted: aiDrafted ?? false })
       .where(expectedVersion === undefined ? eq(comments.id, id) : and(eq(comments.id, id), eq(comments.version, expectedVersion)))
       .returning();
     if (!updated) {

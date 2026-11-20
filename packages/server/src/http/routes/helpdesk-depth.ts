@@ -2,8 +2,10 @@
  * The help desk in depth (docs/architecture.md, D45): SLA policies and their report, a desk's own
  * mailbox, the requesters' portal, and the kinds of change a person is told of.
  */
-import type { OpenAPIHono } from '@hono/zod-openapi';
+import { createRoute, type OpenAPIHono } from '@hono/zod-openapi';
 import {
+  AttachmentSchema,
+  ErrorSchema,
   PortalDeskSchema,
   PortalMeSchema,
   PortalNameBody,
@@ -23,11 +25,14 @@ import {
   SubscriptionKindsBody,
   SlaPolicySchema,
   SlaReportSchema,
+  WriteBody,
+  WriteResultSchema,
 } from '@a4a/shared';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { requireScope } from '../../context';
+import { requireScope, type Ctx } from '../../context';
+import { AppError } from '../../lib/errors';
 import { assertCanWriteProject } from '../../services/access';
 import { resolveIssue } from '../../services/issues';
 import {
@@ -42,11 +47,19 @@ import {
   portalRequester,
   portalRequests,
   portalSetPrivate,
+  requesterRequest,
   redeemSignIn,
   renameRequester,
   requestSignIn,
   signOut,
 } from '../../services/portal';
+import { streamDraftPortal, writeWithPortal } from '../../ai/writing';
+import { receiveFile } from '../../attachments/receive';
+import { formatBytes } from '../../attachments/sniff';
+import { storeAttachment } from '../../services/attachments';
+import { GUEST_USER } from '../../services/guests';
+import { streamDraftText } from './ai';
+import { MultipartFile } from './attachments';
 import { myKinds, setMyKinds, setSubscriptionKinds } from '../../notify/kinds';
 import { deskMailbox, setDeskMailbox } from '../../services/desk-mailbox';
 import { createPolicy, deletePolicy, listPolicies, reorderPolicies, slaReport, updatePolicy } from '../../services/sla';
@@ -250,9 +263,67 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
       sameOrigin(c);
       const r = await who(c);
       await hit(c, [['portalAct', r.id]], 'Too many replies just now', 'helpdesk.tooManyRepliesNow');
-      return portalReply(c.get('runtime'), r, params.id, body.text);
+      return portalReply(c.get('runtime'), r, params.id, body.text, body.aiDrafted);
     },
   );
+  // A reply's pictures (D39's revisit): kept on the request, seen by whoever reads it on the portal.
+  app.openAPIRegistry.registerPath(
+    createRoute({
+      method: 'post',
+      path: '/portal/requests/{id}/attachments',
+      tags,
+      summary: "A picture for a reply, kept on the request",
+      description: "A pasted or dropped picture, uploaded as one of the request's files, for its reply's words to show. Only while the requester may answer the request (their own, or a colleague's they're copied on where the group lets its members answer), and pictures only: the bytes decide what's a picture, as on the issue's own upload (D39). The file's own activity is the reply that follows: the upload adds none.",
+      request: { params: Id, body: { content: { 'multipart/form-data': { schema: MultipartFile } }, required: true } },
+      responses: {
+        201: { description: 'Stored', content: { 'application/json': { schema: AttachmentSchema } } },
+        400: { description: 'Not a multipart upload with a part named "file"', content: { 'application/json': { schema: ErrorSchema } } },
+        401: { description: 'Not signed in to the portal', content: { 'application/json': { schema: ErrorSchema } } },
+        403: { description: "The requester may not answer this request", content: { 'application/json': { schema: ErrorSchema } } },
+        404: { description: 'Not their request to read', content: { 'application/json': { schema: ErrorSchema } } },
+        413: { description: 'Larger than one file may be, or more than the request has room for', content: { 'application/json': { schema: ErrorSchema } } },
+      },
+    }),
+  );
+  app.post('/portal/requests/:id/attachments', async (c) => {
+    sameOrigin(c);
+    const runtime = c.get('runtime');
+    const r = await who(c);
+    await hit(c, [['portalAct', r.id]], 'Too many pictures just now', 'helpdesk.tooManyRepliesNow');
+    // Who may put a picture there is settled before a byte of it is read.
+    const { issue, canReply } = await requesterRequest(runtime, r, c.req.param('id'));
+    if (!canReply) throw new AppError(403, 'forbidden', "This is a colleague's request: you can read it, and they reply", 'Open a request of your own to ask something.').said('portal.colleaguesRequest');
+    const max = runtime.config.attachmentMaxBytes;
+    const file = await receiveFile(c.req.raw, {
+      maxBytes: max,
+      tooLargeMessage: `Files can be at most ${formatBytes(max)}`,
+      tooLargeWords: { key: 'attachments.fileTooLarge', values: { size: formatBytes(max) } },
+    });
+    const ctx: Ctx = { app: runtime, db: runtime.db, actor: { user: GUEST_USER, scopes: [], channel: 'helpdesk', tokenId: null, tokenName: null, authMethod: 'session', guest: true } };
+    return c.json(await storeAttachment(ctx, { kind: 'issue', issue }, file, { quiet: true }), 201);
+  });
+  route(
+    app,
+    { method: 'post', path: '/portal/write', tags, summary: 'Fix, rewrite, carry on or draft a message to the team: a suggestion, never saved', description: "The requester's own writing help (D59's revisit): the same asks as a signed-in person's, read from what the requester reads - their request and its public conversation, by name, without addresses. Each ask counts against their hourly allowance.", auth: 'none', body: WriteBody, response: WriteResultSchema, status: 200 },
+    async ({ c, body }) => {
+      sameOrigin(c);
+      const r = await who(c);
+      await hit(c, [['portalAct', r.id]], 'Too much writing help just now', 'helpdesk.tooManyRepliesNow');
+      return writeWithPortal(c.get('runtime'), r, body);
+    },
+  );
+  route(
+    app,
+    { method: 'post', path: '/portal/write/stream', tags, summary: "Draft a message to the team, streamed (Server-Sent Events): each finished line as it is written", description: "The requester's own draft, streamed as a person's is: each finished line, checked, as a `draft` event with the text so far; the whole text as `done`, a failure as `error`. The same cap as /portal/write.", auth: 'none', body: WriteBody, status: 200 },
+    async ({ c, body }) => {
+      sameOrigin(c);
+      const runtime = c.get('runtime');
+      const r = await who(c);
+      await hit(c, [['portalAct', r.id]], 'Too much writing help just now', 'helpdesk.tooManyRepliesNow');
+      return streamDraftText(c, (emit) => streamDraftPortal(runtime, r, body, emit));
+    },
+  );
+
   route(
     app,
     { method: 'post', path: '/portal/requests', tags, summary: 'Ask a desk for help', description: 'As the form does, without its proof of work: they are signed in.', auth: 'none', body: PortalNewRequestBody, response: PortalRequestDetailSchema, status: 201 },

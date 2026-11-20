@@ -768,6 +768,7 @@ export const IssueDetailSchema = IssueSchema.extend({
   pendingSuggestions: z.number().int(),
   voted: z.boolean().describe('Whether the caller voted for it'),
   reactions: z.array(ReactionSummarySchema).describe('Reactions to its description'),
+  descriptionAiDrafted: z.boolean().describe('Its saved description came from an accepted suggestion (D59); said beside it, cleared by an edit that does not say so'),
   formerIds: z.array(z.string()).describe('Ids it had before it moved: each still finds it (D41)'),
 }).meta({ id: 'IssueDetail' });
 export type IssueDetail = z.infer<typeof IssueDetailSchema>;
@@ -803,6 +804,7 @@ export const UpdateIssueBody = z.object({
   addTags: z.array(z.string()).optional(),
   removeTags: z.array(z.string()).optional(),
   expectedVersion: z.number().int().optional().describe('Fail with 409 if the issue changed since this version'),
+  descriptionAiDrafted: z.boolean().optional().describe('True when the saved description came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
 });
 export type UpdateIssueInput = z.infer<typeof UpdateIssueBody>;
 
@@ -841,10 +843,14 @@ export const CommentSchema = z
       .describe('Set when someone outside the team wrote it: the requester of a help desk request, someone copied on it, or someone of its customer group, on a page or by email'),
     visibleTo: VisibleToSchema.nullable().describe("Null: everyone who sees the issue sees it. Otherwise only these, besides its author, the project's managers and administrators"),
     reactions: z.array(ReactionSummarySchema),
+    aiDrafted: z.boolean().describe('Its saved words came from an accepted suggestion (D59); said beside them, cleared by an edit that does not say so'),
   })
   .meta({ id: 'Comment' });
 export type Comment = z.infer<typeof CommentSchema>;
-export const CommentBody = z.object({ text: z.string().min(1).max(50_000) });
+export const CommentBody = z.object({
+  text: z.string().min(1).max(50_000),
+  aiDrafted: z.boolean().optional().describe('True when the saved words came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
+});
 export const NewCommentBody = CommentBody.extend({
   visibility: z
     .enum(COMMENT_VISIBILITIES)
@@ -1801,6 +1807,7 @@ export const ArticleDetailSchema = ArticleSchema.extend({
     "Null: it isn't limited itself. Otherwise only these see it, besides its author, the project's managers and administrators (D51)",
   ),
   limitedAbove: z.array(ArticleRefSchema).describe('The limited articles it sits under, from the top: only who sees them sees it'),
+  aiDrafted: z.boolean().describe('Its saved words came from an accepted suggestion (D59); said beside them, cleared by an edit that does not say so'),
 }).meta({ id: 'ArticleDetail' });
 export type ArticleDetail = z.infer<typeof ArticleDetailSchema>;
 
@@ -1822,6 +1829,7 @@ export const UpdateArticleBody = z.object({
   parent: z.string().nullable().optional().describe('Move it under this article, or to the top with null'),
   position: z.number().int().min(0).optional().describe('Its place among its (new) siblings, from 0'),
   expectedVersion: z.number().int().optional().describe('Fail with 409 if its content changed since this version'),
+  aiDrafted: z.boolean().optional().describe('True when the saved words came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
 });
 export type UpdateArticleInput = z.infer<typeof UpdateArticleBody>;
 
@@ -3323,6 +3331,7 @@ export const CreateScimTokenBody = z.object({ name: z.string().trim().min(1).max
 /** A comment's new words, against the version read: an edit made meanwhile refuses this one (409). */
 export const UpdateCommentBody = CommentBody.extend({
   expectedVersion: z.number().int().optional().describe('The version you read; without it, the edit is written whatever happened meanwhile'),
+  aiDrafted: z.boolean().optional().describe('True when the saved words came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
 });
 export type UpdateCommentInput = z.input<typeof UpdateCommentBody>;
 
@@ -3924,6 +3933,7 @@ export const PortalRequestDetailSchema = PortalRequestSchema.extend({
       name: z.string(),
       text: z.string(),
       at: timestamp,
+      aiDrafted: z.boolean().describe('Its saved words came from an accepted suggestion (D59): said beside them to the requester too, who asked for them'),
     }),
   ),
   ccs: z
@@ -3954,7 +3964,10 @@ export const PortalNewRequestBody = z.object({
   private: z.boolean().default(false).describe("Keep it from their customer group's other members (D56)"),
 });
 export const PortalRequestUpdateBody = z.object({ private: z.boolean().describe("Keep it from their customer group's other members, or share it again (D56)") });
-export const PortalReplyBody = z.object({ text: z.string().trim().min(1).max(50_000) });
+export const PortalReplyBody = z.object({
+  text: z.string().trim().min(1).max(50_000),
+  aiDrafted: z.boolean().optional().describe('True when the saved words came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
+});
 
 const kindChoice = z.object({ inbox: z.boolean(), email: z.boolean() });
 /** For each kind of change, whether it reaches the inbox and email (D45). Kinds left out keep their default. */

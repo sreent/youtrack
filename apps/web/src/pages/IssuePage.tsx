@@ -1,7 +1,7 @@
 import type { IssueDetail, IssueField, Suggestion, SuggestedSummary, SummarizeResult, User } from '@a4a/shared';
 import { toggleTask } from '@a4a/shared/markdown';
 import { useQueryClient } from '@tanstack/react-query';
-import { useId, useMemo, useState, useEffect, type ReactNode } from 'react';
+import { useId, useMemo, useState, useEffect, useRef, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { ApiError, patch, post } from '../api/client';
 import { keys, useAIStatus, useIssue, useMe, useMembers, useProject, useProjectFields, useSuggestions, useUsers } from '../api/queries';
@@ -61,6 +61,8 @@ function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail;
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(issue.description);
   const [error, setError] = useState<string | null>(null);
+  // True while the description is an accepted suggestion: the save keeps the mark (D59).
+  const drafted = useRef(false);
   const [busy, setBusy] = useState(false);
   // A box ticked shows ticked while it's saved.
   const [ticked, setTicked] = useState<string | null>(null);
@@ -88,7 +90,8 @@ function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail;
           setBusy(true);
           setError(null);
           try {
-            await update({ description: text });
+            await update({ description: text, descriptionAiDrafted: drafted.current });
+            drafted.current = false;
             setEditing(false);
           } catch (err) {
             setError(errorText(err));
@@ -111,6 +114,7 @@ function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail;
               uploadTo={`/issues/${issue.id}/attachments`}
               onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.issue(issue.id) })}
               writing={{ kind: 'description', issue: issue.id }}
+              drafted={drafted}
             />
           )}
         </FormField>
@@ -127,7 +131,10 @@ function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail;
   return (
     <section className="card stack" aria-label={t('page.issue.description')}>
       {issue.description.trim() ? (
-        <Markdown text={ticked ?? issue.description} onToggleTask={canEdit && ticked === null ? (i, on) => void tick(i, on) : undefined} />
+        <>
+          {issue.descriptionAiDrafted ? <p className="note">{t('writing.draftedWithTheAssistant')}</p> : null}
+          <Markdown text={ticked ?? issue.description} onToggleTask={canEdit && ticked === null ? (i, on) => void tick(i, on) : undefined} />
+        </>
       ) : (
         <p className="note">{t('page.issue.noDescriptionYet')}</p>
       )}

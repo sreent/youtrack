@@ -325,7 +325,7 @@ export async function postRequesterReply(
   requester: { id: string; name: string },
   text: string,
   via: 'page' | 'email',
-  opts: { colleague?: boolean; relay?: RelayHow; files?: number } = {},
+  opts: { colleague?: boolean; relay?: RelayHow; files?: number; aiDrafted?: boolean } = {},
 ): Promise<{ commentId: string | null; activities: ActivityRow[]; relay: RelayChoice }> {
   const ctx = await botCtx(app, issue.projectId);
   // Whether everyone else on it hears these words (D67): the desk's switch, whether a4a can trust who
@@ -351,6 +351,7 @@ export async function postRequesterReply(
           comment: text,
           commentVisibility: 'public',
           commentRequester: requester,
+          commentAiDrafted: opts.aiDrafted ?? false,
           ...(fields.length ? { fields } : {}),
           ...(Object.keys(data).length ? { data } : {}),
         },

@@ -1,6 +1,6 @@
 import type { Attachment, User, WritingFor } from '@a4a/shared';
 import { imagePath } from '@a4a/shared/markdown';
-import { lazy, Suspense, useRef, useState } from 'react';
+import { lazy, Suspense, useRef, useState, type MutableRefObject } from 'react';
 import { ApiError } from '../../api/client';
 import { useUsers } from '../../api/queries';
 import { ErrorLine } from '../../components/States';
@@ -38,6 +38,9 @@ export const isPicture = (f: File) => RASTER.includes(f.type);
 /** A file's name as Markdown's words for a link or a picture: brackets and backslashes escaped. */
 const words = (name: string) => name.replace(/[\r\n]+/g, ' ').replace(/[\\[\]]/g, '\\$&');
 
+/** A picture's place while it waits for somewhere to upload to, as the editor writes it (D39). */
+export const uploadingMark = (name: string, n: number) => `![Uploading ${words(name)}…](#uploading-${n})`;
+
 export function placedMarkdown(p: Placed): string {
   return `${p.kind === 'image' ? '!' : ''}[${words(p.name)}](${p.href})`;
 }
@@ -64,6 +67,10 @@ export function RichField({
   onOtherFiles,
   tall,
   writing,
+  writingEndpoint,
+  holdPictures,
+  drafted,
+  skipLimits,
 }: {
   id: string;
   /** The field's name, said by the visual editor (a label can't name an editable region). */
@@ -81,10 +88,18 @@ export function RichField({
   tall?: boolean;
   /** Where the text goes, for writing help (D59): offered only with it, and while the server has an AI provider. */
   writing?: WritingFor;
+  /** Which route the ask goes to: a requester's pages ask the portal's own (D59's revisit). */
+  writingEndpoint?: string;
+  /** Pictures pasted before there's somewhere to upload them (a new issue): the host holds each, and puts them in once there is (D39). */
+  holdPictures?: (files: File[], marks: string[]) => void;
+  /** The host's: true while the text is an accepted suggestion, for the save to keep (D59). */
+  drafted?: MutableRefObject<boolean>;
+  /** The portal's fields: its server answers no guest for the limits, so they're not asked (the server still enforces them). */
+  skipLimits?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>(storedMode);
   const [status, setStatus] = useState<{ text: string; bad?: boolean } | null>(null);
-  const limits = useAttachmentLimits();
+  const limits = useAttachmentLimits(!skipLimits);
   const everyone = useUsers({ enabled: !people });
   const latest = useRef(value);
   latest.current = value;
@@ -93,9 +108,12 @@ export function RichField({
   const described = [describedBy, status ? statusId : null].filter(Boolean).join(' ') || undefined;
 
   const say = (text: string, bad?: boolean) => setStatus(text ? { text, bad } : null);
-  const change = (next: string) => {
+  const change = (next: string, fromHelp = false) => {
+    const same = latest.current === next;
     latest.current = next;
     onChange(next);
+    // Any change but the accept's own, and a re-serialisation of the same text, clears the mark; the accept sets it right after (D59).
+    if (drafted && !fromHelp && !same) drafted.current = false;
   };
 
   // What's selected, for writing help: the visual editor's, or the Markdown's from where to where.
@@ -105,6 +123,8 @@ export function RichField({
   const fieldEl = () => document.getElementById(id);
   const help = useWritingHelp({
     at: writing,
+    endpoint: writingEndpoint,
+    drafted,
     value,
     selected,
     pick: (): Picked | null => {
@@ -117,7 +137,7 @@ export function RichField({
         apply: (next) => {
           const now = latest.current;
           if (now.slice(start, end) !== text) return false;
-          change(now.slice(0, start) + next + now.slice(end));
+          change(now.slice(0, start) + next + now.slice(end), true);
           // What was selected is gone: nothing is, until the next selection.
           area.current = { start: 0, end: 0 };
           setSelected(false);
@@ -131,7 +151,7 @@ export function RichField({
         text,
         apply: (next) => {
           if (latest.current !== text) return false;
-          change(carryOn ? carriedOn(text, next) : next);
+          change(carryOn ? carriedOn(text, next) : next, true);
           return true;
         },
       };
@@ -167,9 +187,15 @@ export function RichField({
     const mine = onOtherFiles ? files.filter(isPicture) : files;
     if (others.length) onOtherFiles!(others);
     if (!mine.length) return;
-    if (!place) return say(t('editor.richField.saveItFirstThenPictures'), true);
-    const marks = mine.map((f) => `![Uploading ${words(f.name)}…](#uploading-${++seq.current})`);
     const text = latest.current;
+    const marks = mine.map((f) => `![Uploading ${words(f.name)}…](#uploading-${++seq.current})`);
+    if (!place) {
+      if (!holdPictures) return say(t('editor.richField.saveItFirstThenPictures'), true);
+      // A new issue's description: the host holds them, and puts each where its mark is once the issue is there.
+      change(text.slice(0, start) + marks.join('\n') + text.slice(end));
+      holdPictures(mine, marks);
+      return;
+    }
     change(text.slice(0, start) + marks.join('\n') + text.slice(end));
     for (const [i, file] of mine.entries()) {
       const placed = await place(file);

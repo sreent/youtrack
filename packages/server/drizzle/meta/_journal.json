@@ -330,6 +330,13 @@
       "when": 1795016130172,
       "tag": "0046_scoped_passkeys_and_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795016131172,
+      "tag": "0047_ai_drafted_words",
+      "breakpoints": true
     }
   ]
 }
