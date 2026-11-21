@@ -4598,6 +4598,7 @@
   "problem.helpdesk.linkOpensNoRequest": "Dieser Link öffnet keine Anfrage. Verwenden Sie den Link aus Ihrer neuesten E-Mail dazu, vollständig.",
   "problem.helpdesk.noDesk": "Hier gibt es keinen Helpdesk. Prüfen Sie die Adresse, die Sie erhalten haben.",
   "problem.helpdesk.requestNotFound": "Keine Helpdesk-Anfrage zu {id} gefunden. Nur Vorgänge, die über einen Helpdesk eingereicht wurden, haben eine.",
+  "problem.helpdesk.severalGroups": "Der Requester ist hier in mehreren Kundengruppen. Nennen Sie, für welche diese Anfrage ist.",
   "problem.helpdesk.tooManyChangesNow": "Gerade zu viele Änderungen. Versuchen Sie es in {unit, select, second {{n, plural, one {# Sekunde} other {# Sekunden}}} other {{n, plural, one {# Minute} other {# Minuten}}}} erneut.",
   "problem.helpdesk.tooManyForForm": "Zu viele Anfragen für dieses Formular. Versuchen Sie es in {unit, select, second {{n, plural, one {# Sekunde} other {# Sekunden}}} other {{n, plural, one {# Minute} other {# Minuten}}}} erneut.",
   "problem.helpdesk.tooManyFromAddress": "Zu viele Anfragen von Ihrer Adresse. Versuchen Sie es in {unit, select, second {{n, plural, one {# Sekunde} other {# Sekunden}}} other {{n, plural, one {# Minute} other {# Minuten}}}} erneut.",

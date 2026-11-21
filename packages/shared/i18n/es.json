@@ -4598,6 +4598,7 @@
   "problem.helpdesk.linkOpensNoRequest": "Este enlace no abre ninguna solicitud. Usa el enlace de tu último correo sobre ella, completo.",
   "problem.helpdesk.noDesk": "Aquí no hay ningún servicio de asistencia. Revisa la dirección que te dieron.",
   "problem.helpdesk.requestNotFound": "No se encuentra una solicitud del servicio de asistencia para {id}. Solo la tienen las incidencias que llegaron por un servicio de asistencia.",
+  "problem.helpdesk.severalGroups": "El solicitante está en varios grupos de clientes aquí. Indica para cuál es esta solicitud.",
   "problem.helpdesk.tooManyChangesNow": "Demasiados cambios ahora mismo. Vuelve a intentarlo dentro de {unit, select, second {{n, plural, one {# segundo} other {# segundos}}} other {{n, plural, one {# minuto} other {# minutos}}}}.",
   "problem.helpdesk.tooManyForForm": "Demasiadas solicitudes para este formulario. Vuelve a intentarlo dentro de {unit, select, second {{n, plural, one {# segundo} other {# segundos}}} other {{n, plural, one {# minuto} other {# minutos}}}}.",
   "problem.helpdesk.tooManyFromAddress": "Demasiadas solicitudes desde tu dirección IP. Vuelve a intentarlo dentro de {unit, select, second {{n, plural, one {# segundo} other {# segundos}}} other {{n, plural, one {# minuto} other {# minutos}}}}.",

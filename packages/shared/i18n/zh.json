@@ -4598,6 +4598,7 @@
   "problem.helpdesk.linkOpensNoRequest": "此链接无法打开请求。请使用关于此请求的最新邮件中的完整链接。",
   "problem.helpdesk.noDesk": "这里没有服务台。请检查您收到的地址。",
   "problem.helpdesk.requestNotFound": "找不到 {id} 的服务台请求。只有通过服务台提交的问题才有请求。",
+  "problem.helpdesk.severalGroups": "请求者在这里属于多个客户组。请说明此请求针对哪个组。",
   "problem.helpdesk.tooManyChangesNow": "更改过于频繁。请{unit, select, second {{n, plural, other { # 秒}}} other {{n, plural, other { # 分钟}}}}后重试。",
   "problem.helpdesk.tooManyForForm": "此表单收到的请求过多。请{unit, select, second {{n, plural, other { # 秒}}} other {{n, plural, other { # 分钟}}}}后重试。",
   "problem.helpdesk.tooManyFromAddress": "来自您当前网络的请求过多。请{unit, select, second {{n, plural, other { # 秒}}} other {{n, plural, other { # 分钟}}}}后重试。",

@@ -2932,7 +2932,8 @@ export const customerGroupMembers = pgTable(
     addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
     addedAt: created(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.requesterId] }), index('customer_group_members_group').on(t.groupId)],
+  // A requester may be in several groups at a desk (D56's revisit): the membership is the three together.
+  (t) => [primaryKey({ columns: [t.projectId, t.requesterId, t.groupId] }), index('customer_group_members_group').on(t.groupId)],
 );
 
 /** A group's dedicated agents, in order: its members' new requests go to one of them. */

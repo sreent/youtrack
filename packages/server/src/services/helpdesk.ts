@@ -18,12 +18,12 @@ import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { comments, customerGroups, helpdeskMailboxes, helpdeskRequests, helpdeskTokens, issues, requestCcs, requesters, users } from '../db/schema';
-import { assignToGroupAgent, GROUP_CHANGE, groupByRef, groupMemberEmails, groupOfRequester } from './customer-groups';
+import { assignToGroupAgent, GROUP_CHANGE, groupByRef, groupMemberEmails, groupsOfRequester, type GroupRow } from './customer-groups';
 import { requesterPasskeyCount } from './portal-passkeys';
 import { publishActivities, type ActivityRow } from '../events/activity';
 import { captchaChallenge } from '../helpdesk/captcha';
 import { randomToken, sha256 } from '../lib/crypto';
-import { AppError, notFound } from '../lib/errors';
+import { AppError, badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { enqueueMail, kickMail, mailHost } from '../mail/outbox';
 import { mailConfigured, sign, verify } from '../notify/state';
@@ -191,6 +191,8 @@ export interface NewRequest {
   ccHeld?: boolean;
   /** Kept from their customer group's other members from the start (D56). */
   private?: boolean;
+  /** Which of their several groups at the desk this one is for (D56's revisit): its id or name. */
+  group?: string;
 }
 
 /**
@@ -209,8 +211,16 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   const received = requestMessageId('request-received');
   // What later emails thread under: the requester's message, else the first one a4a sends them.
   const threadId = input.threadId ?? (mailConfigured(app) ? `<${received}@${mailHost(app)}>` : null);
-  // Filed under its requester's customer group now, and kept (D56).
-  const group = await groupOfRequester(app.db, project.id, { id: requesterId, email });
+  // Filed under its requester's customer group now, and kept (D56). A requester in several
+  // groups at the desk (D56's revisit) says which: the form's choice, refused without one.
+  const atDesk = (await groupsOfRequester(app.db, { id: requesterId, email })).filter((g) => g.projectId === project.id);
+  let group: GroupRow | null = null;
+  if (atDesk.length === 1) group = atDesk[0]!;
+  else if (atDesk.length > 1) {
+    const chosen = input.group ? atDesk.find((g) => g.id === input.group || g.name.toLowerCase() === input.group!.trim().toLowerCase()) : undefined;
+    if (!chosen) throw badRequest('The requester is in several customer groups here', 'Name which one this request is for.').said('helpdesk.severalGroups');
+    group = chosen;
+  }
   let slaActivities: ActivityRow[] = [];
   let copied: { copied: string[]; left: string[] } | null = null;
   let heldCcs: { held: string[]; left: string[] } | null = null;

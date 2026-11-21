@@ -4014,6 +4014,7 @@ export const PortalRedeemBody = z.object({ token: z.string().min(10).max(200) })
 export const PortalNameBody = z.object({ name: z.string().trim().min(1).max(200) });
 export const PortalNewRequestBody = z.object({
   desk: z.string().trim().min(1).max(20),
+  group: z.string().trim().max(100).optional().describe("Which of their several groups at the desk this one is for (D56's revisit): its name, when there are several"),
   summary: z.string().trim().min(1).max(500),
   description: z.string().max(50_000).default(''),
   private: z.boolean().default(false).describe("Keep it from their customer group's other members (D56)"),

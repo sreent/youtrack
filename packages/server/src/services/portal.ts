@@ -387,13 +387,13 @@ export async function portalDesks(app: AppServices, r: PortalViewer): Promise<Po
 }
 
 /** A new request from the portal: they're known, so no proof of work; as the form files one. */
-export async function portalNewRequest(app: AppServices, r: PortalViewer, input: { desk: string; summary: string; description: string; private?: boolean }): Promise<PortalRequestDetail> {
+export async function portalNewRequest(app: AppServices, r: PortalViewer, input: { desk: string; summary: string; description: string; private?: boolean; group?: string }): Promise<PortalRequestDetail> {
   const project = await deskProject(app, input.desk);
   // A desk this session doesn't open takes nothing from it either: what they ask there, they'd not see.
   if (!(await viewOf(app, r)).opens(project.id)) {
     throw new AppError(403, 'method_off', `${project.name} signs you in another way`, 'Sign out, and sign in from its page.').said('portal.deskSignsInAnotherWay', { desk: project.name });
   }
-  const issue = await openRequest(app, project, { name: r.name, email: r.email, summary: input.summary, description: input.description, via: 'form', private: input.private ?? false });
+  const issue = await openRequest(app, project, { name: r.name, email: r.email, summary: input.summary, description: input.description, via: 'form', private: input.private ?? false, ...(input.group ? { group: input.group } : {}) });
   return portalRequest(app, r, issue.id);
 }
 

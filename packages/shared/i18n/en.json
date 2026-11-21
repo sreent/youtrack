@@ -4598,6 +4598,7 @@
   "problem.helpdesk.linkOpensNoRequest": "This link doesn't open a request. Use the link in your latest email about it, whole.",
   "problem.helpdesk.noDesk": "There's no help desk here. Check the address you were given.",
   "problem.helpdesk.requestNotFound": "A help desk request for {id} not found. Only issues filed through a help desk have one.",
+  "problem.helpdesk.severalGroups": "The requester is in several customer groups here. Name which one this request is for.",
   "problem.helpdesk.tooManyChangesNow": "Too many changes just now. Try again in {unit, select, second {{n, plural, one {# second} other {# seconds}}} other {{n, plural, one {# minute} other {# minutes}}}}.",
   "problem.helpdesk.tooManyForForm": "Too many requests for this form. Try again in {unit, select, second {{n, plural, one {# second} other {# seconds}}} other {{n, plural, one {# minute} other {# minutes}}}}.",
   "problem.helpdesk.tooManyFromAddress": "Too many requests from your address. Try again in {unit, select, second {{n, plural, one {# second} other {# seconds}}} other {{n, plural, one {# minute} other {# minutes}}}}.",

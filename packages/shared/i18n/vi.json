@@ -4598,6 +4598,7 @@
   "problem.helpdesk.linkOpensNoRequest": "Liên kết này không mở yêu cầu nào. Dùng nguyên liên kết trong email mới nhất về yêu cầu đó.",
   "problem.helpdesk.noDesk": "Không tìm thấy bộ phận hỗ trợ. Kiểm tra lại địa chỉ bạn nhận được.",
   "problem.helpdesk.requestNotFound": "Không tìm thấy yêu cầu hỗ trợ cho {id}. Chỉ vấn đề gửi qua bộ phận hỗ trợ mới có yêu cầu.",
+  "problem.helpdesk.severalGroups": "Người yêu cầu thuộc nhiều nhóm khách hàng ở đây. Hãy nói yêu cầu này dành cho nhóm nào.",
   "problem.helpdesk.tooManyChangesNow": "Có quá nhiều thay đổi lúc này. Thử lại sau {unit, select, second {{n, plural, other {# giây}}} other {{n, plural, other {# phút}}}}.",
   "problem.helpdesk.tooManyForForm": "Có quá nhiều yêu cầu cho biểu mẫu này. Thử lại sau {unit, select, second {{n, plural, other {# giây}}} other {{n, plural, other {# phút}}}}.",
   "problem.helpdesk.tooManyFromAddress": "Có quá nhiều yêu cầu từ địa chỉ IP của bạn. Thử lại sau {unit, select, second {{n, plural, other {# giây}}} other {{n, plural, other {# phút}}}}.",

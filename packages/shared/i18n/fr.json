@@ -4598,6 +4598,7 @@
   "problem.helpdesk.linkOpensNoRequest": "Ce lien n’ouvre aucune demande. Utilisez le lien de votre dernier e-mail à ce sujet, en entier.",
   "problem.helpdesk.noDesk": "Il n’y a pas de centre d’assistance ici. Vérifiez l’adresse qu’on vous a donnée.",
   "problem.helpdesk.requestNotFound": "Demande d’assistance introuvable pour {id}. Seuls les tickets arrivés par un centre d’assistance en ont une.",
+  "problem.helpdesk.severalGroups": "Le demandeur est dans plusieurs groupes de clients ici. Dites pour lequel est cette demande.",
   "problem.helpdesk.tooManyChangesNow": "Trop de modifications en ce moment. Réessayez dans {unit, select, second {{n, plural, one {# seconde} other {# secondes}}} other {{n, plural, one {# minute} other {# minutes}}}}.",
   "problem.helpdesk.tooManyForForm": "Trop de demandes pour ce formulaire. Réessayez dans {unit, select, second {{n, plural, one {# seconde} other {# secondes}}} other {{n, plural, one {# minute} other {# minutes}}}}.",
   "problem.helpdesk.tooManyFromAddress": "Trop de demandes depuis votre adresse IP. Réessayez dans {unit, select, second {{n, plural, one {# seconde} other {# secondes}}} other {{n, plural, one {# minute} other {# minutes}}}}.",

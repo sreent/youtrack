@@ -4598,6 +4598,7 @@
   "problem.helpdesk.linkOpensNoRequest": "このリンクではリクエストを開けません。このリクエストに関する最新のメールのリンクを、そのまま全部使ってください。",
   "problem.helpdesk.noDesk": "ここにはヘルプデスクがありません。受け取ったアドレスを確認してください。",
   "problem.helpdesk.requestNotFound": "{id}のヘルプデスクのリクエストが見つかりません。リクエストがあるのは、ヘルプデスク経由で登録された課題だけです。",
+  "problem.helpdesk.severalGroups": "依頼者はここで複数の顧客グループに属しています。このリクエストがどのグループ宛てか指定してください。",
   "problem.helpdesk.tooManyChangesNow": "現在、変更が多すぎます。{unit, select, second {{n, plural, other {#秒}}} other {{n, plural, other {#分}}}}後にもう一度お試しください。",
   "problem.helpdesk.tooManyForForm": "このフォームへのリクエストが多すぎます。{unit, select, second {{n, plural, other {#秒}}} other {{n, plural, other {#分}}}}後にもう一度お試しください。",
   "problem.helpdesk.tooManyFromAddress": "お使いのIPアドレスからのリクエストが多すぎます。{unit, select, second {{n, plural, other {#秒}}} other {{n, plural, other {#分}}}}後にもう一度お試しください。",

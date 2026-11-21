@@ -325,9 +325,7 @@ export async function addGroupMember(ctx: Ctx, key: string, id: string, input: {
     .from(customerGroupMembers)
     .innerJoin(customerGroups, eq(customerGroups.id, customerGroupMembers.groupId))
     .where(and(eq(customerGroupMembers.projectId, project.id), eq(customerGroupMembers.requesterId, r.id)));
-  if (row && row.m.groupId !== group.id) {
-    throw conflict(`${r.email} is in ${row.g} at this desk`, `A requester is in one group at a desk: take them out of ${row.g} first.`).said('customerGroups.inAnotherGroup', { email: r.email, group: row.g });
-  }
+  // A requester may be in several groups at a desk (D56's revisit): a consultant for two customers.
   return { requester: { id: r.id, name: r.name, email: r.email }, addedAt: (row?.m.addedAt ?? new Date()).toISOString(), addedBy: ctx.actor.user.login };
 }
 

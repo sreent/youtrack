@@ -4598,6 +4598,7 @@
   "problem.helpdesk.linkOpensNoRequest": "Este link não abre nenhum pedido. Use o link completo do e-mail mais recente sobre o pedido.",
   "problem.helpdesk.noDesk": "Não há nenhum centro de apoio aqui. Verifique o endereço que recebeu.",
   "problem.helpdesk.requestNotFound": "Pedido de apoio de {id} não encontrado. Só os itens registados por um centro de apoio têm um.",
+  "problem.helpdesk.severalGroups": "O requerente está em vários grupos de clientes aqui. Diga para qual é este pedido.",
   "problem.helpdesk.tooManyChangesNow": "Demasiadas alterações em pouco tempo. Tente novamente daqui a {unit, select, second {{n, plural, one {# segundo} other {# segundos}}} other {{n, plural, one {# minuto} other {# minutos}}}}.",
   "problem.helpdesk.tooManyForForm": "Demasiados pedidos para este formulário. Tente novamente daqui a {unit, select, second {{n, plural, one {# segundo} other {# segundos}}} other {{n, plural, one {# minuto} other {# minutos}}}}.",
   "problem.helpdesk.tooManyFromAddress": "Demasiados pedidos do seu endereço de rede. Tente novamente daqui a {unit, select, second {{n, plural, one {# segundo} other {# segundos}}} other {{n, plural, one {# minuto} other {# minutos}}}}.",

@@ -4598,6 +4598,7 @@
   "problem.helpdesk.linkOpensNoRequest": "이 링크로는 요청을 열 수 없습니다. 그 요청에 관한 최신 이메일의 링크를 그대로 쓰세요.",
   "problem.helpdesk.noDesk": "여기에는 헬프데스크가 없습니다. 받은 주소를 확인하세요.",
   "problem.helpdesk.requestNotFound": "{id}의 헬프데스크 요청을 찾을 수 없습니다. 헬프데스크로 접수된 이슈에만 요청이 있습니다.",
+  "problem.helpdesk.severalGroups": "요청자가 여기서 여러 고객 그룹에 속해 있습니다. 이 요청이 어느 그룹을 위한 것인지 지정하세요.",
   "problem.helpdesk.tooManyChangesNow": "지금 변경이 너무 많습니다. {unit, select, second {{n, plural, other {#초}}} other {{n, plural, other {#분}}}} 후에 다시 시도하세요.",
   "problem.helpdesk.tooManyForForm": "이 양식에 요청이 너무 많습니다. {unit, select, second {{n, plural, other {#초}}} other {{n, plural, other {#분}}}} 후에 다시 시도하세요.",
   "problem.helpdesk.tooManyFromAddress": "사용 중인 IP 주소에서 요청이 너무 많습니다. {unit, select, second {{n, plural, other {#초}}} other {{n, plural, other {#분}}}} 후에 다시 시도하세요.",

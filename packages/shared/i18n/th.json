@@ -4598,6 +4598,7 @@
   "problem.helpdesk.linkOpensNoRequest": "ลิงก์นี้เปิดคำขอไม่ได้ ใช้ลิงก์ในอีเมลล่าสุดเกี่ยวกับคำขอนี้ทั้งลิงก์",
   "problem.helpdesk.noDesk": "ไม่มีเฮลป์เดสก์ที่นี่ ตรวจสอบที่อยู่ที่คุณได้รับ",
   "problem.helpdesk.requestNotFound": "ไม่พบคำขอจากเฮลป์เดสก์สำหรับ {id} เฉพาะอิชชูที่ส่งผ่านเฮลป์เดสก์เท่านั้นที่มีคำขอ",
+  "problem.helpdesk.severalGroups": "ผู้ร้องอยู่ในกลุ่มลูกค้าหลายกลุ่มที่นี่ ระบุว่าคำขอนี้สำหรับกลุ่มใด",
   "problem.helpdesk.tooManyChangesNow": "การเปลี่ยนแปลงมากเกินไปในขณะนี้ ลองอีกครั้งในอีก {unit, select, second {{n, plural, other {# วินาที}}} other {{n, plural, other {# นาที}}}}",
   "problem.helpdesk.tooManyForForm": "คำขอสำหรับแบบฟอร์มนี้มากเกินไป ลองอีกครั้งในอีก {unit, select, second {{n, plural, other {# วินาที}}} other {{n, plural, other {# นาที}}}}",
   "problem.helpdesk.tooManyFromAddress": "คำขอจากที่อยู่ IP ของคุณมากเกินไป ลองอีกครั้งในอีก {unit, select, second {{n, plural, other {# วินาที}}} other {{n, plural, other {# นาที}}}}",
