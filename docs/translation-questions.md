@@ -167,6 +167,10 @@ With the requester's own language:
 Messages added with SAML for requesters:
 
 - SAML für Requester: `problem.portal.providers.samlNeedsBoth` = „Ein SAML-Provider braucht seine SSO-URL und sein Signaturzertifikat.“ — klingt die Erklärung natürlich?
+
+Messages added with a desk's own provider:
+
+- Der eigene Provider eines Desks: `problem.portal.providers.onlyAdmins` = „Nur Administratoren verwalten die Provider des Servers. Die eigenen verwaltet der Manager eines Desks.“ — klingt die Trennung natürlich?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -334,6 +338,10 @@ With the requester's own language:
 Messages added with SAML for requesters:
 
 - SAML para solicitantes: `problem.portal.providers.samlNeedsBoth` = “Un proveedor SAML necesita su URL de SSO y su certificado de firma.” — ¿natural?
+
+Messages added with a desk's own provider:
+
+- El proveedor propio de un desk: `problem.portal.providers.onlyAdmins` = “Solo los administradores gestionan los proveedores del servidor. Los propios los gestiona el gestor de un desk.” — ¿natural la separación?
 ## French
 
 Terms:
@@ -501,6 +509,10 @@ With the requester's own language:
 Messages added with SAML for requesters:
 
 - SAML pour les demandeurs : `problem.portal.providers.samlNeedsBoth` = “Un fournisseur SAML a besoin de son URL SSO et de son certificat de signature.” — naturel ?
+
+Messages added with a desk's own provider:
+
+- Le fournisseur propre à un desk : `problem.portal.providers.onlyAdmins` = “Seuls les administrateurs gèrent les fournisseurs du serveur. Les siens, le gestionnaire d'un desk.” — la séparation est-elle naturelle ?
 ## Japanese
 
 Terms:
@@ -660,6 +672,10 @@ With the requester's own language:
 Messages added with SAML for requesters:
 
 - 依頼者向け SAML: `problem.portal.providers.samlNeedsBoth` = “SAML プロバイダーには SSO URL と署名証明書が必要です。” — 自然ですか。
+
+Messages added with a desk's own provider:
+
+- デスク自身のプロバイダー: `problem.portal.providers.onlyAdmins` = “サーバーのプロバイダーを管理できるのは管理者だけです。デスクのものはそのデスクのマネージャーが管理します。” — 自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -798,6 +814,10 @@ With the requester's own language:
 Messages added with SAML for requesters:
 
 - SAML para requerentes: `problem.portal.providers.samlNeedsBoth` = “Um fornecedor SAML precisa do seu URL de SSO e do seu certificado de assinatura.” — natural?
+
+Messages added with a desk's own provider:
+
+- O fornecedor próprio de um desk: `problem.portal.providers.onlyAdmins` = “Só os administradores gerem os fornecedores do servidor. Os seus, o gestor de um desk.” — a separação é natural?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -985,6 +1005,10 @@ With the requester's own language:
 Messages added with SAML for requesters:
 
 - 요청자용 SAML: `problem.portal.providers.samlNeedsBoth` = “SAML 제공자에는 SSO URL과 서명 인증서가 필요합니다.” — 자연스럽나요?
+
+Messages added with a desk's own provider:
+
+- 데스크 자체 제공자: `problem.portal.providers.onlyAdmins` = “서버 제공자는 관리자만 관리합니다. 데스크의 것은 그 데스크의 관리자가 관리합니다.” — 구분이 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -1163,6 +1187,10 @@ With the requester's own language:
 Messages added with SAML for requesters:
 
 - 请求者的 SAML：`problem.portal.providers.samlNeedsBoth` = “SAML 提供者需要它的 SSO URL 和签名证书。”——自然吗？
+
+Messages added with a desk's own provider:
+
+- 工作台自己的提供者：`problem.portal.providers.onlyAdmins` = “只有管理员管理服务器的提供者。工作台自己的由它的管理者管理。”——区分自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1353,6 +1381,10 @@ With the requester's own language:
 Messages added with SAML for requesters:
 
 - SAML cho người yêu cầu: `problem.portal.providers.samlNeedsBoth` = “Nhà cung cấp SAML cần URL SSO và chứng chỉ ký của nó.” — tự nhiên chứ?
+
+Messages added with a desk's own provider:
+
+- Nhà cung cấp riêng của một bàn: `problem.portal.providers.onlyAdmins` = “Chỉ quản trị viên quản lý các nhà cung cấp của máy chủ. Nhà cung cấp riêng do người quản lý của bàn đó quản lý.” — tách bạch vậy có tự nhiên không?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1540,6 +1572,10 @@ With the requester's own language:
 Messages added with SAML for requesters:
 
 - SAML untuk peminta: `problem.portal.providers.samlNeedsBoth` = “Penyedia SAML butuh URL SSO dan sertifikat penandatangannya.” — apakah alami?
+
+Messages added with a desk's own provider:
+
+- Penyedia sendiri milik desk: `problem.portal.providers.onlyAdmins` = “Hanya administrator yang mengelola penyedia server. Penyedia sendiri dikelola manajer desk-nya.” — apakah pemisahannya alami?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1728,6 +1764,10 @@ With the requester's own language:
 Messages added with SAML for requesters:
 
 - SAML สำหรับผู้ร้อง: `problem.portal.providers.samlNeedsBoth` = “ผู้ให้บริการ SAML ต้องมี URL SSO และใบรับรองการลงนาม” — เป็นธรรมชาติไหม
+
+Messages added with a desk's own provider:
+
+- ผู้ให้บริการของเดสก์เอง: `problem.portal.providers.onlyAdmins` = “มีเพียงผู้ดูแลที่จัดการผู้ให้บริการของเซิร์ฟเวอร์ ส่วนของตัวเอง ผู้จัดการของเดสก์เป็นคนจัดการ” — การแยกเป็นธรรมชาติไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

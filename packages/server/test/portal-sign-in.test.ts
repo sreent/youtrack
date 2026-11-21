@@ -16,7 +16,7 @@ import { MailWorker } from '../src/mail/outbox';
 import { notifierConsumer } from '../src/notify/notifier';
 import { createCustomerGroup, updateCustomerGroup } from '../src/services/customer-groups';
 import { mintTrackingToken, openRequest } from '../src/services/helpdesk';
-import { createPortalProvider, deletePortalProvider, listPortalProviders } from '../src/services/portal-sign-in';
+import { createPortalProvider, deletePortalProvider, listPortalProviders, signInMethods } from '../src/services/portal-sign-in';
 import { updateProject } from '../src/services/projects';
 import { AppError, checkProblemWords } from '../src/lib/errors';
 import { addCc } from '../src/services/request-ccs';
@@ -491,5 +491,26 @@ describe('what stays', () => {
     } finally {
       (w.app.config as { defaultLocale: string }).defaultLocale = was;
     }
+  });
+});
+describe("a desk's own provider (D63's revisit)", () => {
+  it('its managers keep it, and only its own desk offers it', async () => {
+    // Anna manages BACK: the provider is hers to make, for her desk.
+    const provider = await createPortalProvider(w.as(w.anna), {
+      project: 'BACK',
+      name: 'Back SSO',
+      kind: 'oidc',
+      issuer: idp.url,
+      clientId: idp.clientId,
+    });
+    expect(provider.project).toBe('BACK');
+    // Ben doesn't manage BACK: the server's provider is not his to make.
+    await expect(createPortalProvider(w.as(w.ben), { name: 'Nope', issuer: 'https://idp.example', clientId: 'x' })).rejects.toMatchObject({ status: 403 });
+    // WEB, another desk, can't offer BACK's own provider.
+    await expect(updateProject(w.adminCtx, 'WEB', { settings: { helpdesk: { signIn: ways(false, true, [provider.id]) } } })).rejects.toMatchObject({ status: 400 });
+    // BACK can.
+    await updateProject(w.adminCtx, 'BACK', { settings: { helpdesk: { signIn: ways(false, true, [provider.id]) } } });
+    const methods = await signInMethods(w.app, 'BACK');
+    expect(methods.providers.map((p) => p.id)).toContain(provider.id);
   });
 });
