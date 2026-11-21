@@ -179,6 +179,10 @@ With the group's members hearing of its requests:
 With the customers' directory:
 
 - Das Kundenverzeichnis (keine neuen Wörter); eine Frage: soll die Namensliste im Formular nur die Namen zeigen, oder auch die Domains als Hinweis daneben?
+
+Messages added with the several groups:
+
+- Mehrere Gruppen pro Requester: `problem.helpdesk.severalGroups` = „Der Requester ist hier in mehreren Kundengruppen. Nennen Sie, für welche diese Anfrage ist.“ — klingt die Aufforderung natürlich?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -358,6 +362,10 @@ With the group's members hearing of its requests:
 With the customers' directory:
 
 - El directorio de clientes (sin palabras nuevas); una pregunta: ¿la lista del formulario debe mostrar solo los nombres, o también los dominios como pista al lado?
+
+Messages added with the several groups:
+
+- Varios grupos por solicitante: `problem.helpdesk.severalGroups` = “El solicitante está en varios grupos de clientes aquí. Indica para cuál es esta solicitud.” — ¿natural?
 ## French
 
 Terms:
@@ -537,6 +545,10 @@ With the group's members hearing of its requests:
 With the customers' directory:
 
 - L'annuaire des clients (pas de mots nouveaux) ; une question : la liste du formulaire doit-elle montrer seulement les noms, ou aussi les domaines en indice à côté ?
+
+Messages added with the several groups:
+
+- Plusieurs groupes par demandeur : `problem.helpdesk.severalGroups` = “Le demandeur est dans plusieurs groupes de clients ici. Dites pour lequel est cette demande.” — naturel ?
 ## Japanese
 
 Terms:
@@ -708,6 +720,10 @@ With the group's members hearing of its requests:
 With the customers' directory:
 
 - 顧客ディレクトリ（新しい言葉はありません）。質問: フォームのリストは名前だけを表示すべきですか、それともドメインもヒントとして横に表示すべきですか。
+
+Messages added with the several groups:
+
+- 依頼者が複数のグループに: `problem.helpdesk.severalGroups` = “依頼者はここで複数の顧客グループに属しています。このリクエストがどのグループ宛てか指定してください。” — 自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -858,6 +874,10 @@ With the group's members hearing of its requests:
 With the customers' directory:
 
 - O diretório de clientes (sem palavras novas); uma pergunta: a lista do formulário deve mostrar só os nomes, ou também os domínios como pista ao lado?
+
+Messages added with the several groups:
+
+- Vários grupos por requerente: `problem.helpdesk.severalGroups` = “O requerente está em vários grupos de clientes aqui. Diga para qual é este pedido.” — natural?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -1057,6 +1077,10 @@ With the group's members hearing of its requests:
 With the customers' directory:
 
 - 고객 디렉터리(새 문구 없음). 질문: 양식의 목록에 이름만 표시할까요, 도메인도 옆에 힌트로 표시할까요?
+
+Messages added with the several groups:
+
+- 요청자당 여러 그룹: `problem.helpdesk.severalGroups` = “요청자가 여기서 여러 고객 그룹에 속해 있습니다. 이 요청이 어느 그룹을 위한 것인지 지정하세요.” — 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -1247,6 +1271,10 @@ With the group's members hearing of its requests:
 With the customers' directory:
 
 - 客户目录（没有新词）。问题：表单的列表应该只显示名称，还是把域也作为提示放在旁边？
+
+Messages added with the several groups:
+
+- 一个请求者多个组：`problem.helpdesk.severalGroups` = “请求者在这里属于多个客户组。请说明此请求针对哪个组。”——自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1449,6 +1477,10 @@ With the group's members hearing of its requests:
 With the customers' directory:
 
 - Danh bạ khách hàng (không có từ mới). Câu hỏi: danh sách trong biểu mẫu chỉ nên hiện tên, hay cả miền làm gợi ý bên cạnh?
+
+Messages added with the several groups:
+
+- Nhiều nhóm mỗi người yêu cầu: `problem.helpdesk.severalGroups` = “Người yêu cầu thuộc nhiều nhóm khách hàng ở đây. Hãy nói yêu cầu này dành cho nhóm nào.” — tự nhiên chứ?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1648,6 +1680,10 @@ With the group's members hearing of its requests:
 With the customers' directory:
 
 - Direktori pelanggan (tanpa kata baru). Pertanyaan: daftar di formulir cukup menampilkan nama, atau domain juga sebagai petunjuk di sampingnya?
+
+Messages added with the several groups:
+
+- Beberapa grup per peminta: `problem.helpdesk.severalGroups` = “Peminta ada di beberapa grup pelanggan di sini. Sebutkan untuk grup mana permintaan ini.” — apakah alami?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1848,6 +1884,10 @@ With the group's members hearing of its requests:
 With the customers' directory:
 
 - ไดเรกทอรีลูกค้า (ไม่มีคำใหม่) คำถาม: รายการในฟอร์มควรแสดงแค่ชื่อ หรือแสดงโดเมนเป็นคำใบ้ข้างๆ ด้วย
+
+Messages added with the several groups:
+
+- หลายกลุ่มต่อผู้ร้อง: `problem.helpdesk.severalGroups` = “ผู้ร้องอยู่ในกลุ่มลูกค้าหลายกลุ่มที่นี่ ระบุว่าคำขอนี้สำหรับกลุ่มใด” — เป็นธรรมชาติไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

@@ -97,8 +97,9 @@ export function sharingOf(groups: readonly GroupRow[]): Map<string, CustomerShar
 export async function commentingColleague(db: Db, request: RequestRow, email: string, name: string): Promise<{ id: string; name: string } | null> {
   if (!request.groupId || request.private) return null;
   const [known] = await db.select().from(requesters).where(sql`lower(${requesters.email}) = ${email.toLowerCase()}`);
-  const theirs = await groupOfRequester(db, request.projectId, { id: known?.id ?? null, email });
-  if (!theirs || !requesterMayComment(request, { id: known?.id ?? '' }, sharingOf([theirs]))) return null;
+  // Several groups at the desk (D56's revisit): any one that shares to comment lets them answer.
+  const theirs = (await groupsOfRequester(db, { id: known?.id ?? '', email })).filter((g) => g.projectId === request.projectId);
+  if (!theirs.length || !theirs.some((g) => requesterMayComment(request, { id: known?.id ?? '' }, sharingOf([g])))) return null;
   if (known) return { id: known.id, name: known.name };
   const made = await requesterByEmail(db, email, name);
   return { id: made.id, name: made.name };

@@ -274,7 +274,8 @@ function collectEdits(ctx: Context, overrides: readonly PlanOverride[]): void {
 /** The calendar's start date, else the earliest start date or logged work, else today. */
 function projectStart(ctx: Context, starts: Readonly<Record<string, string>> = {}): string {
   if (ctx.cal.startDate) return ctx.cal.startDate;
-  return minOf([...ctx.tasks.values()].flatMap((t) => [starts[t.id] ?? t.startConstraint, t.firstWorkDate])) ?? ctx.today;
+  // Not the raw today: a plan can only begin on a working day, so the fallback is the first one (D43's revisit).
+  return minOf([...ctx.tasks.values()].flatMap((t) => [starts[t.id] ?? t.startConstraint, t.firstWorkDate])) ?? nextWorkingDay(ctx.cal, ctx.today);
 }
 
 // ---------------------------------------------------------------------------
