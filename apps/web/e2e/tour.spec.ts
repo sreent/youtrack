@@ -130,7 +130,9 @@ const withDaysAway = async (api: Api) => {
   for (let d = Date.parse(`${today}T00:00:00Z`) + 86_400_000; weekdays.length < 2; d += 86_400_000) {
     if (![0, 6].includes(new Date(d).getUTCDay())) weekdays.push(new Date(d).toISOString().slice(0, 10));
   }
-  await api.createIssue({ project: key, summary: 'Patch the core switches', fields: { Type: 'Task', Assignee: login, Estimation: '3d', 'Start date': today } });
+  // The start is a working day: on a weekend the task would be scheduled from Monday anyway (D43's revisit).
+  const startDay = [0, 6].includes(new Date(`${today}T00:00:00Z`).getUTCDay()) ? weekdays[0] : today;
+  await api.createIssue({ project: key, summary: 'Patch the core switches', fields: { Type: 'Task', Assignee: login, Estimation: '3d', 'Start date': startDay } });
   await api.post('/absences', { user: login, from: weekdays[0], kind: 'holiday' });
   await api.post('/absences', { user: login, from: weekdays[1], half: 'afternoon', kind: 'training' });
   return `/plan/${key}/resources`;
