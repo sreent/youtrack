@@ -132,9 +132,13 @@ const withDaysAway = async (api: Api) => {
   }
   // The start is a working day: on a weekend the task would be scheduled from Monday anyway (D43's revisit).
   const startDay = [0, 6].includes(new Date(`${today}T00:00:00Z`).getUTCDay()) ? weekdays[0] : today;
-  await api.createIssue({ project: key, summary: 'Patch the core switches', fields: { Type: 'Task', Assignee: login, Estimation: '3d', 'Start date': startDay } });
-  await api.post('/absences', { user: login, from: weekdays[0], kind: 'holiday' });
-  await api.post('/absences', { user: login, from: weekdays[1], half: 'afternoon', kind: 'training' });
+  const made = await api.createIssue({ project: key, summary: 'Patch the core switches', fields: { Type: 'Task', Assignee: login, Estimation: '3d', 'Start date': startDay } });
+  // Away on the task's own days, so the grid's window (to the plan's end) always shows them.
+  const schedule = await api.get<{ tasks: { issue: string; start: string }[] }>(`/projects/${key}/schedule`);
+  const task = schedule.tasks.find((x) => x.issue === made.id)!;
+  const dayAfter = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  await api.post('/absences', { user: login, from: task.start, kind: 'holiday' });
+  await api.post('/absences', { user: login, from: dayAfter(task.start), half: 'afternoon', kind: 'training' });
   return `/plan/${key}/resources`;
 };
 
