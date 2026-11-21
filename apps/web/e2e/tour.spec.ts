@@ -134,8 +134,8 @@ const withDaysAway = async (api: Api) => {
   const startDay = [0, 6].includes(new Date(`${today}T00:00:00Z`).getUTCDay()) ? weekdays[0] : today;
   const made = await api.createIssue({ project: key, summary: 'Patch the core switches', fields: { Type: 'Task', Assignee: login, Estimation: '3d', 'Start date': startDay } });
   // Away on the task's own days, so the grid's window (to the plan's end) always shows them.
-  const schedule = await api.get<{ tasks: { issue: string; start: string }[] }>(`/projects/${key}/schedule`);
-  const task = schedule.tasks.find((x) => x.issue === made.id)!;
+  const schedule = await api.get<{ tasks: { issue: { id: string }; start: string }[] }>(`/projects/${key}/schedule`);
+  const task = schedule.tasks.find((x) => x.issue.id === made.id)!;
   const dayAfter = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
   await api.post('/absences', { user: login, from: task.start, kind: 'holiday' });
   await api.post('/absences', { user: login, from: dayAfter(task.start), half: 'afternoon', kind: 'training' });
