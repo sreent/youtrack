@@ -163,6 +163,10 @@ Messages added with Teams' link unfurling:
 With the requester's own language:
 
 - Die Sprache der Requester: die E-Mails folgen jetzt der Sprache des Browsers (auf dem Requester gespeichert). Keine neuen Wörter; eine Frage: soll der Portal-Seite ein Sprachwähler sichtbar sein, oder reicht der Browser?
+
+Messages added with SAML for requesters:
+
+- SAML für Requester: `problem.portal.providers.samlNeedsBoth` = „Ein SAML-Provider braucht seine SSO-URL und sein Signaturzertifikat.“ — klingt die Erklärung natürlich?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -326,6 +330,10 @@ Messages added with Teams' link unfurling:
 With the requester's own language:
 
 - El idioma del solicitante: los correos siguen ahora el del navegador (guardado en el solicitante). Sin palabras nuevas; una pregunta: ¿la página del portal debería mostrar un selector de idioma, o basta el navegador?
+
+Messages added with SAML for requesters:
+
+- SAML para solicitantes: `problem.portal.providers.samlNeedsBoth` = “Un proveedor SAML necesita su URL de SSO y su certificado de firma.” — ¿natural?
 ## French
 
 Terms:
@@ -489,6 +497,10 @@ Messages added with Teams' link unfurling:
 With the requester's own language:
 
 - La langue du demandeur : les courriels suivent désormais celle du navigateur (gardée sur le demandeur). Pas de mots nouveaux ; une question : la page du portail devrait-elle offrir un choix de langue, ou le navigateur suffit-il ?
+
+Messages added with SAML for requesters:
+
+- SAML pour les demandeurs : `problem.portal.providers.samlNeedsBoth` = “Un fournisseur SAML a besoin de son URL SSO et de son certificat de signature.” — naturel ?
 ## Japanese
 
 Terms:
@@ -644,6 +656,10 @@ Messages added with Teams' link unfurling:
 With the requester's own language:
 
 - 依頼者の言語: メールはブラウザーの言語に従うようになりました（依頼者に保存）。新しい言葉はありません。質問: ポータルに言語の選択を表示すべきですか、ブラウザーだけで十分ですか。
+
+Messages added with SAML for requesters:
+
+- 依頼者向け SAML: `problem.portal.providers.samlNeedsBoth` = “SAML プロバイダーには SSO URL と署名証明書が必要です。” — 自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -778,6 +794,10 @@ Messages added with Teams' link unfurling:
 With the requester's own language:
 
 - A língua do requerente: os emails seguem agora a do navegador (guardada no requerente). Sem palavras novas; uma pergunta: a página do portal deve mostrar um seletor de língua, ou o navegador basta?
+
+Messages added with SAML for requesters:
+
+- SAML para requerentes: `problem.portal.providers.samlNeedsBoth` = “Um fornecedor SAML precisa do seu URL de SSO e do seu certificado de assinatura.” — natural?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -961,6 +981,10 @@ Messages added with Teams' link unfurling:
 With the requester's own language:
 
 - 요청자의 언어: 이메일이 이제 브라우저의 언어를 따릅니다(요청자에 저장). 새 문구는 없습니다. 질문: 포털 페이지에 언어 선택기를 보여줘야 할까요, 브라우저로 충분할까요?
+
+Messages added with SAML for requesters:
+
+- 요청자용 SAML: `problem.portal.providers.samlNeedsBoth` = “SAML 제공자에는 SSO URL과 서명 인증서가 필요합니다.” — 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -1135,6 +1159,10 @@ Messages added with Teams' link unfurling:
 With the requester's own language:
 
 - 请求者的语言：邮件现在跟随浏览器的语言（保存在请求者上）。没有新词。问题：门户页面是否应显示语言选择器，还是浏览器就够了？
+
+Messages added with SAML for requesters:
+
+- 请求者的 SAML：`problem.portal.providers.samlNeedsBoth` = “SAML 提供者需要它的 SSO URL 和签名证书。”——自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1321,6 +1349,10 @@ Messages added with Teams' link unfurling:
 With the requester's own language:
 
 - Ngôn ngữ của người yêu cầu: email giờ theo ngôn ngữ trình duyệt (lưu trên người yêu cầu). Không có từ mới. Câu hỏi: trang cổng có nên hiện bộ chọn ngôn ngữ, hay trình duyệt là đủ?
+
+Messages added with SAML for requesters:
+
+- SAML cho người yêu cầu: `problem.portal.providers.samlNeedsBoth` = “Nhà cung cấp SAML cần URL SSO và chứng chỉ ký của nó.” — tự nhiên chứ?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1504,6 +1536,10 @@ Messages added with Teams' link unfurling:
 With the requester's own language:
 
 - Bahasa peminta: email kini mengikuti bahasa peramban (disimpan pada peminta). Tanpa kata baru. Pertanyaan: perlukah halaman portal menampilkan pemilih bahasa, atau peramban cukup?
+
+Messages added with SAML for requesters:
+
+- SAML untuk peminta: `problem.portal.providers.samlNeedsBoth` = “Penyedia SAML butuh URL SSO dan sertifikat penandatangannya.” — apakah alami?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1688,6 +1724,10 @@ Messages added with Teams' link unfurling:
 With the requester's own language:
 
 - ภาษาของผู้ร้อง: อีเมลตามภาษาของเบราว์เซอร์แล้ว (เก็บไว้ที่ผู้ร้อง) ไม่มีคำใหม่ คำถาม: หน้าพอร์ทัลควรมีตัวเลือกภาษาหรือไม่ หรือเบราว์เซอร์ก็พอ
+
+Messages added with SAML for requesters:
+
+- SAML สำหรับผู้ร้อง: `problem.portal.providers.samlNeedsBoth` = “ผู้ให้บริการ SAML ต้องมี URL SSO และใบรับรองการลงนาม” — เป็นธรรมชาติไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

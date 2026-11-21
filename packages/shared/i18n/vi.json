@@ -4819,6 +4819,8 @@
   "problem.portal.passwordLinkExpired": "Liên kết này đã hết hạn hoặc đã được dùng. Yêu cầu liên kết mới: email sẽ đến trong khoảng một phút.",
   "problem.portal.passwordsOff": "{desk} không cho đăng nhập bằng mật khẩu. Đăng nhập bằng cách khác có trên trang của bộ phận hỗ trợ đó.",
   "problem.portal.passwordsOffEverywhere": "Ở đây không có bộ phận hỗ trợ nào cho đăng nhập bằng mật khẩu. Thay vào đó, hãy yêu cầu liên kết đăng nhập.",
+  "problem.portal.providers.samlHttps": "URL SSO của nhà cung cấp SAML phải là https. HTTP thường chỉ trên máy này, để thử.",
+  "problem.portal.providers.samlNeedsBoth": "Nhà cung cấp SAML cần URL SSO và chứng chỉ ký của nó.",
   "problem.portal.signInToSee": "Đăng nhập để xem yêu cầu của bạn: nhập địa chỉ email để nhận liên kết đăng nhập.",
   "problem.portal.tooManyTries": "Có quá nhiều lần thử đăng nhập cho địa chỉ email này. Thử lại sau {unit, select, second {{n, plural, other {# giây}}} other {{n, plural, other {# phút}}}}.",
   "problem.portal.wrongCurrentPassword": "Đó không phải mật khẩu hiện tại của bạn. Nhập mật khẩu bạn đang dùng để đăng nhập, hoặc yêu cầu liên kết để đặt mật khẩu mới.",

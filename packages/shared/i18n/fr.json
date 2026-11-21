@@ -4819,6 +4819,8 @@
   "problem.portal.passwordLinkExpired": "Ce lien a expiré ou a déjà été utilisé. Demandez-en un nouveau : il arrive par e-mail en une minute.",
   "problem.portal.passwordsOff": "{desk} n’accepte pas les mots de passe. Connectez-vous d’une autre façon proposée sur sa page.",
   "problem.portal.passwordsOffEverywhere": "Aucun centre d’assistance ici n’accepte les mots de passe. Demandez plutôt un lien de connexion.",
+  "problem.portal.providers.samlHttps": "L'URL SSO d'un fournisseur SAML doit être https. HTTP en clair seulement sur cette machine, pour essayer.",
+  "problem.portal.providers.samlNeedsBoth": "Un fournisseur SAML a besoin de son URL SSO et de son certificat de signature.",
   "problem.portal.signInToSee": "Connectez-vous pour voir vos demandes. Demandez un lien de connexion avec votre adresse e-mail.",
   "problem.portal.tooManyTries": "Trop de tentatives de connexion pour cette adresse e-mail. Réessayez dans {unit, select, second {{n, plural, one {# seconde} other {# secondes}}} other {{n, plural, one {# minute} other {# minutes}}}}.",
   "problem.portal.wrongCurrentPassword": "Ce n’est pas votre mot de passe actuel. Saisissez celui avec lequel vous vous connectez, ou demandez un lien pour en définir un nouveau.",

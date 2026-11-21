@@ -4819,6 +4819,8 @@
   "problem.portal.passwordLinkExpired": "Tautan ini sudah kedaluwarsa atau sudah dipakai. Minta yang baru: tautan dikirim lewat email dalam satu menit.",
   "problem.portal.passwordsOff": "{desk} tidak menerima kata sandi. Masuk dengan cara lain yang tersedia di halaman {desk}.",
   "problem.portal.passwordsOffEverywhere": "Tidak ada layanan bantuan di sini yang menerima kata sandi. Minta tautan masuk sebagai gantinya.",
+  "problem.portal.providers.samlHttps": "URL SSO penyedia SAML harus https. HTTP polos hanya di mesin ini, untuk mencoba.",
+  "problem.portal.providers.samlNeedsBoth": "Penyedia SAML butuh URL SSO dan sertifikat penandatangannya.",
   "problem.portal.signInToSee": "Masuk untuk melihat permintaan Anda. Minta tautan masuk dengan alamat email Anda.",
   "problem.portal.tooManyTries": "Terlalu banyak upaya masuk untuk alamat email ini. Coba lagi dalam {unit, select, second {{n, plural, other {# detik}}} other {{n, plural, other {# menit}}}}.",
   "problem.portal.wrongCurrentPassword": "Itu bukan kata sandi Anda saat ini. Ketik kata sandi yang sekarang dipakai untuk masuk, atau minta tautan untuk membuat yang baru.",

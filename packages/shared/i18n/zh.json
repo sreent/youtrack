@@ -4819,6 +4819,8 @@
   "problem.portal.passwordLinkExpired": "此链接已过期或已使用。请重新申请，新链接会在一分钟内发到您的邮箱。",
   "problem.portal.passwordsOff": "{desk} 不支持密码登录。请使用该服务台页面上提供的其他方式登录。",
   "problem.portal.passwordsOffEverywhere": "这里没有支持密码登录的服务台。请改为申请登录链接。",
+  "problem.portal.providers.samlHttps": "SAML 提供者的 SSO URL 必须是 https。明文 http 仅限本机试用。",
+  "problem.portal.providers.samlNeedsBoth": "SAML 提供者需要它的 SSO URL 和签名证书。",
   "problem.portal.signInToSee": "请登录后查看您的请求。可以用您的邮箱地址申请登录链接。",
   "problem.portal.tooManyTries": "此邮箱地址的登录尝试过多。请{unit, select, second {{n, plural, other { # 秒}}} other {{n, plural, other { # 分钟}}}}后重试。",
   "problem.portal.wrongCurrentPassword": "当前密码不正确。请输入您现在登录时使用的密码，或申请设置新密码的链接。",

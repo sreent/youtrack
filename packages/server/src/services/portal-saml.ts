@@ -20,7 +20,7 @@ type ProviderRow = typeof portalProviders.$inferSelect;
 export const portalAcsUrl = (app: AppServices) => `${app.config.publicUrl}/api/v1/portal/sso/callback`;
 const portalSpId = (app: AppServices) => `${app.config.publicUrl}/api/v1/portal/saml/metadata`;
 
-function samlFor(app: AppServices, row: ProviderRow, cache: PostgresCache): SAML {
+function samlFor(app: AppServices, row: ProviderRow, cache: PostgresCache, requestId?: string): SAML {
   return new SAML({
     callbackUrl: portalAcsUrl(app),
     entryPoint: row.samlEntryPoint!,
@@ -33,6 +33,8 @@ function samlFor(app: AppServices, row: ProviderRow, cache: PostgresCache): SAML
     wantAuthnResponseSigned: false,
     validateInResponseTo: ValidateInResponseTo.always,
     requestIdExpirationPeriodMs: PORTAL_SSO_TTL_MS,
+    cacheProvider: cache,
+    ...(requestId ? { generateUniqueId: () => requestId } : {}),
     acceptedClockSkewMs: 60_000,
   });
 }
@@ -41,8 +43,9 @@ function samlFor(app: AppServices, row: ProviderRow, cache: PostgresCache): SAML
 export async function startPortalSaml(app: AppServices, row: ProviderRow, deskKey: string | null): Promise<{ url: string; state: string }> {
   await app.db.delete(samlCache).where(lt(samlCache.expiresAt, new Date()));
   const state = randomBytes(32).toString('base64url');
+  const requestId = `_${randomBytes(20).toString('hex')}`;
   await app.db.insert(portalSsoStates).values({ id: sha256(state), providerId: row.id, desk: deskKey, codeVerifier: '', nonce: '', expiresAt: new Date(Date.now() + PORTAL_SSO_TTL_MS) });
-  const url = await samlFor(app, row, new PostgresCache(app.db, JSON.stringify({ state: sha256(state) }))).getAuthorizeUrlAsync('', state, {});
+  const url = await samlFor(app, row, new PostgresCache(app.db, JSON.stringify({ state: sha256(state) })), requestId).getAuthorizeUrlAsync(state, undefined, {});
   return { url, state };
 }
 

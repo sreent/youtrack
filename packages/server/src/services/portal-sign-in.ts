@@ -163,12 +163,14 @@ async function providerDtos(ctx: Ctx, rows: ProviderRow[]): Promise<PortalProvid
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
-    kind: 'oidc' as const,
-    issuer: row.issuer,
-    clientId: row.clientId,
+    kind: row.kind as 'oidc' | 'saml',
+    issuer: row.kind === 'saml' ? (row.samlEntityId ?? row.issuer) : row.issuer,
+    clientId: row.kind === 'saml' ? null : row.clientId,
     hasSecret: Boolean(row.clientSecretSealed),
     scopes: row.scopes,
     domains: row.domains,
+    samlEntryPoint: row.samlEntryPoint,
+    hasCert: Boolean(row.samlCert),
     redirectUri: portalRedirectUri(ctx.app),
     desks: desks
       .filter((p) => deskSignIn(p).providers.includes(row.id))
@@ -219,7 +221,7 @@ async function nameFree(db: Db, name: string, self: string | null): Promise<void
 
 export async function createPortalProvider(
   ctx: Ctx,
-  input: { name: string; issuer: string; clientId: string; clientSecret?: string | null; scopes?: string; domains?: string[] },
+  input: { name: string; issuer: string; clientId?: string; clientSecret?: string | null; scopes?: string; domains?: string[]; kind?: 'oidc' | 'saml'; samlEntryPoint?: string; samlCert?: string },
 ): Promise<PortalProvider> {
   requireScope(ctx, 'admin');
   const name = input.name.trim().replace(/\s+/g, ' ');
@@ -230,19 +232,25 @@ export async function createPortalProvider(
   const row = {
     id: newId(),
     name,
-    issuer: checkIssuer(input.issuer),
-    clientId: input.clientId.trim(),
+    issuer: input.kind === 'saml' ? input.issuer.trim() : checkIssuer(input.issuer),
+    clientId: input.kind === 'saml' ? '' : (input.clientId ?? '').trim(),
     clientSecretSealed: input.clientSecret ? seal(keySource(ctx.app), input.clientSecret) : null,
     scopes: scopesOf(input.scopes),
     domains: [...new Set(input.domains ?? [])],
-    kind: 'oidc',
-    samlEntryPoint: null,
-    samlCert: null,
-    samlEntityId: null,
+    kind: input.kind ?? 'oidc',
+    samlEntryPoint: input.kind === 'saml' ? input.samlEntryPoint?.trim() ?? null : null,
+    samlCert: input.kind === 'saml' ? input.samlCert?.trim() ?? null : null,
+    samlEntityId: input.kind === 'saml' ? input.issuer.trim() : null,
     createdAt: now,
     updatedAt: now,
   };
-  await reachable(ctx.app, row);
+  if (row.kind === 'saml') {
+    if (!row.samlEntryPoint || !row.samlCert) throw badRequest('A SAML provider needs its SSO URL and its signing certificate').said('portal.providers.samlNeedsBoth');
+    const u = new URL(row.samlEntryPoint);
+    if (u.protocol !== 'https:' && !['127.0.0.1', 'localhost', '::1'].includes(u.hostname)) throw badRequest("A SAML provider's SSO URL must be https", 'Plain http only on this machine, to try it out').said('portal.providers.samlHttps');
+  } else {
+    await reachable(ctx.app, row);
+  }
   await ctx.db.insert(portalProviders).values(row);
   return (await providerDtos(ctx, [row]))[0]!;
 }

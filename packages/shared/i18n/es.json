@@ -4819,6 +4819,8 @@
   "problem.portal.passwordLinkExpired": "Este enlace ha caducado o ya se usó. Pide uno nuevo: llega por correo en un minuto.",
   "problem.portal.passwordsOff": "{desk} no acepta contraseñas. Inicia sesión de otra forma que ofrezca su página.",
   "problem.portal.passwordsOffEverywhere": "Aquí ningún servicio de asistencia acepta contraseñas. Pide en su lugar un enlace de inicio de sesión.",
+  "problem.portal.providers.samlHttps": "La URL de SSO de un proveedor SAML debe ser https. HTTP plano solo en esta máquina, para probar.",
+  "problem.portal.providers.samlNeedsBoth": "Un proveedor SAML necesita su URL de SSO y su certificado de firma.",
   "problem.portal.signInToSee": "Inicia sesión para ver tus solicitudes. Pide un enlace de inicio de sesión con tu dirección de correo.",
   "problem.portal.tooManyTries": "Demasiados intentos de inicio de sesión para este correo. Vuelve a intentarlo en {unit, select, second {{n, plural, one {# segundo} other {# segundos}}} other {{n, plural, one {# minuto} other {# minutos}}}}.",
   "problem.portal.wrongCurrentPassword": "Esa no es tu contraseña actual. Escribe la que usas ahora para iniciar sesión, o pide un enlace para crear una nueva.",
