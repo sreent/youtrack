@@ -133,11 +133,12 @@ const withDaysAway = async (api: Api) => {
   // The start is a working day: on a weekend the task would be scheduled from Monday anyway (D43's revisit).
   const startDay = [0, 6].includes(new Date(`${today}T00:00:00Z`).getUTCDay()) ? weekdays[0] : today;
   const made = await api.createIssue({ project: key, summary: 'Patch the core switches', fields: { Type: 'Task', Assignee: login, Estimation: '3d', 'Start date': startDay } });
-  // Away on the grid's own first days, so its window (to the plan's end) always shows them.
-  const load = await api.get<{ from: string }>(`/projects/${key}/resources`);
+  // Away on the grid's own first two rendered days, so the columns show them however it draws.
+  const load = await api.get<{ resources: { days: { date: string }[] }[] }>(`/projects/${key}/resources`);
+  const first = load.resources.find((r) => r.days.length)!.days[0]!.date;
   const dayAfter = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-  await api.post('/absences', { user: login, from: load.from, kind: 'holiday' });
-  await api.post('/absences', { user: login, from: dayAfter(load.from), half: 'afternoon', kind: 'training' });
+  await api.post('/absences', { user: login, from: first, kind: 'holiday' });
+  await api.post('/absences', { user: login, from: dayAfter(first), half: 'afternoon', kind: 'training' });
   return `/plan/${key}/resources`;
 };
 
