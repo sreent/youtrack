@@ -412,7 +412,9 @@ const STOPS: Stop[] = [
   { name: 'plans', path: '/plan', ready: (p) => p.getByRole('link', { name: 'Data center migration' }) },
   { name: 'a timeline', path: '/plan/MIG', ready: (p) => p.getByRole('group', { name: /^Data center migration, / }) },
   { name: 'who is booked', path: '/plan/MIG/resources', ready: (p) => p.getByRole('table', { name: "Who's booked, and how much" }) },
-  { name: 'who is booked, and who is away', path: withDaysAway, ready: (p) => p.getByRole('cell', { name: 'away', exact: true }) },
+  // The grid may begin wherever the server's own today falls (a weekend shifts it): what matters
+  // is that someone's days away are drawn on its cells, whole or half.
+  { name: 'who is booked, and who is away', path: withDaysAway, ready: (p) => p.getByRole('cell', { name: /away/ }).first() },
   { name: 'costs', path: '/plan/MIG/costs', ready: (p) => p.getByRole('heading', { name: 'Cost against plan' }) },
   { name: 'the assistant', path: '/assistant', ready: (p) => p.getByRole('navigation', { name: 'Your conversations' }) },
   {
