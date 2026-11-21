@@ -16,10 +16,10 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { HelpdeskSignIn, PortalProvider, PortalSignInMethods } from '@a4a/shared';
 import { langTag } from '@a4a/shared/i18n';
-import { and, eq, gt, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { startPortalSaml } from './portal-saml';
 import * as oidc from 'openid-client';
-import { requireScope, type AppServices, type Ctx } from '../context';
+import { isAdmin, requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { customerGroups, portalProviders, portalSsoStates, requesterIdentities, requesterSessions, requesterSignIns, requesters } from '../db/schema';
 import { captchaChallenge, checkCaptcha } from '../helpdesk/captcha';
@@ -31,7 +31,7 @@ import { open, seal } from '../lib/secret-box';
 import { AUTOMATIC, composeMail, type RenderedMail } from '../mail/compose';
 import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { mailConfigured } from '../notify/state';
-import { emailDomain, projectAccess, type PortalSignedIn } from './access';
+import { assertCanManageProject, emailDomain, projectAccess, type PortalSignedIn } from './access';
 import { requesterByEmail } from './customer-groups';
 import { passkeyOffered } from './portal-passkeys';
 import { projectSettings } from './projects';
@@ -87,7 +87,7 @@ export async function checkDeskSignIn(ctx: Ctx, project: ProjectRow, input: Help
     if (passkey) throw badRequest('A passkey can’t be a desk’s only way in', 'Requesters add one once they’re signed in: keep the emailed link, a password or an identity provider beside it.').said('portalSignIn.passkeyNotAlone');
     throw badRequest('A desk needs one way at least for its requesters to sign in', 'Keep the emailed link, or choose a password or an identity provider.').said('portalSignIn.oneWayAtLeast');
   }
-  const known = providers.length ? await ctx.db.select({ id: portalProviders.id, name: portalProviders.name }).from(portalProviders).where(inArray(portalProviders.id, providers)) : [];
+  const known = providers.length ? await ctx.db.select({ id: portalProviders.id, name: portalProviders.name }).from(portalProviders).where(and(inArray(portalProviders.id, providers), or(isNull(portalProviders.projectId), eq(portalProviders.projectId, project.id)))) : [];
   const missing = providers.find((id) => !known.some((k) => k.id === id));
   if (missing) throw badRequest(`There's no identity provider ${missing}`, 'Choose one an administrator added for requesters.').said('portalSignIn.unknownProvider', { id: missing });
   const dropped = current.providers.filter((id) => !providers.includes(id));
@@ -171,6 +171,7 @@ async function providerDtos(ctx: Ctx, rows: ProviderRow[]): Promise<PortalProvid
     domains: row.domains,
     samlEntryPoint: row.samlEntryPoint,
     hasCert: Boolean(row.samlCert),
+    project: row.projectId ? (s.projects.get(row.projectId)?.key ?? null) : null,
     redirectUri: portalRedirectUri(ctx.app),
     desks: desks
       .filter((p) => deskSignIn(p).providers.includes(row.id))
@@ -221,9 +222,15 @@ async function nameFree(db: Db, name: string, self: string | null): Promise<void
 
 export async function createPortalProvider(
   ctx: Ctx,
-  input: { name: string; issuer: string; clientId?: string; clientSecret?: string | null; scopes?: string; domains?: string[]; kind?: 'oidc' | 'saml'; samlEntryPoint?: string; samlCert?: string },
+  input: { name: string; issuer: string; clientId?: string; clientSecret?: string | null; scopes?: string; domains?: string[]; kind?: 'oidc' | 'saml'; samlEntryPoint?: string; samlCert?: string; project?: string },
 ): Promise<PortalProvider> {
-  requireScope(ctx, 'admin');
+  requireScope(ctx, 'write');
+  // A desk's own provider (D63's revisit): its managers add one for their desk; the server's, an administrator.
+  const project = input.project ? (await ctx.app.schema.get()).projectsByKey.get(input.project.toUpperCase()) : undefined;
+  const projectId = input.project ? (project?.id ?? null) : null;
+  if (input.project && !projectId) throw notFound(`Project ${input.project}`).said('notFound.project', { key: input.project });
+  if (projectId === null && !isAdmin(ctx)) throw forbidden("Only administrators keep the server's providers", "A desk's managers keep its own.").said('portal.providers.onlyAdmins');
+  if (projectId !== null && !isAdmin(ctx)) await assertCanManageProject(ctx, projectId);
   const name = input.name.trim().replace(/\s+/g, ' ');
   await nameFree(ctx.db, name, null);
   const [{ n } = { n: 0 }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(portalProviders);
@@ -241,6 +248,7 @@ export async function createPortalProvider(
     samlEntryPoint: input.kind === 'saml' ? input.samlEntryPoint?.trim() ?? null : null,
     samlCert: input.kind === 'saml' ? input.samlCert?.trim() ?? null : null,
     samlEntityId: input.kind === 'saml' ? input.issuer.trim() : null,
+    projectId,
     createdAt: now,
     updatedAt: now,
   };
@@ -568,7 +576,7 @@ export async function startPortalSso(app: AppServices, providerId: string, deskK
   const s = await app.schema.get();
   const [row] = await app.db.select().from(portalProviders).where(eq(portalProviders.id, providerId));
   const desk = openDesk(s.projectsByKey, deskKey);
-  const offered = row && (desk ? deskSignIn(desk).providers.includes(row.id) : taking(s.projects.values()).some((p) => deskSignIn(p).providers.includes(row.id)));
+  const offered = row && (desk ? deskSignIn(desk).providers.includes(row.id) && (row.projectId === null || row.projectId === desk.id) : taking(s.projects.values()).some((p) => deskSignIn(p).providers.includes(row.id) && (row.projectId === null || row.projectId === p.id)));
   if (!row || !offered) throw new PortalSsoError('refused', 'No help desk here signs requesters in through that provider');
   if (row.kind === 'saml') return startPortalSaml(app, row, desk?.key ?? null);
   const configuration = await configurationOf(app, row).catch((e: unknown) => {

@@ -4819,6 +4819,7 @@
   "problem.portal.passwordLinkExpired": "このリンクは有効期限が切れているか、すでに使用されています。新しいリンクを依頼してください。1分ほどでメールが届きます。",
   "problem.portal.passwordsOff": "{desk}ではパスワードを使えません。デスクのページにあるほかの方法でログインしてください。",
   "problem.portal.passwordsOffEverywhere": "ここにはパスワードを使えるヘルプデスクがありません。代わりにログインリンクを依頼してください。",
+  "problem.portal.providers.onlyAdmins": "サーバーのプロバイダーを管理できるのは管理者だけです。デスクのものはそのデスクのマネージャーが管理します。",
   "problem.portal.providers.samlHttps": "SAML プロバイダーの SSO URL は https でなければなりません。平文の http は試すため、このマシンだけです。",
   "problem.portal.providers.samlNeedsBoth": "SAML プロバイダーには SSO URL と署名証明書が必要です。",
   "problem.portal.signInToSee": "リクエストを見るにはログインしてください。メールアドレスでログインリンクを依頼できます。",

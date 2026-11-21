@@ -3184,6 +3184,8 @@ export const portalProviders = pgTable('portal_providers', {
   scopes: text('scopes').notNull().default('openid email profile'),
   /** The email domains it may vouch for, in lower case; empty: any. */
   domains: text('domains').array().notNull().default(sql`'{}'::text[]`),
+  /** A desk's own (D63's revisit): the project it belongs to; null: the server's, offered to any desk. */
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   /** 'oidc' or 'saml' (D63's revisit): how the provider speaks. */
   kind: text('kind').notNull().default('oidc'),
   /** A SAML provider's own: its SSO URL, its signing certificate (PEM), and its entity id. */

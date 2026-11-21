@@ -4819,6 +4819,7 @@
   "problem.portal.passwordLinkExpired": "Dieser Link ist abgelaufen oder wurde schon benutzt. Fordern Sie einen neuen an: Er kommt in einer Minute per E-Mail.",
   "problem.portal.passwordsOff": "{desk} nimmt keine Passwörter an. Melden Sie sich auf eine andere Art an, die seine Seite anbietet.",
   "problem.portal.passwordsOffEverywhere": "Hier nimmt kein Helpdesk Passwörter an. Fordern Sie stattdessen einen Anmeldelink an.",
+  "problem.portal.providers.onlyAdmins": "Nur Administratoren verwalten die Provider des Servers. Die eigenen verwaltet der Manager eines Desks.",
   "problem.portal.providers.samlHttps": "Die SSO-URL eines SAML-Providers muss https sein. Klartext-http nur auf dieser Maschine, zum Ausprobieren.",
   "problem.portal.providers.samlNeedsBoth": "Ein SAML-Provider braucht seine SSO-URL und sein Signaturzertifikat.",
   "problem.portal.signInToSee": "Melden Sie sich an, um Ihre Anfragen zu sehen. Fordern Sie mit Ihrer E-Mail-Adresse einen Anmeldelink an.",

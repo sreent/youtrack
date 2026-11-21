@@ -4751,6 +4751,7 @@ export const PortalProviderSchema = z
     domains: z.array(z.string()).describe('The email domains it may vouch for; empty: any. An address outside them is refused'),
     samlEntryPoint: z.string().nullable().describe('SAML only: its SSO URL'),
     hasCert: z.boolean().describe('SAML only: its signing certificate is kept; it is never shown again'),
+    project: z.string().nullable().describe("A desk's own (D63's revisit): its key; null for the server's, offered to any desk"),
     redirectUri: z.string().describe('Register this with the provider, exactly'),
     desks: z.array(z.string()).describe('The keys of the desks that offer it, among those the reader sees'),
     createdAt: timestamp,
@@ -4759,6 +4760,7 @@ export const PortalProviderSchema = z
 export type PortalProvider = z.infer<typeof PortalProviderSchema>;
 
 export const PortalProviderBody = z.object({
+  project: z.string().trim().max(20).optional().describe("A desk's own provider: its key; a desk's managers make it there. Left out: the server's, an administrator's"),
   name: z.string().trim().min(1).max(100),
   kind: z.enum(['oidc', 'saml']).default('oidc').describe('SAML providers name their own SSO URL and certificate instead (D63\'s revisit)'),
   issuer: z.string().trim().url().max(500).describe('https; plain http only on this machine. SAML: the entity id'),

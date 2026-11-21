@@ -4819,6 +4819,7 @@
   "problem.portal.passwordLinkExpired": "This link has expired or was used. Ask for a new one: it comes by email in a minute.",
   "problem.portal.passwordsOff": "{desk} doesn't take passwords. Sign in another way its page offers.",
   "problem.portal.passwordsOffEverywhere": "No help desk here takes passwords. Ask for a sign-in link instead.",
+  "problem.portal.providers.onlyAdmins": "Only administrators keep the server's providers. A desk's managers keep its own.",
   "problem.portal.providers.samlHttps": "A SAML provider's SSO URL must be https. Plain http only on this machine, to try it out.",
   "problem.portal.providers.samlNeedsBoth": "A SAML provider needs its SSO URL and its signing certificate.",
   "problem.portal.signInToSee": "Sign in to see your requests. Ask for a sign-in link with your email address.",

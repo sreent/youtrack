@@ -407,6 +407,13 @@
       "when": 1795016141172,
       "tag": "0057_portal_saml",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795016142172,
+      "tag": "0058_desk_provider",
+      "breakpoints": true
     }
   ]
 }

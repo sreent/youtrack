@@ -4819,6 +4819,7 @@
   "problem.portal.passwordLinkExpired": "Este link expirou ou já foi usado. Peça um novo; chega por e-mail em instantes.",
   "problem.portal.passwordsOff": "{desk} não aceita palavras-passe. Inicie sessão de outra forma que a página de {desk} ofereça.",
   "problem.portal.passwordsOffEverywhere": "Nenhum centro de apoio aqui aceita palavras-passe. Em vez disso, peça um link de acesso.",
+  "problem.portal.providers.onlyAdmins": "Só os administradores gerem os fornecedores do servidor. Os seus, o gestor de um desk.",
   "problem.portal.providers.samlHttps": "O URL de SSO de um fornecedor SAML deve ser https. HTTP simples só nesta máquina, para experimentar.",
   "problem.portal.providers.samlNeedsBoth": "Um fornecedor SAML precisa do seu URL de SSO e do seu certificado de assinatura.",
   "problem.portal.signInToSee": "Inicie sessão para ver os seus pedidos. Peça um link de acesso para o seu e-mail.",

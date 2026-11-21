@@ -4819,6 +4819,7 @@
   "problem.portal.passwordLinkExpired": "ลิงก์นี้หมดอายุหรือใช้ไปแล้ว ขอลิงก์ใหม่ แล้วเราจะส่งทางอีเมลภายในหนึ่งนาที",
   "problem.portal.passwordsOff": "{desk} ไม่ได้เปิดให้เข้าสู่ระบบด้วยรหัสผ่าน เข้าสู่ระบบด้วยวิธีอื่นที่หน้าของเฮลป์เดสก์มีให้",
   "problem.portal.passwordsOffEverywhere": "ไม่มีเฮลป์เดสก์ใดที่นี่เปิดให้เข้าสู่ระบบด้วยรหัสผ่าน ขอลิงก์เข้าสู่ระบบแทน",
+  "problem.portal.providers.onlyAdmins": "มีเพียงผู้ดูแลที่จัดการผู้ให้บริการของเซิร์ฟเวอร์ ส่วนของตัวเอง ผู้จัดการของเดสก์เป็นคนจัดการ",
   "problem.portal.providers.samlHttps": "URL SSO ของผู้ให้บริการ SAML ต้องเป็น https HTTP ธรรมดาได้เฉพาะเครื่องนี้ เพื่อลองใช้",
   "problem.portal.providers.samlNeedsBoth": "ผู้ให้บริการ SAML ต้องมี URL SSO และใบรับรองการลงนาม",
   "problem.portal.signInToSee": "เข้าสู่ระบบเพื่อดูคำขอของคุณ ขอลิงก์เข้าสู่ระบบด้วยที่อยู่อีเมลของคุณ",
