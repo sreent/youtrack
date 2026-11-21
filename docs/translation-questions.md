@@ -171,6 +171,10 @@ Messages added with SAML for requesters:
 Messages added with a desk's own provider:
 
 - Der eigene Provider eines Desks: `problem.portal.providers.onlyAdmins` = „Nur Administratoren verwalten die Provider des Servers. Die eigenen verwaltet der Manager eines Desks.“ — klingt die Trennung natürlich?
+
+With the group's members hearing of its requests:
+
+- Die Mitglieder hören von den Anfragen ihrer Gruppe (keine neuen Wörter); eine Frage: soll die Kopie an die Mitglieder im Betreff oder Text als „über deine Gruppe“ erkennbar sein?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -342,6 +346,10 @@ Messages added with SAML for requesters:
 Messages added with a desk's own provider:
 
 - El proveedor propio de un desk: `problem.portal.providers.onlyAdmins` = “Solo los administradores gestionan los proveedores del servidor. Los propios los gestiona el gestor de un desk.” — ¿natural la separación?
+
+With the group's members hearing of its requests:
+
+- Los miembros se enteran de las solicitudes de su grupo (sin palabras nuevas); una pregunta: ¿debería la copia decir “de tu grupo” en el asunto o el texto?
 ## French
 
 Terms:
@@ -513,6 +521,10 @@ Messages added with SAML for requesters:
 Messages added with a desk's own provider:
 
 - Le fournisseur propre à un desk : `problem.portal.providers.onlyAdmins` = “Seuls les administrateurs gèrent les fournisseurs du serveur. Les siens, le gestionnaire d'un desk.” — la séparation est-elle naturelle ?
+
+With the group's members hearing of its requests:
+
+- Les membres entendent parler des demandes de leur groupe (pas de mots nouveaux) ; une question : la copie devrait-elle dire « de votre groupe » dans l'objet ou le texte ?
 ## Japanese
 
 Terms:
@@ -676,6 +688,10 @@ Messages added with SAML for requesters:
 Messages added with a desk's own provider:
 
 - デスク自身のプロバイダー: `problem.portal.providers.onlyAdmins` = “サーバーのプロバイダーを管理できるのは管理者だけです。デスクのものはそのデスクのマネージャーが管理します。” — 自然ですか。
+
+With the group's members hearing of its requests:
+
+- グループのメンバーがグループのリクエストを知らされます（新しい言葉はありません）。質問: コピーの件名や本文に「あなたのグループから」と示すべきですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -818,6 +834,10 @@ Messages added with SAML for requesters:
 Messages added with a desk's own provider:
 
 - O fornecedor próprio de um desk: `problem.portal.providers.onlyAdmins` = “Só os administradores gerem os fornecedores do servidor. Os seus, o gestor de um desk.” — a separação é natural?
+
+With the group's members hearing of its requests:
+
+- Os membros ouvem falar dos pedidos do seu grupo (sem palavras novas); uma pergunta: a cópia deve dizer «do seu grupo» no assunto ou no texto?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -1009,6 +1029,10 @@ Messages added with SAML for requesters:
 Messages added with a desk's own provider:
 
 - 데스크 자체 제공자: `problem.portal.providers.onlyAdmins` = “서버 제공자는 관리자만 관리합니다. 데스크의 것은 그 데스크의 관리자가 관리합니다.” — 구분이 자연스럽나요?
+
+With the group's members hearing of its requests:
+
+- 구성원이 그룹의 요청 소식을 받습니다(새 문구 없음). 질문: 사본의 제목이나 본문에 '그룹에서 온 것'이라고 표시해야 할까요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -1191,6 +1215,10 @@ Messages added with SAML for requesters:
 Messages added with a desk's own provider:
 
 - 工作台自己的提供者：`problem.portal.providers.onlyAdmins` = “只有管理员管理服务器的提供者。工作台自己的由它的管理者管理。”——区分自然吗？
+
+With the group's members hearing of its requests:
+
+- 成员会收到其组的请求（没有新词）。问题：副本的主题或正文中是否应标注“来自你的组”？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1385,6 +1413,10 @@ Messages added with SAML for requesters:
 Messages added with a desk's own provider:
 
 - Nhà cung cấp riêng của một bàn: `problem.portal.providers.onlyAdmins` = “Chỉ quản trị viên quản lý các nhà cung cấp của máy chủ. Nhà cung cấp riêng do người quản lý của bàn đó quản lý.” — tách bạch vậy có tự nhiên không?
+
+With the group's members hearing of its requests:
+
+- Thành viên được nghe về các yêu cầu của nhóm (không có từ mới). Câu hỏi: bản sao có nên ghi “từ nhóm của bạn” trong chủ đề hoặc nội dung không?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1576,6 +1608,10 @@ Messages added with SAML for requesters:
 Messages added with a desk's own provider:
 
 - Penyedia sendiri milik desk: `problem.portal.providers.onlyAdmins` = “Hanya administrator yang mengelola penyedia server. Penyedia sendiri dikelola manajer desk-nya.” — apakah pemisahannya alami?
+
+With the group's members hearing of its requests:
+
+- Anggota mendengar permintaan grupnya (tanpa kata baru). Pertanyaan: perlukah salinannya menandai “dari grup Anda” di subjek atau isi?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1768,6 +1804,10 @@ Messages added with SAML for requesters:
 Messages added with a desk's own provider:
 
 - ผู้ให้บริการของเดสก์เอง: `problem.portal.providers.onlyAdmins` = “มีเพียงผู้ดูแลที่จัดการผู้ให้บริการของเซิร์ฟเวอร์ ส่วนของตัวเอง ผู้จัดการของเดสก์เป็นคนจัดการ” — การแยกเป็นธรรมชาติไหม
+
+With the group's members hearing of its requests:
+
+- สมาชิกได้รับรู้คำขอของกลุ่ม (ไม่มีคำใหม่) คำถาม: ควรระบุ “จากกลุ่มของคุณ” ในหัวเรื่องหรือเนื้อหาของสำเนาหรือไม่
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

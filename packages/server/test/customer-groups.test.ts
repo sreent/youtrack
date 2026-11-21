@@ -6,7 +6,7 @@
  */
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { absences, activities, helpdeskRequests, issueFieldValues, notifications, projects, users } from '../src/db/schema';
+import { absences, activities, helpdeskRequests, issueFieldValues, notifications, projects, requestCcs, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { helpdeskConsumer } from '../src/helpdesk/consumer';
 import { receiveMail } from '../src/helpdesk/inbound';
@@ -335,5 +335,17 @@ describe('customer groups', () => {
     await removeGroupMember(w.adminCtx, 'BACK', globex.id, rita.id);
     expect(await groupOfRequester(w.app.db, back.id, rita)).toBeNull();
     expect((await refused(removeGroupMember(w.adminCtx, 'BACK', globex.id, rita.id))).status).toBe(404);
+  });
+});
+describe("the group's members hear of its requests", () => {
+  it("files a new request with its members copied, for the email alone", async () => {
+    const group = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'MembersHear', domains: ['hear.example'], sharing: 'none' });
+    await addGroupMember(w.adminCtx, 'BACK', group.id, { email: 'colleague@hear.example' });
+    const desk = (await w.app.schema.get()).projectsByKey.get('BACK')!;
+    const issue = await openRequest(w.app, desk, { name: 'Rita', email: 'rita@hear.example', summary: 'Tell my group', description: 'Please.', via: 'form' });
+    const ccs = await w.app.db.select().from(requestCcs).where(eq(requestCcs.issueId, issue.uid));
+    expect(ccs.map((c) => c.email)).toContain('colleague@hear.example');
+    expect(ccs.every((c) => c.via === 'group')).toBe(true);
+    expect(ccs.map((c) => c.email)).not.toContain('rita@hear.example');
   });
 });
