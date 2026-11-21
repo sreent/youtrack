@@ -518,3 +518,24 @@ export async function migrateOrganizations(db: Db): Promise<number> {
   }
   return made;
 }
+/**
+ * The group's members, as addresses to copy (D56's revisit): those added by hand, and the
+ * requesters its domains name, less the requester themself. A group's members hear of its
+ * requests, as the request's CCs (D57).
+ */
+export async function groupMemberEmails(db: Db, group: GroupRow, excludeEmail: string): Promise<{ email: string; name: string }[]> {
+  const hand = await db.select({ email: requesters.email, name: requesters.name }).from(customerGroupMembers).innerJoin(requesters, eq(requesters.id, customerGroupMembers.requesterId)).where(eq(customerGroupMembers.groupId, group.id));
+  const domains = await db.select({ domain: customerGroupDomains.domain }).from(customerGroupDomains).where(eq(customerGroupDomains.groupId, group.id));
+  const list = new Map<string, string>();
+  for (const m of hand) if (m.email.toLowerCase() !== excludeEmail.toLowerCase()) list.set(m.email.toLowerCase(), m.name);
+  if (domains.length) {
+    const domainSet = new Set(domains.map((d) => d.domain.toLowerCase()));
+    const all = await db.select({ email: requesters.email, name: requesters.name }).from(requesters);
+    for (const r of all) {
+      const domain = r.email.slice(r.email.indexOf('@') + 1).toLowerCase();
+      if (!domainSet.has(domain)) continue;
+      if (r.email.toLowerCase() !== excludeEmail.toLowerCase() && !list.has(r.email.toLowerCase())) list.set(r.email.toLowerCase(), r.name);
+    }
+  }
+  return [...list].map(([email, name]) => ({ email, name }));
+}

@@ -353,7 +353,8 @@ export async function copiedOn(db: Db, issueId: string, email: string): Promise<
   const [row] = await db
     .select()
     .from(requestCcs)
-    .where(and(eq(requestCcs.issueId, issueId), isNull(requestCcs.removedAt), sql`lower(${requestCcs.email}) = ${lower(email)}`));
+    // A group's members are copied to hear (D56's revisit); their answering is the group's own, D56's.
+    .where(and(eq(requestCcs.issueId, issueId), isNull(requestCcs.removedAt), sql`${requestCcs.via} <> 'group'`, sql`lower(${requestCcs.email}) = ${lower(email)}`));
   return row ?? null;
 }
 

@@ -244,7 +244,8 @@ async function visibleRows(app: AppServices, r: PortalViewer, groups: Sharing, o
 
 /** Whether this address is copied on the request now (D57), as SQL over the request's row. */
 function copiedSql(email: string) {
-  return sql`EXISTS (SELECT 1 FROM request_ccs c WHERE c.issue_id = ${helpdeskRequests.issueId} AND c.removed_at IS NULL AND lower(c.email) = ${email.trim().toLowerCase()})`;
+  // A group's members are copied to hear by email (D56's revisit), not to open the portal's replying: the sharing decides that.
+  return sql`EXISTS (SELECT 1 FROM request_ccs c WHERE c.issue_id = ${helpdeskRequests.issueId} AND c.removed_at IS NULL AND c.via <> 'group' AND lower(c.email) = ${email.trim().toLowerCase()})`;
 }
 
 async function summaries(app: AppServices, r: PortalViewer, groups: Sharing, rows: Row[]): Promise<PortalRequest[]> {
