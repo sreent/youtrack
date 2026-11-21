@@ -241,7 +241,15 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
         slaActivities = await syncClocks(tx, app, await app.schema.get(tx), row, request!);
         // Whom their email copied, before the email that says it came in is sent (D57); held for
         // them to confirm instead, when nobody can vouch that they sent it (D67).
-        if (input.cc?.length && input.ccHeld) heldCcs = await holdOnNewRequest(tx, app, row, input.cc);        // The group's members hear of its requests (D56's revisit), as the request's CCs (D57):
+        // Whom their email copied, before the email that says it came in is sent (D57); held for
+        // them to confirm instead, when nobody can vouch that they sent it (D67).
+        if (input.cc?.length && input.ccHeld) heldCcs = await holdOnNewRequest(tx, app, row, input.cc);
+        else if (input.cc?.length) {
+          const done = await copyOnNewRequest(tx, ctx, row, name, input.cc);
+          copied = done.words;
+          slaActivities.push(...done.activities);
+        }
+        // The group's members hear of its requests (D56's revisit), as the request's CCs (D57):
         // the hand-added and the domains' requesters, less the requester, up to the same cap. The
         // portal's replying stays the sharing's own; a member answers a4a's email about the request.
         if (group && held.length) {
@@ -249,11 +257,6 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
           for (const m of members.slice(0, 20)) {
             await tx.insert(requestCcs).values({ id: newId(), issueId: row.id, email: m.email, name: m.name, via: 'group', addedById: null }).onConflictDoNothing();
           }
-        }
-        else if (input.cc?.length) {
-          const done = await copyOnNewRequest(tx, ctx, row, name, input.cc);
-          copied = done.words;
-          slaActivities.push(...done.activities);
         }
         // The project's lead watches each request, so the requester's replies reach someone.
         if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
