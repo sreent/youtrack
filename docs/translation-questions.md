@@ -155,6 +155,30 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - Die Lastanzeige: `plan.resources.nothingYet` = „Noch nichts“ neben einer Person ohne geplante Arbeit — passt das knappe Wort?
+
+Messages added with Teams' link unfurling:
+
+- Das Entfalten: `server.chat.issue.isShared` = „hat den Vorgang geteilt“ — passt das Verb auf der Karte?
+
+With the requester's own language:
+
+- Die Sprache der Requester: die E-Mails folgen jetzt der Sprache des Browsers (auf dem Requester gespeichert). Keine neuen Wörter; eine Frage: soll der Portal-Seite ein Sprachwähler sichtbar sein, oder reicht der Browser?
+
+Messages added with SAML for requesters:
+
+- SAML für Requester: `problem.portal.providers.samlNeedsBoth` = „Ein SAML-Provider braucht seine SSO-URL und sein Signaturzertifikat.“ — klingt die Erklärung natürlich?
+
+Messages added with a desk's own provider:
+
+- Der eigene Provider eines Desks: `problem.portal.providers.onlyAdmins` = „Nur Administratoren verwalten die Provider des Servers. Die eigenen verwaltet der Manager eines Desks.“ — klingt die Trennung natürlich?
+
+With the group's members hearing of its requests:
+
+- Die Mitglieder hören von den Anfragen ihrer Gruppe (keine neuen Wörter); eine Frage: soll die Kopie an die Mitglieder im Betreff oder Text als „über deine Gruppe“ erkennbar sein?
+
+With the customers' directory:
+
+- Das Kundenverzeichnis (keine neuen Wörter); eine Frage: soll die Namensliste im Formular nur die Namen zeigen, oder auch die Domains als Hinweis daneben?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -310,6 +334,30 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - La carga: `plan.resources.nothingYet` = “Nada aún” junto a una persona sin trabajo planificado — ¿encaja la palabra breve?
+
+Messages added with Teams' link unfurling:
+
+- El despliegue: `server.chat.issue.isShared` = “compartió la incidencia” — ¿encaja el verbo en la tarjeta?
+
+With the requester's own language:
+
+- El idioma del solicitante: los correos siguen ahora el del navegador (guardado en el solicitante). Sin palabras nuevas; una pregunta: ¿la página del portal debería mostrar un selector de idioma, o basta el navegador?
+
+Messages added with SAML for requesters:
+
+- SAML para solicitantes: `problem.portal.providers.samlNeedsBoth` = “Un proveedor SAML necesita su URL de SSO y su certificado de firma.” — ¿natural?
+
+Messages added with a desk's own provider:
+
+- El proveedor propio de un desk: `problem.portal.providers.onlyAdmins` = “Solo los administradores gestionan los proveedores del servidor. Los propios los gestiona el gestor de un desk.” — ¿natural la separación?
+
+With the group's members hearing of its requests:
+
+- Los miembros se enteran de las solicitudes de su grupo (sin palabras nuevas); una pregunta: ¿debería la copia decir “de tu grupo” en el asunto o el texto?
+
+With the customers' directory:
+
+- El directorio de clientes (sin palabras nuevas); una pregunta: ¿la lista del formulario debe mostrar solo los nombres, o también los dominios como pista al lado?
 ## French
 
 Terms:
@@ -465,6 +513,30 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - La charge : `plan.resources.nothingYet` = “Rien encore” à côté d'une personne sans travail planifié — le mot bref convient-il ?
+
+Messages added with Teams' link unfurling:
+
+- Le dépliage : `server.chat.issue.isShared` = “a partagé le ticket” — le verbe convient-il sur la carte ?
+
+With the requester's own language:
+
+- La langue du demandeur : les courriels suivent désormais celle du navigateur (gardée sur le demandeur). Pas de mots nouveaux ; une question : la page du portail devrait-elle offrir un choix de langue, ou le navigateur suffit-il ?
+
+Messages added with SAML for requesters:
+
+- SAML pour les demandeurs : `problem.portal.providers.samlNeedsBoth` = “Un fournisseur SAML a besoin de son URL SSO et de son certificat de signature.” — naturel ?
+
+Messages added with a desk's own provider:
+
+- Le fournisseur propre à un desk : `problem.portal.providers.onlyAdmins` = “Seuls les administrateurs gèrent les fournisseurs du serveur. Les siens, le gestionnaire d'un desk.” — la séparation est-elle naturelle ?
+
+With the group's members hearing of its requests:
+
+- Les membres entendent parler des demandes de leur groupe (pas de mots nouveaux) ; une question : la copie devrait-elle dire « de votre groupe » dans l'objet ou le texte ?
+
+With the customers' directory:
+
+- L'annuaire des clients (pas de mots nouveaux) ; une question : la liste du formulaire doit-elle montrer seulement les noms, ou aussi les domaines en indice à côté ?
 ## Japanese
 
 Terms:
@@ -612,6 +684,30 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - 負荷グリッド: 計画のない人の横の `plan.resources.nothingYet` = “まだ何も” — 短い言葉で伝わりますか。
+
+Messages added with Teams' link unfurling:
+
+- 展開: `server.chat.issue.isShared` = “がチケットを共有しました” — カードの動詞として自然ですか。
+
+With the requester's own language:
+
+- 依頼者の言語: メールはブラウザーの言語に従うようになりました（依頼者に保存）。新しい言葉はありません。質問: ポータルに言語の選択を表示すべきですか、ブラウザーだけで十分ですか。
+
+Messages added with SAML for requesters:
+
+- 依頼者向け SAML: `problem.portal.providers.samlNeedsBoth` = “SAML プロバイダーには SSO URL と署名証明書が必要です。” — 自然ですか。
+
+Messages added with a desk's own provider:
+
+- デスク自身のプロバイダー: `problem.portal.providers.onlyAdmins` = “サーバーのプロバイダーを管理できるのは管理者だけです。デスクのものはそのデスクのマネージャーが管理します。” — 自然ですか。
+
+With the group's members hearing of its requests:
+
+- グループのメンバーがグループのリクエストを知らされます（新しい言葉はありません）。質問: コピーの件名や本文に「あなたのグループから」と示すべきですか。
+
+With the customers' directory:
+
+- 顧客ディレクトリ（新しい言葉はありません）。質問: フォームのリストは名前だけを表示すべきですか、それともドメインもヒントとして横に表示すべきですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -738,6 +834,30 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - A carga: `plan.resources.nothingYet` = “Nada ainda” ao lado de quem não tem trabalho planeado — a palavra breve serve?
+
+Messages added with Teams' link unfurling:
+
+- O desdobrar: `server.chat.issue.isShared` = “partilhou a tarefa” — o verbo assenta na carta?
+
+With the requester's own language:
+
+- A língua do requerente: os emails seguem agora a do navegador (guardada no requerente). Sem palavras novas; uma pergunta: a página do portal deve mostrar um seletor de língua, ou o navegador basta?
+
+Messages added with SAML for requesters:
+
+- SAML para requerentes: `problem.portal.providers.samlNeedsBoth` = “Um fornecedor SAML precisa do seu URL de SSO e do seu certificado de assinatura.” — natural?
+
+Messages added with a desk's own provider:
+
+- O fornecedor próprio de um desk: `problem.portal.providers.onlyAdmins` = “Só os administradores gerem os fornecedores do servidor. Os seus, o gestor de um desk.” — a separação é natural?
+
+With the group's members hearing of its requests:
+
+- Os membros ouvem falar dos pedidos do seu grupo (sem palavras novas); uma pergunta: a cópia deve dizer «do seu grupo» no assunto ou no texto?
+
+With the customers' directory:
+
+- O diretório de clientes (sem palavras novas); uma pergunta: a lista do formulário deve mostrar só os nomes, ou também os domínios como pista ao lado?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -913,6 +1033,30 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - 부하: 계획된 업무가 없는 사람 옆의 `plan.resources.nothingYet` = “아직 없음” — 짧은 말로 자연스럽나요?
+
+Messages added with Teams' link unfurling:
+
+- 펼침: `server.chat.issue.isShared` = “님이 이슈를 공유했습니다” — 카드의 동사로 자연스럽나요?
+
+With the requester's own language:
+
+- 요청자의 언어: 이메일이 이제 브라우저의 언어를 따릅니다(요청자에 저장). 새 문구는 없습니다. 질문: 포털 페이지에 언어 선택기를 보여줘야 할까요, 브라우저로 충분할까요?
+
+Messages added with SAML for requesters:
+
+- 요청자용 SAML: `problem.portal.providers.samlNeedsBoth` = “SAML 제공자에는 SSO URL과 서명 인증서가 필요합니다.” — 자연스럽나요?
+
+Messages added with a desk's own provider:
+
+- 데스크 자체 제공자: `problem.portal.providers.onlyAdmins` = “서버 제공자는 관리자만 관리합니다. 데스크의 것은 그 데스크의 관리자가 관리합니다.” — 구분이 자연스럽나요?
+
+With the group's members hearing of its requests:
+
+- 구성원이 그룹의 요청 소식을 받습니다(새 문구 없음). 질문: 사본의 제목이나 본문에 '그룹에서 온 것'이라고 표시해야 할까요?
+
+With the customers' directory:
+
+- 고객 디렉터리(새 문구 없음). 질문: 양식의 목록에 이름만 표시할까요, 도메인도 옆에 힌트로 표시할까요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -1079,6 +1223,30 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - 负荷格：没有计划工作的人旁边的 `plan.resources.nothingYet` = “还没有” ——简短的词能传达吗？
+
+Messages added with Teams' link unfurling:
+
+- 展开：`server.chat.issue.isShared` = “分享了该问题” ——卡片上的动词自然吗？
+
+With the requester's own language:
+
+- 请求者的语言：邮件现在跟随浏览器的语言（保存在请求者上）。没有新词。问题：门户页面是否应显示语言选择器，还是浏览器就够了？
+
+Messages added with SAML for requesters:
+
+- 请求者的 SAML：`problem.portal.providers.samlNeedsBoth` = “SAML 提供者需要它的 SSO URL 和签名证书。”——自然吗？
+
+Messages added with a desk's own provider:
+
+- 工作台自己的提供者：`problem.portal.providers.onlyAdmins` = “只有管理员管理服务器的提供者。工作台自己的由它的管理者管理。”——区分自然吗？
+
+With the group's members hearing of its requests:
+
+- 成员会收到其组的请求（没有新词）。问题：副本的主题或正文中是否应标注“来自你的组”？
+
+With the customers' directory:
+
+- 客户目录（没有新词）。问题：表单的列表应该只显示名称，还是把域也作为提示放在旁边？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1257,6 +1425,30 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - Tải: `plan.resources.nothingYet` = “Chưa có gì” cạnh người chưa có việc được lên kế hoạch — từ ngắn có ổn không?
+
+Messages added with Teams' link unfurling:
+
+- Mở rộng: `server.chat.issue.isShared` = “đã chia sẻ vấn đề” — động từ trên thẻ có ổn không?
+
+With the requester's own language:
+
+- Ngôn ngữ của người yêu cầu: email giờ theo ngôn ngữ trình duyệt (lưu trên người yêu cầu). Không có từ mới. Câu hỏi: trang cổng có nên hiện bộ chọn ngôn ngữ, hay trình duyệt là đủ?
+
+Messages added with SAML for requesters:
+
+- SAML cho người yêu cầu: `problem.portal.providers.samlNeedsBoth` = “Nhà cung cấp SAML cần URL SSO và chứng chỉ ký của nó.” — tự nhiên chứ?
+
+Messages added with a desk's own provider:
+
+- Nhà cung cấp riêng của một bàn: `problem.portal.providers.onlyAdmins` = “Chỉ quản trị viên quản lý các nhà cung cấp của máy chủ. Nhà cung cấp riêng do người quản lý của bàn đó quản lý.” — tách bạch vậy có tự nhiên không?
+
+With the group's members hearing of its requests:
+
+- Thành viên được nghe về các yêu cầu của nhóm (không có từ mới). Câu hỏi: bản sao có nên ghi “từ nhóm của bạn” trong chủ đề hoặc nội dung không?
+
+With the customers' directory:
+
+- Danh bạ khách hàng (không có từ mới). Câu hỏi: danh sách trong biểu mẫu chỉ nên hiện tên, hay cả miền làm gợi ý bên cạnh?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1432,6 +1624,30 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - Beban: `plan.resources.nothingYet` = “Belum ada” di samping orang tanpa pekerjaan terencana — apakah kata singkatnya pas?
+
+Messages added with Teams' link unfurling:
+
+- Membentangkan: `server.chat.issue.isShared` = “membagikan tiketnya” — apakah kata kerjanya pas di kartu?
+
+With the requester's own language:
+
+- Bahasa peminta: email kini mengikuti bahasa peramban (disimpan pada peminta). Tanpa kata baru. Pertanyaan: perlukah halaman portal menampilkan pemilih bahasa, atau peramban cukup?
+
+Messages added with SAML for requesters:
+
+- SAML untuk peminta: `problem.portal.providers.samlNeedsBoth` = “Penyedia SAML butuh URL SSO dan sertifikat penandatangannya.” — apakah alami?
+
+Messages added with a desk's own provider:
+
+- Penyedia sendiri milik desk: `problem.portal.providers.onlyAdmins` = “Hanya administrator yang mengelola penyedia server. Penyedia sendiri dikelola manajer desk-nya.” — apakah pemisahannya alami?
+
+With the group's members hearing of its requests:
+
+- Anggota mendengar permintaan grupnya (tanpa kata baru). Pertanyaan: perlukah salinannya menandai “dari grup Anda” di subjek atau isi?
+
+With the customers' directory:
+
+- Direktori pelanggan (tanpa kata baru). Pertanyaan: daftar di formulir cukup menampilkan nama, atau domain juga sebagai petunjuk di sampingnya?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1608,6 +1824,30 @@ With the posts that change in place:
 Messages added with the load grid's team:
 
 - ภาระ: `plan.resources.nothingYet` = “ยังไม่มี” ข้างคนที่ยังไม่มีงานที่วางแผน — คำสั้นๆ เหมาะสมไหม
+
+Messages added with Teams' link unfurling:
+
+- การขยาย: `server.chat.issue.isShared` = “แชร์ตั๋วแล้ว” — คำกริยาบนการ์ดเหมาะสมไหม
+
+With the requester's own language:
+
+- ภาษาของผู้ร้อง: อีเมลตามภาษาของเบราว์เซอร์แล้ว (เก็บไว้ที่ผู้ร้อง) ไม่มีคำใหม่ คำถาม: หน้าพอร์ทัลควรมีตัวเลือกภาษาหรือไม่ หรือเบราว์เซอร์ก็พอ
+
+Messages added with SAML for requesters:
+
+- SAML สำหรับผู้ร้อง: `problem.portal.providers.samlNeedsBoth` = “ผู้ให้บริการ SAML ต้องมี URL SSO และใบรับรองการลงนาม” — เป็นธรรมชาติไหม
+
+Messages added with a desk's own provider:
+
+- ผู้ให้บริการของเดสก์เอง: `problem.portal.providers.onlyAdmins` = “มีเพียงผู้ดูแลที่จัดการผู้ให้บริการของเซิร์ฟเวอร์ ส่วนของตัวเอง ผู้จัดการของเดสก์เป็นคนจัดการ” — การแยกเป็นธรรมชาติไหม
+
+With the group's members hearing of its requests:
+
+- สมาชิกได้รับรู้คำขอของกลุ่ม (ไม่มีคำใหม่) คำถาม: ควรระบุ “จากกลุ่มของคุณ” ในหัวเรื่องหรือเนื้อหาของสำเนาหรือไม่
+
+With the customers' directory:
+
+- ไดเรกทอรีลูกค้า (ไม่มีคำใหม่) คำถาม: รายการในฟอร์มควรแสดงแค่ชื่อ หรือแสดงโดเมนเป็นคำใบ้ข้างๆ ด้วย
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

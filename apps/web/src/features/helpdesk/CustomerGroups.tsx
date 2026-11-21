@@ -1,4 +1,4 @@
-import type { BusinessHours, CustomerGroup, CustomerGroupMember, CustomerSharing, PortalProvider, Project } from '@a4a/shared';
+import type { BusinessHours, CustomerDirectoryEntry, CustomerGroup, CustomerGroupMember, CustomerSharing, PortalProvider, Project } from '@a4a/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, get, post, put } from '../../api/client';
@@ -32,6 +32,8 @@ function GroupForm({ project, group, onDone }: { project: Project; group?: Custo
   const offered = project.settings.helpdesk.signIn.providers;
   const providers = useQuery({ queryKey: ['portal-providers'], queryFn: () => get<PortalProvider[]>('/portal-providers'), retry: false, enabled: offered.length > 0 });
   const [provider, setProvider] = useState(group?.provider?.id ?? '');
+  // The customers other desks serve, to pick from when naming one (D56's revisit).
+  const directory = useQuery({ queryKey: ['customer-directory'], queryFn: () => get<CustomerDirectoryEntry[]>('/customer-directory'), retry: false });
   const [own, setOwn] = useState(Boolean(bh));
   const [zone, setZone] = useState(bh?.timeZone ?? project.settings.helpdesk.businessHours?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [days, setDays] = useState<number[]>(bh ? [...new Set(bh.hours.map((x) => x.day))] : [1, 2, 3, 4, 5]);
@@ -64,7 +66,20 @@ function GroupForm({ project, group, onDone }: { project: Project; group?: Custo
       }}
     >
       <fieldset className="unframed form" disabled={save.isPending}>
-        <FormField label={t('helpdesk.groups.name')}>{(id) => <input id={id} required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />}</FormField>
+        <FormField label={t('helpdesk.groups.name')}>
+          {(id) => (
+            <>
+              <input id={id} required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} list={`${id}-known`} />
+              {(directory.data?.length ?? 0) > 0 ? (
+                <datalist id={`${id}-known`}>
+                  {directory.data!.map((c) => (
+                    <option key={c.name} value={c.name} />
+                  ))}
+                </datalist>
+              ) : null}
+            </>
+          )}
+        </FormField>
         <FormField label={t('helpdesk.groups.domains')} help={t('helpdesk.groups.domainsHelp')}>
           {(id, help) => <input id={id} value={domains} placeholder="acme.com" onChange={(e) => setDomains(e.target.value)} aria-describedby={help} />}
         </FormField>

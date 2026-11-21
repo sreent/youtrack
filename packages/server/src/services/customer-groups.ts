@@ -325,9 +325,7 @@ export async function addGroupMember(ctx: Ctx, key: string, id: string, input: {
     .from(customerGroupMembers)
     .innerJoin(customerGroups, eq(customerGroups.id, customerGroupMembers.groupId))
     .where(and(eq(customerGroupMembers.projectId, project.id), eq(customerGroupMembers.requesterId, r.id)));
-  if (row && row.m.groupId !== group.id) {
-    throw conflict(`${r.email} is in ${row.g} at this desk`, `A requester is in one group at a desk: take them out of ${row.g} first.`).said('customerGroups.inAnotherGroup', { email: r.email, group: row.g });
-  }
+  // A requester may be in several groups at a desk (D56's revisit): a consultant for two customers.
   return { requester: { id: r.id, name: r.name, email: r.email }, addedAt: (row?.m.addedAt ?? new Date()).toISOString(), addedBy: ctx.actor.user.login };
 }
 
@@ -517,4 +515,43 @@ export async function migrateOrganizations(db: Db): Promise<number> {
     });
   }
   return made;
+}
+/**
+ * The group's members, as addresses to copy (D56's revisit): those added by hand, and the
+ * requesters its domains name, less the requester themself. A group's members hear of its
+ * requests, as the request's CCs (D57).
+ */
+export async function groupMemberEmails(db: Db, group: GroupRow, excludeEmail: string): Promise<{ email: string; name: string }[]> {
+  const hand = await db.select({ email: requesters.email, name: requesters.name }).from(customerGroupMembers).innerJoin(requesters, eq(requesters.id, customerGroupMembers.requesterId)).where(eq(customerGroupMembers.groupId, group.id));
+  const domains = await db.select({ domain: customerGroupDomains.domain }).from(customerGroupDomains).where(eq(customerGroupDomains.groupId, group.id));
+  const list = new Map<string, string>();
+  for (const m of hand) if (m.email.toLowerCase() !== excludeEmail.toLowerCase()) list.set(m.email.toLowerCase(), m.name);
+  if (domains.length) {
+    const domainSet = new Set(domains.map((d) => d.domain.toLowerCase()));
+    const all = await db.select({ email: requesters.email, name: requesters.name }).from(requesters);
+    for (const r of all) {
+      const domain = r.email.slice(r.email.indexOf('@') + 1).toLowerCase();
+      if (!domainSet.has(domain)) continue;
+      if (r.email.toLowerCase() !== excludeEmail.toLowerCase() && !list.has(r.email.toLowerCase())) list.set(r.email.toLowerCase(), r.name);
+    }
+  }
+  return [...list].map(([email, name]) => ({ email, name }));
+}
+/**
+ * The customers a4a knows, across the desks the caller can read (D56's revisit): each name once,
+ * with its domains, so a desk's manager naming a new group picks one the other desks already serve.
+ */
+export async function customerDirectory(ctx: Ctx): Promise<{ name: string; domains: string[] }[]> {
+  const view = await projectAccess(ctx);
+  const s = await ctx.app.schema.get();
+  const readable = [...s.projects.values()].filter((p) => view.canRead(p.id)).map((p) => p.id);
+  if (!readable.length) return [];
+  const rows = await ctx.db.select({ name: customerGroups.name, domain: customerGroupDomains.domain }).from(customerGroups).leftJoin(customerGroupDomains, eq(customerGroupDomains.groupId, customerGroups.id)).where(inArray(customerGroups.projectId, readable));
+  const byName = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const set = byName.get(r.name.toLowerCase()) ?? new Set<string>();
+    byName.set(r.name.toLowerCase(), set);
+    if (r.domain) set.add(r.domain.toLowerCase());
+  }
+  return [...byName.entries()].map(([name, set]) => ({ name, domains: [...set].sort() })).sort((a, b) => a.name.localeCompare(b.name));
 }

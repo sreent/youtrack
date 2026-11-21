@@ -16,7 +16,7 @@ import type { AppServices } from '../context';
 import type { Db } from '../db/client';
 import { comments, customerGroups, helpdeskRequests, issues, requesterSessions, requesterSignIns, requesters } from '../db/schema';
 import { AUTOMATIC, composeMail, type RenderedMail } from '../mail/compose';
-import { langTag } from '@a4a/shared/i18n';
+import { langTag, matchLocale } from '@a4a/shared/i18n';
 import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { randomToken, sha256 } from '../lib/crypto';
 import { AppError } from '../lib/errors';
@@ -127,7 +127,7 @@ export async function redeemSignIn(app: AppServices, token: string): Promise<{ s
 }
 
 /** The requester a portal session is theirs, and how it was opened, or a 401. Seen at most once a minute, to keep writes down. */
-export async function portalRequester(app: AppServices, session: string | undefined): Promise<PortalViewer> {
+export async function portalRequester(app: AppServices, session: string | undefined, acceptLanguage?: string | null): Promise<PortalViewer> {
   if (!session?.startsWith(SESSION_PREFIX)) throw signedOut();
   const [row] = await app.db
     .select({ requester: requesters, s: requesterSessions })
@@ -137,6 +137,14 @@ export async function portalRequester(app: AppServices, session: string | undefi
   if (!row) throw signedOut();
   if (Date.now() - row.s.lastSeenAt.getTime() > 60_000) {
     await app.db.update(requesterSessions).set({ lastSeenAt: new Date() }).where(eq(requesterSessions.tokenHash, row.s.tokenHash));
+  }
+  // Their own language (D63's revisit): the browser's, when it is one a4a speaks; the emails follow it.
+  if (acceptLanguage) {
+    const asked = matchLocale(acceptLanguage, app.config.defaultLocale);
+    if (asked !== row.requester.locale) {
+      await app.db.update(requesters).set({ locale: asked }).where(eq(requesters.id, row.requester.id));
+      row.requester.locale = asked;
+    }
   }
   const method = row.s.method === 'password' || row.s.method === 'sso' || row.s.method === 'passkey' ? row.s.method : 'link';
   return { ...row.requester, signedIn: { method, providerId: row.s.providerId ?? null } };
@@ -236,7 +244,8 @@ async function visibleRows(app: AppServices, r: PortalViewer, groups: Sharing, o
 
 /** Whether this address is copied on the request now (D57), as SQL over the request's row. */
 function copiedSql(email: string) {
-  return sql`EXISTS (SELECT 1 FROM request_ccs c WHERE c.issue_id = ${helpdeskRequests.issueId} AND c.removed_at IS NULL AND lower(c.email) = ${email.trim().toLowerCase()})`;
+  // A group's members are copied to hear by email (D56's revisit), not to open the portal's replying: the sharing decides that.
+  return sql`EXISTS (SELECT 1 FROM request_ccs c WHERE c.issue_id = ${helpdeskRequests.issueId} AND c.removed_at IS NULL AND c.via <> 'group' AND lower(c.email) = ${email.trim().toLowerCase()})`;
 }
 
 async function summaries(app: AppServices, r: PortalViewer, groups: Sharing, rows: Row[]): Promise<PortalRequest[]> {
@@ -378,13 +387,13 @@ export async function portalDesks(app: AppServices, r: PortalViewer): Promise<Po
 }
 
 /** A new request from the portal: they're known, so no proof of work; as the form files one. */
-export async function portalNewRequest(app: AppServices, r: PortalViewer, input: { desk: string; summary: string; description: string; private?: boolean }): Promise<PortalRequestDetail> {
+export async function portalNewRequest(app: AppServices, r: PortalViewer, input: { desk: string; summary: string; description: string; private?: boolean; group?: string }): Promise<PortalRequestDetail> {
   const project = await deskProject(app, input.desk);
   // A desk this session doesn't open takes nothing from it either: what they ask there, they'd not see.
   if (!(await viewOf(app, r)).opens(project.id)) {
     throw new AppError(403, 'method_off', `${project.name} signs you in another way`, 'Sign out, and sign in from its page.').said('portal.deskSignsInAnotherWay', { desk: project.name });
   }
-  const issue = await openRequest(app, project, { name: r.name, email: r.email, summary: input.summary, description: input.description, via: 'form', private: input.private ?? false });
+  const issue = await openRequest(app, project, { name: r.name, email: r.email, summary: input.summary, description: input.description, via: 'form', private: input.private ?? false, ...(input.group ? { group: input.group } : {}) });
   return portalRequest(app, r, issue.id);
 }
 

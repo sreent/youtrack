@@ -6,7 +6,7 @@
  */
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { absences, activities, helpdeskRequests, issueFieldValues, notifications, projects, users } from '../src/db/schema';
+import { absences, activities, customerGroups, helpdeskRequests, issueFieldValues, notifications, projects, requestCcs, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { helpdeskConsumer } from '../src/helpdesk/consumer';
 import { receiveMail } from '../src/helpdesk/inbound';
@@ -20,6 +20,8 @@ import { searchIssues } from '../src/search/service';
 import { listComments } from '../src/services/comments';
 import {
   addGroupMember,
+  customerDirectory,
+  groupsOfRequester,
   createCustomerGroup,
   groupOfRequester,
   listCustomerGroups,
@@ -335,5 +337,41 @@ describe('customer groups', () => {
     await removeGroupMember(w.adminCtx, 'BACK', globex.id, rita.id);
     expect(await groupOfRequester(w.app.db, back.id, rita)).toBeNull();
     expect((await refused(removeGroupMember(w.adminCtx, 'BACK', globex.id, rita.id))).status).toBe(404);
+  });
+});
+describe("the group's members hear of its requests", () => {
+  it("files a new request with its members copied, for the email alone", async () => {
+    const group = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'MembersHear', domains: ['hear.example'], sharing: 'none' });
+    await addGroupMember(w.adminCtx, 'BACK', group.id, { email: 'colleague@hear.example' });
+    const desk = (await w.app.schema.get()).projectsByKey.get('BACK')!;
+    const issue = await openRequest(w.app, desk, { name: 'Rita', email: 'rita@hear.example', summary: 'Tell my group', description: 'Please.', via: 'form' });
+    const ccs = await w.app.db.select().from(requestCcs).where(eq(requestCcs.issueId, issue.uid));
+    expect(ccs.map((c) => c.email)).toContain('colleague@hear.example');
+    expect(ccs.every((c) => c.via === 'group')).toBe(true);
+    expect(ccs.map((c) => c.email)).not.toContain('rita@hear.example');
+  });
+});
+describe("the customers' directory (D56's revisit)", () => {
+  it('names each customer once, across the desks the caller can read', async () => {
+    const list = await customerDirectory(w.adminCtx);
+    const acme = list.find((c) => c.name.toLowerCase() === 'acme');
+    expect(acme).toBeDefined();
+    expect(acme!.domains).toContain('acme.com');
+    expect(list.filter((c) => c.name.toLowerCase() === 'acme')).toHaveLength(1);
+  });
+});
+describe("a requester in several groups (D56's revisit)", () => {
+  it('files under the one they name, and refuses without one', async () => {
+    const desk = (await w.app.schema.get()).projectsByKey.get('BACK')!;
+    const a = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'AlphaCo', domains: [], sharing: 'none' });
+    const b = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'BetaCo', domains: [], sharing: 'none' });
+    await addGroupMember(w.adminCtx, 'BACK', a.id, { email: 'consultant@example.org' });
+    await addGroupMember(w.adminCtx, 'BACK', b.id, { email: 'consultant@example.org' });
+    await expect(openRequest(w.app, desk, { name: 'Consultant', email: 'consultant@example.org', summary: 'For which?', description: '', via: 'form' })).rejects.toMatchObject({ status: 400 });
+    const issue = await openRequest(w.app, desk, { name: 'Consultant', email: 'consultant@example.org', summary: 'For BetaCo', description: '', via: 'form', group: 'BetaCo' });
+    const [req] = await w.app.db.select({ groupId: helpdeskRequests.groupId }).from(helpdeskRequests).where(eq(helpdeskRequests.issueId, issue.uid));
+    const s = await w.app.schema.get();
+    const groups = await w.app.db.select().from(customerGroups).where(eq(customerGroups.projectId, desk.id));
+    expect(groups.find((g) => g.id === req!.groupId)?.name).toBe('BetaCo');
   });
 });

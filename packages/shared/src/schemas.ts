@@ -4014,6 +4014,7 @@ export const PortalRedeemBody = z.object({ token: z.string().min(10).max(200) })
 export const PortalNameBody = z.object({ name: z.string().trim().min(1).max(200) });
 export const PortalNewRequestBody = z.object({
   desk: z.string().trim().min(1).max(20),
+  group: z.string().trim().max(100).optional().describe("Which of their several groups at the desk this one is for (D56's revisit): its name, when there are several"),
   summary: z.string().trim().min(1).max(500),
   description: z.string().max(50_000).default(''),
   private: z.boolean().default(false).describe("Keep it from their customer group's other members (D56)"),
@@ -4743,12 +4744,15 @@ export const PortalProviderSchema = z
   .object({
     id: z.string(),
     name: z.string().describe('What the sign-in page calls it: "Sign in through <name>"'),
-    kind: z.literal('oidc').describe('OpenID Connect, the authorization code flow with PKCE'),
-    issuer: z.string().describe('Its issuer, as its discovery document gives it'),
-    clientId: z.string(),
+    kind: z.enum(['oidc', 'saml']).describe('OpenID Connect, or SAML 2.0 (D63\'s revisit)'),
+    issuer: z.string().describe('Its issuer, as its discovery document gives it (OIDC), or its entity id (SAML)'),
+    clientId: z.string().nullable().describe('OIDC only: its client id; null for a SAML provider'),
     hasSecret: z.boolean().describe('A client secret is kept, sealed; it is never shown again'),
     scopes: z.string(),
     domains: z.array(z.string()).describe('The email domains it may vouch for; empty: any. An address outside them is refused'),
+    samlEntryPoint: z.string().nullable().describe('SAML only: its SSO URL'),
+    hasCert: z.boolean().describe('SAML only: its signing certificate is kept; it is never shown again'),
+    project: z.string().nullable().describe("A desk's own (D63's revisit): its key; null for the server's, offered to any desk"),
     redirectUri: z.string().describe('Register this with the provider, exactly'),
     desks: z.array(z.string()).describe('The keys of the desks that offer it, among those the reader sees'),
     createdAt: timestamp,
@@ -4757,12 +4761,16 @@ export const PortalProviderSchema = z
 export type PortalProvider = z.infer<typeof PortalProviderSchema>;
 
 export const PortalProviderBody = z.object({
+  project: z.string().trim().max(20).optional().describe("A desk's own provider: its key; a desk's managers make it there. Left out: the server's, an administrator's"),
   name: z.string().trim().min(1).max(100),
-  issuer: z.string().trim().url().max(500).describe('https; plain http only on this machine'),
-  clientId: z.string().trim().min(1).max(500),
+  kind: z.enum(['oidc', 'saml']).default('oidc').describe('SAML providers name their own SSO URL and certificate instead (D63\'s revisit)'),
+  issuer: z.string().trim().url().max(500).describe('https; plain http only on this machine. SAML: the entity id'),
+  clientId: z.string().trim().min(1).max(500).optional().describe('OIDC only'),
   clientSecret: z.string().min(1).max(2000).nullable().optional().describe('Empty for a public client (PKCE alone)'),
   scopes: z.string().trim().max(500).optional().describe('Default: openid email profile'),
   domains: z.array(providerDomain).max(50).default([]),
+  samlEntryPoint: z.string().trim().url().max(500).optional().describe('SAML only: its SSO URL'),
+  samlCert: z.string().min(1).max(20_000).optional().describe('SAML only: its signing certificate, PEM'),
 });
 export const PortalProviderUpdateBody = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -4774,6 +4782,12 @@ export const PortalProviderUpdateBody = z.object({
 });
 
 /** How the portal's sign-in page signs someone in, for a desk or for the portal as a whole (D63). */
+export const CustomerDirectorySchema = z.object({
+  name: z.string(),
+  domains: z.array(z.string()),
+});
+export type CustomerDirectoryEntry = z.infer<typeof CustomerDirectorySchema>;
+
 export const PortalSignInMethodsSchema = z
   .object({
     desk: z.object({ key: z.string(), name: z.string() }).nullable().describe('The desk asked about, when one takes requests by that key; null otherwise'),

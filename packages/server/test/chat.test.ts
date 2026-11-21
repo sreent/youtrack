@@ -494,6 +494,17 @@ describe('Slack', () => {
     await fromSlack('events', event(open.id), slack.signed(event(open.id)), 'application/json');
     expect(JSON.stringify(slack.callsOf('chat.unfurl').at(-1)!.body)).toContain('Dark mode flickers');
   });
+  it('unfurls a Teams link to an issue as its card, for a linked person alone (D42\'s revisit)', async () => {
+    const issue = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Unfurl me in Teams' });
+    const res = await fromTeams({ type: 'invoke', name: 'composeExtension/queryLink', value: { url: `${w.app.config.publicUrl}/issues/${issue.id}` }, from: ben(), recipient: { id: `28:${teams.appId}` }, conversation: { id: TEAM, conversationType: 'channel', tenantId: teams.tenantId }, channelData: channelData({ channel: { id: TEAM } }) });
+    expect(res.status).toBe(200);
+    const ext = (res.body as { composeExtension?: { attachments?: { content?: Record<string, unknown> }[] } }).composeExtension;
+    expect(ext?.attachments?.length).toBeGreaterThan(0);
+    // A stranger's link unfurls nothing.
+    const stranger = await fromTeams({ type: 'invoke', name: 'composeExtension/queryLink', value: { url: `http://localhost:3999/issues/${issue.id}` }, from: { id: '29:nobody', aadObjectId: 'oid-nobody', name: 'Nobody' }, recipient: { id: `28:${teams.appId}` }, conversation: { id: TEAM, conversationType: 'channel', tenantId: teams.tenantId }, channelData: channelData({ channel: { id: TEAM } }) });
+    expect((stranger.body as { composeExtension?: { attachments?: unknown[] } }).composeExtension?.attachments).toHaveLength(0);
+  });
+
 
   it('ends its channels’ subscriptions when the app is removed', async () => {
     const body = JSON.stringify({ type: 'event_callback', team_id: slack.teamId, event: { type: 'app_uninstalled' } });

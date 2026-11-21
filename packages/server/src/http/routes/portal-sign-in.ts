@@ -44,6 +44,7 @@ import {
   updatePortalProvider,
   wrongPassword,
 } from '../../services/portal-sign-in';
+import { finishPortalSaml } from '../../services/portal-saml';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
 import { hit, ip, sameOrigin } from './helpdesk';
@@ -171,7 +172,7 @@ export function portalSignInRoutes(app: OpenAPIHono<HttpEnv>) {
       await hit(c, [['portalIp', ip(c)]], 'Too many sign-ins from your address', 'helpdesk.tooManySignIns');
       const { session: token } = await setPasswordWithLink(runtime, body.token, body.password, PORTAL_SESSION_MS);
       setPortalSession(c, runtime, token);
-      return portalMe(runtime, await portalRequester(runtime, token));
+      return portalMe(runtime, await portalRequester(runtime, token, c.req.header('accept-language')));
     },
   );
 
@@ -190,11 +191,11 @@ export function portalSignInRoutes(app: OpenAPIHono<HttpEnv>) {
     async ({ c, body }) => {
       const runtime = c.get('runtime');
       sameOrigin(c);
-      const r = await portalRequester(runtime, session(c));
+      const r = await portalRequester(runtime, session(c), c.req.header('accept-language'));
       const attempt = await passwordAttempt(c, r.email);
       await changePassword(runtime, r.id, session(c)!, body.current, body.password);
       await attempt.succeeded();
-      return portalMe(runtime, await portalRequester(runtime, session(c)));
+      return portalMe(runtime, await portalRequester(runtime, session(c), c.req.header('accept-language')));
     },
   );
 
@@ -262,6 +263,33 @@ export function portalSignInRoutes(app: OpenAPIHono<HttpEnv>) {
     },
   );
 
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/portal/sso/callback',
+      tags,
+      summary: 'Where a SAML provider posts its response (the assertion consumer)',
+      description: 'The same address the OIDC providers redirect to; a SAML provider posts its response here, and the state says which provider it was.',
+      auth: 'none',
+      status: 302,
+    },
+    async ({ c }) => {
+      const runtime = c.get('runtime');
+      const browserState = getCookie(c, PORTAL_SSO_COOKIE);
+      deleteCookie(c, PORTAL_SSO_COOKIE, { path: PORTAL_SSO_PATH });
+      try {
+        const form = await c.req.parseBody<{ SAMLResponse?: string; RelayState?: string }>();
+        const done = await finishPortalSaml(runtime, { SAMLResponse: typeof form.SAMLResponse === 'string' ? form.SAMLResponse : undefined, RelayState: typeof form.RelayState === 'string' ? form.RelayState : undefined }, browserState, PORTAL_SESSION_MS);
+        setPortalSession(c, runtime, done.session);
+        return c.redirect(`/portal${done.desk ? `?desk=${encodeURIComponent(done.desk)}` : ''}`, 302);
+      } catch (e) {
+        if (e instanceof PortalSsoError) return c.redirect(back(e.failure, e.desk), 302);
+        console.error('portal saml: the callback failed', e);
+        return c.redirect(back('failed', null), 302);
+      }
+    },
+  );
   // The providers: the server's, kept by administrators, read by desks' managers to choose their own.
   const admin = ['Help desk'];
   route(

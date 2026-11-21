@@ -17,13 +17,13 @@ import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm';
 import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
-import { comments, customerGroups, helpdeskMailboxes, helpdeskRequests, helpdeskTokens, issues, requesters, users } from '../db/schema';
-import { assignToGroupAgent, GROUP_CHANGE, groupByRef, groupOfRequester } from './customer-groups';
+import { comments, customerGroups, helpdeskMailboxes, helpdeskRequests, helpdeskTokens, issues, requestCcs, requesters, users } from '../db/schema';
+import { assignToGroupAgent, GROUP_CHANGE, groupByRef, groupMemberEmails, groupsOfRequester, type GroupRow } from './customer-groups';
 import { requesterPasskeyCount } from './portal-passkeys';
 import { publishActivities, type ActivityRow } from '../events/activity';
 import { captchaChallenge } from '../helpdesk/captcha';
 import { randomToken, sha256 } from '../lib/crypto';
-import { AppError, notFound } from '../lib/errors';
+import { AppError, badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { enqueueMail, kickMail, mailHost } from '../mail/outbox';
 import { mailConfigured, sign, verify } from '../notify/state';
@@ -191,6 +191,8 @@ export interface NewRequest {
   ccHeld?: boolean;
   /** Kept from their customer group's other members from the start (D56). */
   private?: boolean;
+  /** Which of their several groups at the desk this one is for (D56's revisit): its id or name. */
+  group?: string;
 }
 
 /**
@@ -209,8 +211,16 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   const received = requestMessageId('request-received');
   // What later emails thread under: the requester's message, else the first one a4a sends them.
   const threadId = input.threadId ?? (mailConfigured(app) ? `<${received}@${mailHost(app)}>` : null);
-  // Filed under its requester's customer group now, and kept (D56).
-  const group = await groupOfRequester(app.db, project.id, { id: requesterId, email });
+  // Filed under its requester's customer group now, and kept (D56). A requester in several
+  // groups at the desk (D56's revisit) says which: the form's choice, refused without one.
+  const atDesk = (await groupsOfRequester(app.db, { id: requesterId, email })).filter((g) => g.projectId === project.id);
+  let group: GroupRow | null = null;
+  if (atDesk.length === 1) group = atDesk[0]!;
+  else if (atDesk.length > 1) {
+    const chosen = input.group ? atDesk.find((g) => g.id === input.group || g.name.toLowerCase() === input.group!.trim().toLowerCase()) : undefined;
+    if (!chosen) throw badRequest('The requester is in several customer groups here', 'Name which one this request is for.').said('helpdesk.severalGroups');
+    group = chosen;
+  }
   let slaActivities: ActivityRow[] = [];
   let copied: { copied: string[]; left: string[] } | null = null;
   let heldCcs: { held: string[]; left: string[] } | null = null;
@@ -231,7 +241,15 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
         slaActivities = await syncClocks(tx, app, await app.schema.get(tx), row, request!);
         // Whom their email copied, before the email that says it came in is sent (D57); held for
         // them to confirm instead, when nobody can vouch that they sent it (D67).
-        if (input.cc?.length && input.ccHeld) heldCcs = await holdOnNewRequest(tx, app, row, input.cc);
+        if (input.cc?.length && input.ccHeld) heldCcs = await holdOnNewRequest(tx, app, row, input.cc);        // The group's members hear of its requests (D56's revisit), as the request's CCs (D57):
+        // the hand-added and the domains' requesters, less the requester, up to the same cap. The
+        // portal's replying stays the sharing's own; a member answers a4a's email about the request.
+        if (group && held.length) {
+          const members = await groupMemberEmails(tx as never, group, email);
+          for (const m of members.slice(0, 20)) {
+            await tx.insert(requestCcs).values({ id: newId(), issueId: row.id, email: m.email, name: m.name, via: 'group', addedById: null }).onConflictDoNothing();
+          }
+        }
         else if (input.cc?.length) {
           const done = await copyOnNewRequest(tx, ctx, row, name, input.cc);
           copied = done.words;

@@ -197,7 +197,7 @@ export function attachmentRoutes(app: OpenAPIHono<HttpEnv>) {
       // A request's own pictures, to whoever reads it on the portal (D39's revisit): the portal's
       // cookie names them, and the file is theirs only when the request is.
       if (!(e instanceof AppError) || (e.status !== 401 && e.status !== 404)) throw e;
-      const r = await portalRequester(c.get('runtime'), getCookie(c, PORTAL_COOKIE)).catch(() => null);
+      const r = await portalRequester(c.get('runtime'), getCookie(c, PORTAL_COOKIE), c.req.header('accept-language')).catch(() => null);
       if (!r) throw e;
       row = await attachmentForRequester(c.get('runtime'), r, c.req.param('id'));
     }

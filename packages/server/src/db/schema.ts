@@ -1402,6 +1402,8 @@ export const requesters = pgTable(
     name: text('name').notNull(),
     /** Their portal password (D63), as scrypt hashes members' (lib/crypto.ts); null for none. It opens the portal alone. */
     passwordHash: text('password_hash'),
+    /** Their own language (D63's revisit): the portal's emails follow it, as their browser asked; null for the desk's. */
+    locale: text('locale'),
     passwordSetAt: ts('password_set_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -2930,7 +2932,8 @@ export const customerGroupMembers = pgTable(
     addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
     addedAt: created(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.requesterId] }), index('customer_group_members_group').on(t.groupId)],
+  // A requester may be in several groups at a desk (D56's revisit): the membership is the three together.
+  (t) => [primaryKey({ columns: [t.projectId, t.requesterId, t.groupId] }), index('customer_group_members_group').on(t.groupId)],
 );
 
 /** A group's dedicated agents, in order: its members' new requests go to one of them. */
@@ -3182,6 +3185,14 @@ export const portalProviders = pgTable('portal_providers', {
   scopes: text('scopes').notNull().default('openid email profile'),
   /** The email domains it may vouch for, in lower case; empty: any. */
   domains: text('domains').array().notNull().default(sql`'{}'::text[]`),
+  /** A desk's own (D63's revisit): the project it belongs to; null: the server's, offered to any desk. */
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  /** 'oidc' or 'saml' (D63's revisit): how the provider speaks. */
+  kind: text('kind').notNull().default('oidc'),
+  /** A SAML provider's own: its SSO URL, its signing certificate (PEM), and its entity id. */
+  samlEntryPoint: text('saml_entry_point'),
+  samlCert: text('saml_cert'),
+  samlEntityId: text('saml_entity_id'),
   createdAt: created(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
