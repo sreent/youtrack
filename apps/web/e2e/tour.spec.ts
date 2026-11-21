@@ -133,12 +133,12 @@ const withDaysAway = async (api: Api) => {
   // The start is a working day: on a weekend the task would be scheduled from Monday anyway (D43's revisit).
   const startDay = [0, 6].includes(new Date(`${today}T00:00:00Z`).getUTCDay()) ? weekdays[0] : today;
   const made = await api.createIssue({ project: key, summary: 'Patch the core switches', fields: { Type: 'Task', Assignee: login, Estimation: '3d', 'Start date': startDay } });
-  // Away on the task's own days, so the grid's window (to the plan's end) always shows them.
-  const schedule = await api.get<{ tasks: { issue: { id: string }; start: string }[] }>(`/projects/${key}/schedule`);
-  const task = schedule.tasks.find((x) => x.issue.id === made.id)!;
+  // Away on the grid's own first two rendered days, so the columns show them however it draws.
+  const load = await api.get<{ resources: { days: { date: string }[] }[] }>(`/projects/${key}/resources`);
+  const first = load.resources.find((r) => r.days.length)!.days[0]!.date;
   const dayAfter = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-  await api.post('/absences', { user: login, from: task.start, kind: 'holiday' });
-  await api.post('/absences', { user: login, from: dayAfter(task.start), half: 'afternoon', kind: 'training' });
+  await api.post('/absences', { user: login, from: first, kind: 'holiday' });
+  await api.post('/absences', { user: login, from: dayAfter(first), half: 'afternoon', kind: 'training' });
   return `/plan/${key}/resources`;
 };
 
@@ -412,7 +412,9 @@ const STOPS: Stop[] = [
   { name: 'plans', path: '/plan', ready: (p) => p.getByRole('link', { name: 'Data center migration' }) },
   { name: 'a timeline', path: '/plan/MIG', ready: (p) => p.getByRole('group', { name: /^Data center migration, / }) },
   { name: 'who is booked', path: '/plan/MIG/resources', ready: (p) => p.getByRole('table', { name: "Who's booked, and how much" }) },
-  { name: 'who is booked, and who is away', path: withDaysAway, ready: (p) => p.getByRole('cell', { name: 'away', exact: true }) },
+  // The grid may begin wherever the server's own today falls (a weekend shifts it): what matters
+  // is that someone's days away are drawn on its cells, whole or half.
+  { name: 'who is booked, and who is away', path: withDaysAway, ready: (p) => p.getByRole('cell', { name: /away/ }).first() },
   { name: 'costs', path: '/plan/MIG/costs', ready: (p) => p.getByRole('heading', { name: 'Cost against plan' }) },
   { name: 'the assistant', path: '/assistant', ready: (p) => p.getByRole('navigation', { name: 'Your conversations' }) },
   {
