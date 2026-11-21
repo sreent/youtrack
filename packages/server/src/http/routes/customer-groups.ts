@@ -4,9 +4,9 @@
  * or its being kept from the group, which the team changes as it changes the request.
  */
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import { CustomerGroupBody, CustomerGroupMemberBody, CustomerGroupMemberSchema, CustomerGroupSchema, HelpdeskRequestSchema, RequestUpdateBody } from '@a4a/shared';
+import { CustomerDirectorySchema, CustomerGroupBody, CustomerGroupMemberBody, CustomerGroupMemberSchema, CustomerGroupSchema, HelpdeskRequestSchema, RequestUpdateBody } from '@a4a/shared';
 import { z } from 'zod';
-import { addGroupMember, createCustomerGroup, deleteCustomerGroup, getCustomerGroup, listCustomerGroups, listGroupMembers, removeGroupMember, updateCustomerGroup } from '../../services/customer-groups';
+import { addGroupMember, createCustomerGroup, customerDirectory, deleteCustomerGroup, getCustomerGroup, listCustomerGroups, listGroupMembers, removeGroupMember, updateCustomerGroup } from '../../services/customer-groups';
 import { updateRequest } from '../../services/helpdesk';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
@@ -46,7 +46,19 @@ export function customerGroupRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, params, body }) => createCustomerGroup(ctx, params.key, body),
   );
-  route(app, { method: 'get', path: '/projects/{key}/customer-groups/{id}', tags, summary: 'A customer group', params: KeyId, response: CustomerGroupSchema }, ({ ctx, params }) =>
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/customer-directory',
+      tags,
+      summary: 'The customers a4a knows, across the desks you can read: each name once, with its domains',
+      description: "For a desk's manager naming a new group: the names the other desks serve, to pick from (D56's revisit).",
+      response: z.array(CustomerDirectorySchema),
+    },
+    ({ ctx }) => customerDirectory(ctx),
+  );
+    route(app, { method: 'get', path: '/projects/{key}/customer-groups/{id}', tags, summary: 'A customer group', params: KeyId, response: CustomerGroupSchema }, ({ ctx, params }) =>
     getCustomerGroup(ctx, params.key, params.id),
   );
   route(

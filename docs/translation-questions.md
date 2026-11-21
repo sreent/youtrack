@@ -175,6 +175,10 @@ Messages added with a desk's own provider:
 With the group's members hearing of its requests:
 
 - Die Mitglieder hören von den Anfragen ihrer Gruppe (keine neuen Wörter); eine Frage: soll die Kopie an die Mitglieder im Betreff oder Text als „über deine Gruppe“ erkennbar sein?
+
+With the customers' directory:
+
+- Das Kundenverzeichnis (keine neuen Wörter); eine Frage: soll die Namensliste im Formular nur die Namen zeigen, oder auch die Domains als Hinweis daneben?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -350,6 +354,10 @@ Messages added with a desk's own provider:
 With the group's members hearing of its requests:
 
 - Los miembros se enteran de las solicitudes de su grupo (sin palabras nuevas); una pregunta: ¿debería la copia decir “de tu grupo” en el asunto o el texto?
+
+With the customers' directory:
+
+- El directorio de clientes (sin palabras nuevas); una pregunta: ¿la lista del formulario debe mostrar solo los nombres, o también los dominios como pista al lado?
 ## French
 
 Terms:
@@ -525,6 +533,10 @@ Messages added with a desk's own provider:
 With the group's members hearing of its requests:
 
 - Les membres entendent parler des demandes de leur groupe (pas de mots nouveaux) ; une question : la copie devrait-elle dire « de votre groupe » dans l'objet ou le texte ?
+
+With the customers' directory:
+
+- L'annuaire des clients (pas de mots nouveaux) ; une question : la liste du formulaire doit-elle montrer seulement les noms, ou aussi les domaines en indice à côté ?
 ## Japanese
 
 Terms:
@@ -692,6 +704,10 @@ Messages added with a desk's own provider:
 With the group's members hearing of its requests:
 
 - グループのメンバーがグループのリクエストを知らされます（新しい言葉はありません）。質問: コピーの件名や本文に「あなたのグループから」と示すべきですか。
+
+With the customers' directory:
+
+- 顧客ディレクトリ（新しい言葉はありません）。質問: フォームのリストは名前だけを表示すべきですか、それともドメインもヒントとして横に表示すべきですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -838,6 +854,10 @@ Messages added with a desk's own provider:
 With the group's members hearing of its requests:
 
 - Os membros ouvem falar dos pedidos do seu grupo (sem palavras novas); uma pergunta: a cópia deve dizer «do seu grupo» no assunto ou no texto?
+
+With the customers' directory:
+
+- O diretório de clientes (sem palavras novas); uma pergunta: a lista do formulário deve mostrar só os nomes, ou também os domínios como pista ao lado?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -1033,6 +1053,10 @@ Messages added with a desk's own provider:
 With the group's members hearing of its requests:
 
 - 구성원이 그룹의 요청 소식을 받습니다(새 문구 없음). 질문: 사본의 제목이나 본문에 '그룹에서 온 것'이라고 표시해야 할까요?
+
+With the customers' directory:
+
+- 고객 디렉터리(새 문구 없음). 질문: 양식의 목록에 이름만 표시할까요, 도메인도 옆에 힌트로 표시할까요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -1219,6 +1243,10 @@ Messages added with a desk's own provider:
 With the group's members hearing of its requests:
 
 - 成员会收到其组的请求（没有新词）。问题：副本的主题或正文中是否应标注“来自你的组”？
+
+With the customers' directory:
+
+- 客户目录（没有新词）。问题：表单的列表应该只显示名称，还是把域也作为提示放在旁边？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1417,6 +1445,10 @@ Messages added with a desk's own provider:
 With the group's members hearing of its requests:
 
 - Thành viên được nghe về các yêu cầu của nhóm (không có từ mới). Câu hỏi: bản sao có nên ghi “từ nhóm của bạn” trong chủ đề hoặc nội dung không?
+
+With the customers' directory:
+
+- Danh bạ khách hàng (không có từ mới). Câu hỏi: danh sách trong biểu mẫu chỉ nên hiện tên, hay cả miền làm gợi ý bên cạnh?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1612,6 +1644,10 @@ Messages added with a desk's own provider:
 With the group's members hearing of its requests:
 
 - Anggota mendengar permintaan grupnya (tanpa kata baru). Pertanyaan: perlukah salinannya menandai “dari grup Anda” di subjek atau isi?
+
+With the customers' directory:
+
+- Direktori pelanggan (tanpa kata baru). Pertanyaan: daftar di formulir cukup menampilkan nama, atau domain juga sebagai petunjuk di sampingnya?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1808,6 +1844,10 @@ Messages added with a desk's own provider:
 With the group's members hearing of its requests:
 
 - สมาชิกได้รับรู้คำขอของกลุ่ม (ไม่มีคำใหม่) คำถาม: ควรระบุ “จากกลุ่มของคุณ” ในหัวเรื่องหรือเนื้อหาของสำเนาหรือไม่
+
+With the customers' directory:
+
+- ไดเรกทอรีลูกค้า (ไม่มีคำใหม่) คำถาม: รายการในฟอร์มควรแสดงแค่ชื่อ หรือแสดงโดเมนเป็นคำใบ้ข้างๆ ด้วย
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

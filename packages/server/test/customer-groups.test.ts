@@ -20,6 +20,7 @@ import { searchIssues } from '../src/search/service';
 import { listComments } from '../src/services/comments';
 import {
   addGroupMember,
+  customerDirectory,
   createCustomerGroup,
   groupOfRequester,
   listCustomerGroups,
@@ -347,5 +348,14 @@ describe("the group's members hear of its requests", () => {
     expect(ccs.map((c) => c.email)).toContain('colleague@hear.example');
     expect(ccs.every((c) => c.via === 'group')).toBe(true);
     expect(ccs.map((c) => c.email)).not.toContain('rita@hear.example');
+  });
+});
+describe("the customers' directory (D56's revisit)", () => {
+  it('names each customer once, across the desks the caller can read', async () => {
+    const list = await customerDirectory(w.adminCtx);
+    const acme = list.find((c) => c.name.toLowerCase() === 'acme');
+    expect(acme).toBeDefined();
+    expect(acme!.domains).toContain('acme.com');
+    expect(list.filter((c) => c.name.toLowerCase() === 'acme')).toHaveLength(1);
   });
 });

@@ -4781,6 +4781,12 @@ export const PortalProviderUpdateBody = z.object({
 });
 
 /** How the portal's sign-in page signs someone in, for a desk or for the portal as a whole (D63). */
+export const CustomerDirectorySchema = z.object({
+  name: z.string(),
+  domains: z.array(z.string()),
+});
+export type CustomerDirectoryEntry = z.infer<typeof CustomerDirectorySchema>;
+
 export const PortalSignInMethodsSchema = z
   .object({
     desk: z.object({ key: z.string(), name: z.string() }).nullable().describe('The desk asked about, when one takes requests by that key; null otherwise'),
