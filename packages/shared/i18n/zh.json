@@ -5798,6 +5798,7 @@
   "rules.run.told": "通知了 {names}。",
   "rules.run.toldNobody": "没有可通知的人：触发规则的人不会收到通知，且只有能看到问题的人才会收到。",
   "rules.run.toldOthers": "{more, plural, other {另外 # 人}}",
+  "rules.run.toldTwoAndOthers": "通知了 {first}、{second} 和{more, plural, other {另外 # 人}}。",
   "rules.run.tooDeep": "由其他规则触发的规则在 {max} 步后停止，因此它没有对这次更改执行。",
   "rules.run.webhookGone": "Webhook 已删除，因此没有调用。",
   "rules.run.webhookNotHttps": "Webhook 地址不是 https，因此没有调用。",

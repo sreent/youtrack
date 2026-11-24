@@ -5798,6 +5798,7 @@
   "rules.run.told": "Đã báo cho {names}.",
   "rules.run.toldNobody": "Không có ai để báo: người kích hoạt không được báo, và chỉ những người xem được vấn đề mới được báo.",
   "rules.run.toldOthers": "{more, plural, other {# người khác}}",
+  "rules.run.toldTwoAndOthers": "Đã báo cho {first}, {second} và {more, plural, other {# người khác}}.",
   "rules.run.tooDeep": "Các quy tắc do quy tắc khác kích hoạt sẽ dừng sau {max} bước, nên quy tắc này không tác động lên thay đổi này.",
   "rules.run.webhookGone": "Webhook không còn nên không gọi được.",
   "rules.run.webhookNotHttps": "Địa chỉ webhook không phải https nên không được gọi.",

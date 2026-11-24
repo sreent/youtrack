@@ -194,12 +194,16 @@ function people(users: UserRow[]): string {
  * Whom it told, for a page: up to three names, or two and how many more, as a list the page says as
  * its language's ("Anna, Ben and 3 others", "Anna、Ben、ほか3人"), the more a note of its own.
  */
-function toldSaid(users: UserRow[]): NoteSaid {
+export function toldSaid(users: UserRow[]): NoteSaid {
   const names = users.map((u) => u.name);
-  const shown = names.length <= 3 ? names : names.slice(0, 2);
-  const more = names.length - shown.length;
-  return { key: 'rules.run.told', values: { names: more ? [...shown, { key: 'rules.run.toldOthers', values: { more } }] : shown } };
+  if (names.length <= 3) return { key: 'rules.run.told', values: { names } };
+  // Two names and how many more, counted as each language counts the rest ("Anna, Ben 외 3명",
+  // 「Anna、Benほか3人」), rather than "3 others" joined into the list as its last name.
+  return { key: 'rules.run.toldTwoAndOthers', values: { first: names[0]!, second: names[1]!, more: names.length - 2 } };
 }
+
+/** What notes kept before still say: "3 others" as the last item of whom a rule told, before toldTwoAndOthers. */
+export const KEPT_NOTE_KEYS = ['rules.run.toldOthers'] as const;
 
 /** Thrown inside a run's transaction when the run log says the rule already acted for this change. */
 class AlreadyActed extends Error {}

@@ -5798,6 +5798,7 @@
   "rules.run.told": "Avisó a {names}.",
   "rules.run.toldNobody": "No había nadie a quien avisar: nunca se avisa a quien la activa, y solo se avisa a quien puede ver la incidencia.",
   "rules.run.toldOthers": "{more, plural, one {# más} other {# más}}",
+  "rules.run.toldTwoAndOthers": "Avisó a {first}, {second} y {more, plural, one {# más} other {# más}}.",
   "rules.run.tooDeep": "Las reglas activadas por otras reglas se detienen tras {max} pasos, así que no actuó en este cambio.",
   "rules.run.webhookGone": "Su webhook ya no existe, así que no se llamó a nada.",
   "rules.run.webhookNotHttps": "La dirección de su webhook no es https, así que no se le llamó.",

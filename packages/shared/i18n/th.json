@@ -5798,6 +5798,7 @@
   "rules.run.told": "แจ้ง {names} แล้ว",
   "rules.run.toldNobody": "ไม่มีใครให้แจ้ง เพราะผู้ที่ทำให้กฎทำงานจะไม่ได้รับแจ้ง และแจ้งเฉพาะผู้ที่เห็นอิชชูได้",
   "rules.run.toldOthers": "{more, plural, other {อีก # คน}}",
+  "rules.run.toldTwoAndOthers": "แจ้ง {first} {second} และ{more, plural, other {อีก # คน}} แล้ว",
   "rules.run.tooDeep": "กฎที่กฎอื่นทำให้ทำงานจะหยุดหลัง {max} ขั้น จึงไม่ได้ทำงานกับการเปลี่ยนแปลงนี้",
   "rules.run.webhookGone": "ไม่พบเว็บฮุกแล้ว จึงไม่ได้เรียกอะไร",
   "rules.run.webhookNotHttps": "ที่อยู่ของเว็บฮุกไม่ใช่ https จึงไม่ได้เรียก",

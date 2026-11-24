@@ -5798,6 +5798,7 @@
   "rules.run.told": "Avisou {names}.",
   "rules.run.toldNobody": "Não havia ninguém a avisar: quem a disparou não recebe aviso, e só recebe quem pode ver o item.",
   "rules.run.toldOthers": "{more, plural, one {mais # pessoa} other {mais # pessoas}}",
+  "rules.run.toldTwoAndOthers": "Avisou {first}, {second} e {more, plural, one {mais # pessoa} other {mais # pessoas}}.",
   "rules.run.tooDeep": "Regras disparadas por outras regras param depois de {max} passos, por isso esta não agiu nesta alteração.",
   "rules.run.webhookGone": "O webhook da regra foi removido, por isso nada foi chamado.",
   "rules.run.webhookNotHttps": "O endereço do webhook da regra não é https, por isso não foi chamado.",

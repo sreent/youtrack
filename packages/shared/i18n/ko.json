@@ -5798,6 +5798,7 @@
   "rules.run.told": "{names}에게 알렸습니다.",
   "rules.run.toldNobody": "알릴 사람이 없었습니다. 규칙을 실행시킨 사람에게는 알리지 않고, 이슈를 볼 수 있는 사람에게만 알립니다.",
   "rules.run.toldOthers": "{more, plural, other {다른 #명}}",
+  "rules.run.toldTwoAndOthers": "{first}, {second} 외 {more, plural, other {#명}}에게 알렸습니다.",
   "rules.run.tooDeep": "다른 규칙이 실행시킨 규칙은 {max}단계에서 멈추므로 이 변경에는 동작하지 않았습니다.",
   "rules.run.webhookGone": "웹훅이 삭제되어 호출하지 않았습니다.",
   "rules.run.webhookNotHttps": "웹훅 주소가 https가 아니어서 호출하지 않았습니다.",

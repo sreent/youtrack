@@ -5798,6 +5798,7 @@
   "rules.run.told": "Told {names}.",
   "rules.run.toldNobody": "Had nobody to tell: whoever set it off isn’t told, and only people who can see the issue are.",
   "rules.run.toldOthers": "{more, plural, one {# other} other {# others}}",
+  "rules.run.toldTwoAndOthers": "Told {first}, {second} and {more, plural, one {# other} other {# others}}.",
   "rules.run.tooDeep": "Rules set off by other rules stop after {max} steps, so it didn't act on this change.",
   "rules.run.webhookGone": "Its webhook is gone, so nothing was called.",
   "rules.run.webhookNotHttps": "Its webhook's address isn't https, so it wasn't called.",

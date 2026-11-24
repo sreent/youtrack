@@ -5798,6 +5798,7 @@
   "rules.run.told": "{names}に通知しました。",
   "rules.run.toldNobody": "通知先がいませんでした。ルールを起動した人には通知されず、課題を閲覧できる人にだけ通知されます。",
   "rules.run.toldOthers": "{more, plural, other {ほか#人}}",
+  "rules.run.toldTwoAndOthers": "{first}、{second}{more, plural, other {ほか#人}}に通知しました。",
   "rules.run.tooDeep": "ほかのルールから起動されたルールは{max}段階で止まるため、この変更には実行されませんでした。",
   "rules.run.webhookGone": "Webhookが削除されたため、何も呼び出しませんでした。",
   "rules.run.webhookNotHttps": "Webhookのアドレスがhttpsではないため、呼び出しませんでした。",

@@ -5798,6 +5798,7 @@
   "rules.run.told": "Elle a prévenu {names}.",
   "rules.run.toldNobody": "Personne à prévenir : la personne qui la déclenche n’est pas prévenue, et seules les personnes qui voient le ticket le sont.",
   "rules.run.toldOthers": "{more, plural, one {# autre} other {# autres}}",
+  "rules.run.toldTwoAndOthers": "Elle a prévenu {first}, {second} et {more, plural, one {# autre} other {# autres}}.",
   "rules.run.tooDeep": "Les règles déclenchées par d’autres règles s’arrêtent après {max} étapes, donc elle n’a pas agi sur cette modification.",
   "rules.run.webhookGone": "Son webhook n’existe plus, donc rien n’a été appelé.",
   "rules.run.webhookNotHttps": "L’adresse de son webhook n’est pas en https, donc il n’a pas été appelé.",

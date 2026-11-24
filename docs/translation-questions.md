@@ -44,10 +44,9 @@ Needs the code to change:
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
 
-Its open questions were settled by a model editor's pass on 24 November 2026: 105 settled, 3 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 105 settled, 1 answered since by a change to the code (whom a rule told, "Anna, Ben 외 3명"), 1 left for a native speaker and 1 that needs Ocean's stylesheet.
 
 - **What a requester reads** (the help form, the portal, a request's page, the desk's emails) asks with “-어 주세요”, and the emails take the honorific for the reader's own acts (“본인이 요청하지 않으셨다면 이 메일은 무시하셔도 됩니다”), where the team's pages ask with “-세요”. A company whose support writes 해요체 may want that for its customers; the catalog says “-어 주세요” meanwhile, as Korean support mostly writes it.
-- **Needs code**: a rule run's whom-it-told list reads “Anna Schmidt, Ben Okafor 및 다른 3명에게 알렸습니다” (`rules.run.toldOthers`), since the server joins “3 others” into the list as its last item. Korean says “Anna Schmidt, Ben Okafor 외 3명에게”, with no 및, which needs the others said beside the list rather than in it.
 - **Needs code**: the browser breaks Korean between any two syllables (CSS `word-break: normal`), so a word can split across lines (“선택하/세요”). Korean typesetting breaks at spaces: Ocean's `:lang(ko)` wants `word-break: keep-all` with `overflow-wrap: anywhere`, so a long unspaced word still fits a phone.
 
 ## Simplified Chinese

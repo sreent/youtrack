@@ -5798,6 +5798,7 @@
   "rules.run.told": "Memberi tahu {names}.",
   "rules.run.toldNobody": "Tidak ada yang perlu diberi tahu: yang memicunya tidak diberi tahu, dan hanya orang yang dapat melihat isu itu yang diberi tahu.",
   "rules.run.toldOthers": "{more, plural, other {# lainnya}}",
+  "rules.run.toldTwoAndOthers": "Memberi tahu {first}, {second}, dan {more, plural, other {# lainnya}}.",
   "rules.run.tooDeep": "Aturan yang dipicu oleh aturan lain berhenti setelah {max} langkah, jadi aturan ini tidak bertindak pada perubahan ini.",
   "rules.run.webhookGone": "Webhook-nya sudah tidak ada, jadi tidak ada yang dipanggil.",
   "rules.run.webhookNotHttps": "Alamat webhook-nya bukan https, jadi tidak dipanggil.",

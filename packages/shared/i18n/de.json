@@ -5798,6 +5798,7 @@
   "rules.run.told": "Benachrichtigt: {names}.",
   "rules.run.toldNobody": "Niemand zu benachrichtigen: Wer die Regel auslöst, wird nicht benachrichtigt, und nur Personen, die den Vorgang sehen können, werden es.",
   "rules.run.toldOthers": "{more, plural, one {# weitere Person} other {# weitere}}",
+  "rules.run.toldTwoAndOthers": "Benachrichtigt: {first}, {second} und {more, plural, one {# weitere Person} other {# weitere}}.",
   "rules.run.tooDeep": "Regeln, die von anderen Regeln ausgelöst werden, enden nach {max} Schritten, daher hat die Regel bei dieser Änderung nichts getan.",
   "rules.run.webhookGone": "Den Webhook der Regel gibt es nicht mehr, daher wurde nichts aufgerufen.",
   "rules.run.webhookNotHttps": "Die Adresse des Webhooks ist nicht https, daher wurde er nicht aufgerufen.",
