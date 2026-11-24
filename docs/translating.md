@@ -49,7 +49,13 @@ German:
 - **Buttons are infinitives or nouns**: "Speichern", "Änderung speichern", "Abbrechen". A button that names what it changes says it: "Feld löschen", not "Löschen" alone, where English says "Delete the field".
 - **Status lines are passive or perfect**: "Gespeichert.", "Wird gespeichert…", "{name} ist hinzugefügt."
 - **What a page loads is a whole message**, passive, with the noun first: "Der Plan wird geladen…", "Ihre Anfragen werden geladen…", "{name} wird geladen…", and "Wird geladen…" when nothing is named.
-- **Gender**: a4a doesn't guess a person's. It says "die Person", "wer …", "alle, die …" where English says "they". Roles stay as their words, "Administrator", "Manager", "Mitglied", "Betrachter".
+- **Gender**: a4a doesn't guess a person's. It says "die Person", "wer …", "alle, die …" where English says "they", and a whiteboard's owner is "die Person, der es gehört", not "Eigentümer". Roles stay as their words, "Administrator", "Manager", "Mitglied", "Betrachter".
+- **Signing in**: the person signs in with a passkey, a password or a provider; none of them "meldet Sie an". "Mit einem Passkey melden Sie sich per Fingerabdruck an", "Mit ihm kann sich niemand mehr anmelden", "Sie melden sich nur mit Ihrem Passwort an".
+- **Asking for something**: "Geben Sie an, …" asks someone to name or choose something ("Geben Sie an, welches Feld Sie meinen"), "Beschreiben Sie, …" to describe it ("Beschreiben Sie, was passiert ist"). "Sagen" is for telling a person or a bot ("Sagen Sie es dem Team", "Sagen Sie dem Bot „link“") and for the command bar, where you say in words what to do.
+- **Keys** are named as Microsoft's German names them: Eingabetaste, Tabulatortaste, Leertaste, Pfeiltasten, Entf, Strg, Alt, and Umschalttaste, "Umschalt" in a combination ("Strg+Umschalt+Z").
+- **A cap** says what it is: "…; das ist die Höchstzahl pro Person", not "mehr darf eine Person nicht".
+- **A stand-in inside someone's text** (for an id the reader can't see) is a bare noun in brackets, "[Vorgang, den Sie nicht sehen können]", so it reads in whatever case the sentence around it needs.
+- **Another product's menus** are named as that product shows them: in German where its German interface is known (Redmine's "Mein Konto", Zendesk's "Admin Center"), in English where its pages are English or its German labels couldn't be checked (Asana's "My settings", ClickUp's "Settings", YouTrack's "Account Security", Slack's app settings).
 - **Nouns keep their capital** inside a sentence, so a label set into a sentence isn't lower-cased in German (`inSentence()` in the web's `i18n`).
 - **Dates and numbers** come from Intl, never from the catalog: "16. Nov. 2026", "1.234,5", "vor 3 Minuten".
 - Quotation marks are „…“, and the ellipsis is one character, as in English.
@@ -60,15 +66,18 @@ German:
 | English | German |
 |---|---|
 | issue | Vorgang |
+| create (an issue, a whiteboard, a record) | anlegen, in Slack and Teams too, where the catalog's verb stays the same |
 | project | Projekt |
 | board | Board |
 | sprint | Sprint |
 | backlog | Backlog |
+| swimlane | Swimlane (die Swimlane, die Swimlanes), as Jira's German board settings say |
+| the navigation's groups: work, decide, build, oversee | Arbeiten, Entscheiden, Einrichten, Verwalten (the last holds Administration) |
 | help desk | Helpdesk |
 | request (help desk) | Anfrage |
 | requester | anfragende Person |
-| copied on a request (CC), copy, stop copying | in Kopie, in Kopie setzen, aus der Kopie nehmen |
-| customer group, kept from the group | Kundengruppe, vor der Gruppe verborgen |
+| copied on a request (CC), copy, stop copying; a held Cc dropped | in Kopie, in Kopie setzen, aus der Kopie nehmen; Ablehnen. "Cc" as mail programs write it |
+| customer group, its people, kept from the group | Kundengruppe, Mitglieder (those in it by their domain too), vor der Gruppe verborgen |
 | reporter | meldende Person |
 | assignee | Bearbeiter (a column), zugewiesene Person |
 | agent | Agent |
@@ -77,8 +86,10 @@ German:
 | workflow | Workflow |
 | rule | Regel |
 | if (a rule's or a transition's condition) | falls, after a trigger's „Wenn“ |
+| tell (a rule tells people) | benachrichtigen: it sends a Benachrichtigung. Subscriptions, watching and chat channels "informieren" |
 | state machine | Zustandsautomat |
 | transition | Übergang |
+| script library | Skriptbibliothek |
 | knowledge base | Wissensdatenbank |
 | article | Artikel |
 | inbox | Posteingang |
@@ -86,7 +97,8 @@ German:
 | digest | Überblick |
 | subscription, subscribe | Abonnement, abonnieren |
 | watch, watcher | beobachten, Beobachtende |
-| timesheet | Stundenzettel |
+| vote | abstimmen (the button, as Jira's German), dafür stimmen (in a sentence), die Stimme |
+| timesheet; submit, approve, send back a week | Stundenzettel; einreichen, genehmigen, zurückgeben. A week of it is "eine Woche im Stundenzettel" |
 | work logged, log time | erfasste Arbeit, Zeit erfassen |
 | estimate | Schätzung |
 | rate (per hour) | Stundensatz |
@@ -94,30 +106,46 @@ German:
 | levelling | Kapazitätsabgleich |
 | slack (in a plan) | Puffer |
 | baseline | Baseline |
-| earned value, earned | Fertigstellungswert, erbracht |
-| cost and schedule performance (CPI, SPI) | Kosteneffizienz, Termineffizienz |
+| planned value, earned value, earned, actual cost | Planwert, Fertigstellungswert, erbracht, Istkosten, as PMI's German says |
+| cost and schedule variance; cost and schedule performance (CPI, SPI) | Kostenabweichung, Terminabweichung; Kosteneffizienz, Termineffizienz (English says "performance", where PMI's German has the long Kostenentwicklungsindex) |
 | triage | Triage |
 | suggestion | Vorschlag |
-| token | Token |
+| token; its scope | das Token; Berechtigung, as the token form's "Was es darf" says. Slack's and YouTrack's own are "Scopes", as their pages name them |
 | two-factor sign-in | Zwei-Faktor-Anmeldung |
 | passkey | Passkey (der Passkey, die Passkeys) |
+| passkeys required, let off | Passkey-Pflicht, von der Passkey-Pflicht befreien |
+| authenticator (a passkey's maker); authenticator app (for codes) | Authentifikator, Authentifikatoren, as German security writing says; Authenticator-App, as the apps are named |
+| attestation (a maker vouching for a passkey) | Bestätigung: English says "vouch", not "attest" |
+| allow (passkeys, passwords, authenticators, a way to sign in); take (mail, deliveries, requests) | zulassen; annehmen |
+| ways to sign in, another way | Anmeldemethoden, mit einer anderen Methode, as Microsoft's German says |
+| phone (the device) | Smartphone: a passkey or a code needs one, which "Telefon" doesn't say |
+| proof of work (a form's) | Spamschutz des Formulars |
 | sign in, sign out | anmelden, abmelden |
-| login (a person's handle) | der Login |
-| identity provider | Identitätsanbieter |
+| login (a person's handle) | der Login: a4a's own word, as its queries and its API say it. A provider's handle is its "Benutzername" |
+| identity provider; redirect URI | Identitätsanbieter (a SAML one: SAML-Identitätsanbieter); Umleitungs-URI, as Microsoft Entra's German says |
 | single sign-on | Single Sign-on |
 | webhook, delivery | Webhook, Zustellung |
 | secret | Secret |
 | commit, pull request, branch | Commit, Pull Request, Branch |
+| a commit's author | der Autor: git's own field, as git's and GitLab's German say |
+| check run, commit status | Check-Run, Commit-Status, as GitHub's screens (which are English) say. Its German docs' "Überprüfungsausführung" is on no screen |
+| a GitHub account's type | Organisation, Persönliches Konto, as GitHub's German docs say |
 | merge, merged | mergen, gemergt |
 | CI | das CI |
+| homeserver (Matrix) | Homeserver, as Matrix's docs and German admins' guides write it (Element's German says "Heimserver") |
 | field, value | Feld, Wert |
+| state (a value of State) | Status, plural Status, as Duden has it. A list of them is "Mögliche Status: …", so the plural shows |
 | link (between issues) | Verknüpfung |
-| resolve, resolved, resolution | erledigen, erledigt, Erledigung (an SLA's: Erledigungsziel) |
+| limited (to some people) | beschränkt; the badge "Beschränkt" |
+| resolve, resolved, resolution | erledigen, erledigt, Erledigung |
+| an SLA's resolution, its target | Lösung, Lösungsziel, as Zendesk's and Atlassian's German say ("Lösungszeit"); the request itself is erledigt |
+| working hours (a desk's, a group's) | Arbeitszeiten, for the schedule; an amount of it is Arbeitszeit ("3 Std. Arbeitszeit") |
 | dashboard, widget | Dashboard, Widget |
 | report | Bericht |
-| whiteboard; a note, card, section, arrow, an arrow's label, the outline | Whiteboard (das), Notiz, Karte, Bereich, Pfeil, Beschriftung, Gliederung |
-| connect (draw an arrow), make issues (of notes) | verbinden; Vorgänge anlegen |
-| a note's tones: plain, idea, agreed, question, problem, parked | Neutral, Idee, Vereinbart, Frage, Problem, Zurückgestellt |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline, the canvas | Whiteboard (das), Notiz, Karte, Bereich, Pfeil, Beschriftung, Gliederung, Arbeitsfläche |
+| a whiteboard's owner | die Person, der es gehört |
+| connect (draw an arrow), make issues (of notes), check first (its dry run) | verbinden; Vorgänge anlegen; Erst prüfen |
+| a note's tones and their legend: plain, idea, agreed, question, problem, parked | Kennzeichnung (it holds kinds and states alike): Neutral, Idee, Vereinbart, Frage, Problem, Zurückgestellt |
 | writing help; where an issue came from (a chat message) | Schreibhilfe; Herkunft |
 
 ## Checking a language
