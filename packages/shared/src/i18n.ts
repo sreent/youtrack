@@ -109,8 +109,8 @@ export function createTranslator(locale: Locale, messages: Messages): Translator
     if (source === undefined) return null;
     // Its plurals and numbers by the language's Intl tag: Portugal's Portuguese counts 0 as many, as Brazil's doesn't.
     const made = new IntlMessageFormat(source, intlTag(locale), undefined, { ignoreTag: false });
-    // Where the language changes its own words at a value's edge (French's elision, Chinese's
-    // spacing), each value is said between marks, so the words beside it can be found and only those.
+    // Where the language changes its own words at a value's edge (French's elision, Chinese's and
+    // Thai's spacing), each value is said between marks, so the words beside it can be found and only those.
     const said = edges ? new IntlMessageFormat(markValues(made.getAst()), intlTag(locale), undefined, { ignoreTag: false }) : made;
     compiled.set(key, said);
     return said;
