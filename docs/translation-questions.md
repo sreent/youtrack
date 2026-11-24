@@ -95,6 +95,94 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `page.admin.removePasskeysOf`, the accessible name of "Passkeys entfernen", is "Passkeys entfernen für {name}", so it holds the link's words whole (WCAG 2.5.3); "Passkeys von {name} entfernen" is the natural order.
 - `page.integrations.accountUser`, a GitHub account's type beside "Organisation", is "Benutzer"; "Persönliches Konto" doesn't assume a gender.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Commit-Status** stays English, like "Check-Run" (`page.integrations.statusesLegend` "Commit-Status bei Pull Requests", `statusesOn`): GitHub's German interface says "Commitstatus", without the hyphen, and the plural works unchanged. "Status" alone would collide with an issue's state.
+- `page.group.requirePasskeys` is "Von den Personen dieser Gruppe einen Passkey verlangen", and `page.project.requirePasskeys` "Von allen, die dieses Projekt sehen können, einen Passkey verlangen": the verb-first order of the catalog's other switches. Would "Für die Personen dieser Gruppe …" read more naturally?
+- `page.group.requirePasskeysHelp` ends "…, und eine befreite Person braucht keinen.", building on wave 6's "von der Passkey-Pflicht befreit". Should the noun appear here too ("und eine von der Passkey-Pflicht befreite Person braucht keinen")?
+- `builds.builds.reportCheck` is "Das Ergebnis jedes Laufs an GitHub melden". Is "melden" the right verb for telling a service, or would "berichten" or "übermitteln" say it better?
+- `page.integrations.statusesAudience` says "Ein Status nennt Vorgänge nur mit ihrer ID" — the checks message says "nennt Vorgänge mit ID und Link". Does "mit ihrer ID" read naturally beside it?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` ist “Es kam in eine Suche, der du folgst” — das Zeitform von “folgen”. Sagt es, was Zeit allein tat, oder liest es zu passiv? (“Eine Suche, die du verfolgst, hat ihn jetzt” wäre aktiver.)
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle`, `noArticleWords` und `issuesMatching` folgen den Worten der bereits vorhandenen Gast-Seiten. Natürlich? (`issuesMatching`: “Tickets, die auf … passen” — oder lieber “Tickets zur Abfrage”?)
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` und `linkTo` folgen den vorhandenen Werkzeugnamen. `writing.draftedWithTheAssistant` ist “Diese Worte hat der Assistent entworfen.” — passt “entworfen”, oder eher “formuliert”?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = „Zeichnen“, `page.whiteboard.picture` = „Bild“, `whiteboards.kind.ink` = „eine Zeichnung“): passen die Werkzeugnamen so, oder eher „Skizzieren“ und „Foto“?
+
+Messages added in wave 13 (Matrix chat):
+
+- Wave 13 (Matrix): `page.chat.matrixHomeserver` = „Homeserver“ — bleibt der Fachbegriff so, wie die Matrix-Welt ihn nutzt?
+
+Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
+
+- Wave 14 (Stundenzettel): `page.timesheet.submit` = „Woche einreichen“ und `page.timesheet.sendBack` = „Zurückgeben“ — klingen die Knöpfe natürlich?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (Skriptbibliothek): `page.rules.library` = „Skriptbibliothek“ und `page.rules.libraryCode` = „Der gemeinsame Code“ — klingen die Bezeichnungen natürlich?
+
+Messages added with the configurable approval rule:
+
+- Die einstellbare Genehmigung: `projects.workTypes.approvalEvery` = „Seine Manager, unter den Managern jedes Projekts, in dem die Woche Arbeit enthält“ — liest sich die lange Beschriftung natürlich?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (HR-Kalender): `page.admin.hrCalendar` = „HR-Kalender“ und `problem.absences.fromHr` = „Diese Tage kommen aus dem HR-Kalender...“ — klingt die Erklärung natürlich?
+
+Messages added with the timesheet's personal view:
+
+- Die eigene Sicht: `page.timesheet.bauOrAnythingYouKeep` = „BAU oder was du sonst führst“ und `problem.time.severalPersonalEntries` = „...Ändere sie einzeln.“ — klingen sie natürlich?
+
+Messages added with the queued scripts:
+
+- Die Warteschlange: `rules.ruleForm.runFromTheQueue` = „Aus der Warteschlange ausführen: es darf sich Zeit nehmen und handelt mit dem, was es beim Auslösen der Regel sah“ — liest sich die lange Beschriftung natürlich?
+
+With the posts that change in place:
+
+- Die Beiträge ändern sich an Ort und Stelle – keine neuen Wörter; eine Frage: soll die Änderung im Kanal als „bearbeitet“ erkennbar sein, oder reicht der stille Austausch des Inhalts?
+
+Messages added with the load grid's team:
+
+- Die Lastanzeige: `plan.resources.nothingYet` = „Noch nichts“ neben einer Person ohne geplante Arbeit — passt das knappe Wort?
+
+Messages added with Teams' link unfurling:
+
+- Das Entfalten: `server.chat.issue.isShared` = „hat den Vorgang geteilt“ — passt das Verb auf der Karte?
+
+With the requester's own language:
+
+- Die Sprache der Requester: die E-Mails folgen jetzt der Sprache des Browsers (auf dem Requester gespeichert). Keine neuen Wörter; eine Frage: soll der Portal-Seite ein Sprachwähler sichtbar sein, oder reicht der Browser?
+
+Messages added with SAML for requesters:
+
+- SAML für Requester: `problem.portal.providers.samlNeedsBoth` = „Ein SAML-Provider braucht seine SSO-URL und sein Signaturzertifikat.“ — klingt die Erklärung natürlich?
+
+Messages added with a desk's own provider:
+
+- Der eigene Provider eines Desks: `problem.portal.providers.onlyAdmins` = „Nur Administratoren verwalten die Provider des Servers. Die eigenen verwaltet der Manager eines Desks.“ — klingt die Trennung natürlich?
+
+With the group's members hearing of its requests:
+
+- Die Mitglieder hören von den Anfragen ihrer Gruppe (keine neuen Wörter); eine Frage: soll die Kopie an die Mitglieder im Betreff oder Text als „über deine Gruppe“ erkennbar sein?
+
+With the customers' directory:
+
+- Das Kundenverzeichnis (keine neuen Wörter); eine Frage: soll die Namensliste im Formular nur die Namen zeigen, oder auch die Domains als Hinweis daneben?
+
+Messages added with the several groups:
+
+- Mehrere Gruppen pro Requester: `problem.helpdesk.severalGroups` = „Der Requester ist hier in mehreren Kundengruppen. Nennen Sie, für welche diese Anfrage ist.“ — klingt die Aufforderung natürlich?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -190,6 +278,94 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `helpdesk.portalPasskeys.notMeAdded` and the added case of `server.portalPasskeys.subject` are one sentence, "Se agregó una llave de acceso para iniciar sesión en el servicio de asistencia", for English's "A passkey was added to your help desk sign-in" and "A passkey now signs you in to the help desk".
 - `helpdesk.portalPasskeys.stopped` is "Bloqueada", as `identity.passkeys.stopped` is: wave 5's question above settles both.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Un estado de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): el catálogo escribe "commit" sin traducir en el resto de mensajes; GitLab en español dice "estado de confirmación". ¿Se prefiere "commit"?
+- `page.group.requirePasskeys` es "Exigir una llave de acceso a las personas del grupo" y `page.project.requirePasskeys` "…a todo el que pueda ver este proyecto". ¿"a todo el que" o "a todos los que puedan"? ¿"exigir a alguien" o "exigir de"?
+- `page.group.requirePasskeysHelp` dice "a partir del siguiente inicio" (sin "de sesión" la segunda vez). ¿Bastaría "desde el siguiente inicio de sesión"?
+- `builds.builds.reportCheck` es "Informar a GitHub del resultado de cada ejecución". El catálogo usa "ejecución" para los check runs; para una ejecución de CI, ¿"ejecución" o "corrida" (Latinoamérica)?
+- `page.integrations.statusesLastProblem` sigue el patrón de los check runs: "El último estado de commit, {when}, no se pudo escribir: {problem}". ¿Natural?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` es “Entró en una búsqueda que sigues”. ¿Se diría mejor “siguiendo”, o con “apareció en”?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` sigue a sus hermanos (“abierto a invitados”). `issuesMatching` es “Incidencias que coinciden con”: ¿o “que cumplen” o “que encajan con”?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` y `linkTo` siguen los nombres de las herramientas existentes. `writing.draftedWithTheAssistant` es “El asistente redactó estas palabras.” — ¿o “escribió”?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “Dibujar”, `page.whiteboard.picture` = “Imagen”, `whiteboards.kind.ink` = “un dibujo”): ¿natural, o mejor “Trazar” y “Foto”?
+
+Messages added in wave 13 (Matrix chat):
+
+- Wave 13 (Matrix): `page.chat.matrixHomeserver` = “Homeserver” — ¿se deja el término tal cual, o se dice “servidor de Matrix”?
+
+Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
+
+- Wave 14 (parte de horas): `page.timesheet.submit` = “Enviar la semana” y `page.timesheet.sendBack` = “Devolverla” — ¿naturales?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (biblioteca de scripts): `page.rules.library` = “Biblioteca de scripts” y `page.rules.libraryCode` = “El código compartido” — ¿naturales?
+
+Messages added with the configurable approval rule:
+
+- La aprobación configurable: `projects.workTypes.approvalEvery` = “Sus gestores, entre los gestores de cada proyecto donde la semana tiene trabajo” — ¿natural, pese a lo largo?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (calendario de RR. HH.): `page.admin.hrCalendar` = “Calendario de RR. HH.” y el rechazo “Estos días vienen del calendario de RR. HH...” — ¿naturales?
+
+Messages added with the timesheet's personal view:
+
+- La vista personal: `page.timesheet.bauOrAnythingYouKeep` = “BAU, o lo que tú lleves” y el rechazo “...Cámbialas una a una.” — ¿naturales?
+
+Messages added with the queued scripts:
+
+- La cola: `rules.ruleForm.runFromTheQueue` = “Ejecútalo desde la cola: puede tomarse su tiempo y actúa sobre lo que vio cuando su regla se disparó” — ¿natural, pese a lo largo?
+
+With the posts that change in place:
+
+- Las publicaciones cambian en su sitio – sin palabras nuevas; una pregunta: ¿debería verse en el canal que se editó, o basta con el contenido reemplazado en silencio?
+
+Messages added with the load grid's team:
+
+- La carga: `plan.resources.nothingYet` = “Nada aún” junto a una persona sin trabajo planificado — ¿encaja la palabra breve?
+
+Messages added with Teams' link unfurling:
+
+- El despliegue: `server.chat.issue.isShared` = “compartió la incidencia” — ¿encaja el verbo en la tarjeta?
+
+With the requester's own language:
+
+- El idioma del solicitante: los correos siguen ahora el del navegador (guardado en el solicitante). Sin palabras nuevas; una pregunta: ¿la página del portal debería mostrar un selector de idioma, o basta el navegador?
+
+Messages added with SAML for requesters:
+
+- SAML para solicitantes: `problem.portal.providers.samlNeedsBoth` = “Un proveedor SAML necesita su URL de SSO y su certificado de firma.” — ¿natural?
+
+Messages added with a desk's own provider:
+
+- El proveedor propio de un desk: `problem.portal.providers.onlyAdmins` = “Solo los administradores gestionan los proveedores del servidor. Los propios los gestiona el gestor de un desk.” — ¿natural la separación?
+
+With the group's members hearing of its requests:
+
+- Los miembros se enteran de las solicitudes de su grupo (sin palabras nuevas); una pregunta: ¿debería la copia decir “de tu grupo” en el asunto o el texto?
+
+With the customers' directory:
+
+- El directorio de clientes (sin palabras nuevas); una pregunta: ¿la lista del formulario debe mostrar solo los nombres, o también los dominios como pista al lado?
+
+Messages added with the several groups:
+
+- Varios grupos por solicitante: `problem.helpdesk.severalGroups` = “El solicitante está en varios grupos de clientes aquí. Indica para cuál es esta solicitud.” — ¿natural?
 ## French
 
 Terms:
@@ -285,6 +461,94 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `server.helpdesk.relay.whyAnswer` and `whyLink`: the people on a request "participent à" it ("d’autres personnes participent à votre demande auprès de {desk}"), since "suivre" is a4a's word for watching.
 - `page.portal.confirm.copyThem`, "Mettre en copie les personnes choisies", is long for a button, and wraps at 390px.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Un statut de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): la documentation de GitLab en français dit "statut de commit". Le catalogue garde "commit" (voir `builds.builds.commits`). Cohérent ?
+- `page.group.requirePasskeys` est "Exiger une clé d’accès des membres du groupe" et `page.project.requirePasskeys` "…de toute personne pouvant voir ce projet". "Exiger quelque chose de quelqu’un" est le tour correct ; le participe "pouvant voir" est-il naturel dans un libellé ?
+- `page.project.requirePasskeysHelp` commence par "À partir de leur prochaine connexion, là où le mot de passe propre à a4a sert à se connecter." Le "là où" se répète dans l’aide du groupe : trop lourd ?
+- `builds.builds.reportCheck` est "Signaler à GitHub le résultat de chaque exécution". "Signaler" convient-il pour un compte-rendu automatique, ou "publier" (comme les check runs) dirait-il mieux ?
+- `page.integrations.statusesNeedToken` emploie le point-virgule avant "Gitea et Forgejo ont aussi besoin…", comme l’anglais. Lisibilité ?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` est “Il est entré dans une recherche que vous suivez”. À côté de la voix passive, la personne voit-elle que c’est le temps qui l’a fait entrer ?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` suit ses soeurs (“ouvert aux invités”). `issuesMatching` est “Tickets correspondant à” : naturel, ou “qui répondent à” ?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` et `linkTo` suivent les outils existants. `writing.draftedWithTheAssistant` est “L’assistant a rédigé ces mots.” — naturel, ou “a écrit” ?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “Dessiner”, `page.whiteboard.picture` = “Image”, `whiteboards.kind.ink` = “un dessin”): naturel, ou “Tracer” et “Photo” ?
+
+Messages added in wave 13 (Matrix chat):
+
+- Wave 13 (Matrix) : `page.chat.matrixHomeserver` = “Homeserver” — terme conservé tel quel, ou “serveur Matrix” ?
+
+Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
+
+- Wave 14 (feuille de temps) : `page.timesheet.submit` = “Envoyer la semaine” et `page.timesheet.sendBack` = “La renvoyer” — naturels ?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (bibliothèque de scripts) : `page.rules.library` = “Bibliothèque de scripts” et `page.rules.libraryCode` = “Le code partagé” — naturels ?
+
+Messages added with the configurable approval rule:
+
+- L'approbation configurable : `projects.workTypes.approvalEvery` = “Ses gestionnaires, parmi les gestionnaires de chaque projet où la semaine a du travail” — naturel malgré la longueur ?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (calendrier RH) : `page.admin.hrCalendar` = “Calendrier RH” et le refus “Ces jours viennent du calendrier RH...” — naturels ?
+
+Messages added with the timesheet's personal view:
+
+- La vue personnelle : `page.timesheet.bauOrAnythingYouKeep` = “BAU, ou ce que vous suivez” et le refus “...Changez-les une par une.” — naturels ?
+
+Messages added with the queued scripts:
+
+- La file : `rules.ruleForm.runFromTheQueue` = “L'exécuter depuis la file : il peut prendre son temps et agit sur ce qu'il a vu quand sa règle s'est déclenchée” — naturel malgré la longueur ?
+
+With the posts that change in place:
+
+- Les messages changent sur place – pas de mots nouveaux ; une question : faut-il montrer dans le canal que c'est une édition, ou le contenu remplacé en silence suffit-il ?
+
+Messages added with the load grid's team:
+
+- La charge : `plan.resources.nothingYet` = “Rien encore” à côté d'une personne sans travail planifié — le mot bref convient-il ?
+
+Messages added with Teams' link unfurling:
+
+- Le dépliage : `server.chat.issue.isShared` = “a partagé le ticket” — le verbe convient-il sur la carte ?
+
+With the requester's own language:
+
+- La langue du demandeur : les courriels suivent désormais celle du navigateur (gardée sur le demandeur). Pas de mots nouveaux ; une question : la page du portail devrait-elle offrir un choix de langue, ou le navigateur suffit-il ?
+
+Messages added with SAML for requesters:
+
+- SAML pour les demandeurs : `problem.portal.providers.samlNeedsBoth` = “Un fournisseur SAML a besoin de son URL SSO et de son certificat de signature.” — naturel ?
+
+Messages added with a desk's own provider:
+
+- Le fournisseur propre à un desk : `problem.portal.providers.onlyAdmins` = “Seuls les administrateurs gèrent les fournisseurs du serveur. Les siens, le gestionnaire d'un desk.” — la séparation est-elle naturelle ?
+
+With the group's members hearing of its requests:
+
+- Les membres entendent parler des demandes de leur groupe (pas de mots nouveaux) ; une question : la copie devrait-elle dire « de votre groupe » dans l'objet ou le texte ?
+
+With the customers' directory:
+
+- L'annuaire des clients (pas de mots nouveaux) ; une question : la liste du formulaire doit-elle montrer seulement les noms, ou aussi les domaines en indice à côté ?
+
+Messages added with the several groups:
+
+- Plusieurs groupes par demandeur : `problem.helpdesk.severalGroups` = “Le demandeur est dans plusieurs groupes de clients ici. Dites pour lequel est cette demande.” — naturel ?
 ## Japanese
 
 Terms:
@@ -372,6 +636,94 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `helpdesk.requestCard.passkeys`, beside the button that removes them, is a label, 「ポータルのログイン用パスキー：2個」, where English has a sentence. Does it read as the requester's passkeys?
 - `page.admin.metadataInUse` calls FIDO's BLOB number 「第{no}号」. Is 「No.{no}」 more usual for a serial?
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **コミットステータス** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): GitHubの日本語UIも「コミットステータス」と書きます。チェック実行との対比で自然ですか？
+- `page.group.requirePasskeys` は「このグループのメンバーにパスキーを必須にする」、`page.project.requirePasskeys` は「このプロジェクトを見られる全員にパスキーを必須にする」。「必須にする」より「必須とする」のほうが formal でしょうか？
+- `page.group.requirePasskeysHelp` の末尾は「免除は管理者が行います。」。主語を示すこの言い方は、他の「管理者が〜します」の文と揃っていますか？
+- `builds.builds.reportCheck` は「各実行の結果をGitHubに報告する」。CIの結果を「報告する」でよいか、「通知する」のほうが自然でしょうか？
+- `page.integrations.statusesAudience` は「ステータスは課題をIDでのみ示し」— チェック実行の説明は「IDとリンクで示し」です。対比として読めますか？
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` は「フォロー中の検索条件に該当しました」。通知のタイトルとして「該当」は事務的すぎるか、「含まれるようになりました」のほうが自然か。
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` は既存のゲストページの言い方に合わせました。`issuesMatching` は「{query}」に該当する課題」—「に一致する」「を満たす」のほうがいいですか。
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` 系は既存のツール名に合わせました。`writing.draftedWithTheAssistant` は「この文章はアシスタントが下書きしました。」—「作成しました」のほうがいいですか。
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “描く”、`page.whiteboard.picture` = “画像”、`whiteboards.kind.ink` = “手書きの線”): 道具の名前として自然ですか。
+
+Messages added in wave 13 (Matrix chat):
+
+- Wave 13（Matrix）: `page.chat.matrixHomeserver` は「ホームサーバー」— そのままの表記で自然ですか。
+
+Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
+
+- Wave 14（タイムシート）: `page.timesheet.submit` = “週を提出”、`page.timesheet.sendBack` = “差し戻す” — 自然ですか。
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16（スクリプトライブラリ）: `page.rules.library` = “スクリプトライブラリ”、`page.rules.libraryCode` = “共有コード” — 自然ですか。
+
+Messages added with the configurable approval rule:
+
+- 設定可能な承認: `projects.workTypes.approvalEvery` = “その週の作業を含む全プロジェクトのマネージャーのうち、このプロジェクトのマネージャー” — 長いですが自然ですか。
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18（HR カレンダー）: `page.admin.hrCalendar` = “HR カレンダー”、拒否の文言 = “この日々は HR カレンダーから...” — 自然ですか。
+
+Messages added with the timesheet's personal view:
+
+- 個人ビュー: `page.timesheet.bauOrAnythingYouKeep` = “BAU、またはあなたが記録するもの”、拒否文 = “...1 件ずつ変更...” — 自然ですか。
+
+Messages added with the queued scripts:
+
+- キュー: `rules.ruleForm.runFromTheQueue` = “キューから実行: 時間をかけてもよく、ルールが発火した時点の内容に作用します” — 長いですが自然ですか。
+
+With the posts that change in place:
+
+- 投稿はその場で変わります（新しい言葉はありません）。質問: チャネルに編集したことを示すべきですか、静かに差し替えるだけで良いですか。
+
+Messages added with the load grid's team:
+
+- 負荷グリッド: 計画のない人の横の `plan.resources.nothingYet` = “まだ何も” — 短い言葉で伝わりますか。
+
+Messages added with Teams' link unfurling:
+
+- 展開: `server.chat.issue.isShared` = “がチケットを共有しました” — カードの動詞として自然ですか。
+
+With the requester's own language:
+
+- 依頼者の言語: メールはブラウザーの言語に従うようになりました（依頼者に保存）。新しい言葉はありません。質問: ポータルに言語の選択を表示すべきですか、ブラウザーだけで十分ですか。
+
+Messages added with SAML for requesters:
+
+- 依頼者向け SAML: `problem.portal.providers.samlNeedsBoth` = “SAML プロバイダーには SSO URL と署名証明書が必要です。” — 自然ですか。
+
+Messages added with a desk's own provider:
+
+- デスク自身のプロバイダー: `problem.portal.providers.onlyAdmins` = “サーバーのプロバイダーを管理できるのは管理者だけです。デスクのものはそのデスクのマネージャーが管理します。” — 自然ですか。
+
+With the group's members hearing of its requests:
+
+- グループのメンバーがグループのリクエストを知らされます（新しい言葉はありません）。質問: コピーの件名や本文に「あなたのグループから」と示すべきですか。
+
+With the customers' directory:
+
+- 顧客ディレクトリ（新しい言葉はありません）。質問: フォームのリストは名前だけを表示すべきですか、それともドメインもヒントとして横に表示すべきですか。
+
+Messages added with the several groups:
+
+- 依頼者が複数のグループに: `problem.helpdesk.severalGroups` = “依頼者はここで複数の顧客グループに属しています。このリクエストがどのグループ宛てか指定してください。” — 自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -438,6 +790,94 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **Forgejo's and Gitea's settings** are named as their Portuguese pages name them, "em Aplicações" (`builds.builds.forgeKeepsToken`, `tokenTooWide`); an instance in English says "Applications".
 - **The emails' time** is in brackets again, "… foi removida (quarta, 18/11, 14:03 WET)" (`server.passkeys.passwordRemoved`, `server.portalPasskeys.lead`, `removedByTeam`), since it begins with a weekday.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Um estado de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): o catálogo escreve "commits" sem traduzir; a documentação do GitLab em português também diz "estado do commit". Fica "estado de commit"?
+- `page.group.requirePasskeys` é "Exigir uma chave de acesso às pessoas do grupo" e `page.project.requirePasskeys` "…a toda a gente que possa ver este projeto". "Exigir a alguém" está correto; "a toda a gente que possa" é subjuntivo natural num rótulo?
+- `page.project.requirePasskeysHelp` começa "A partir do próximo início de sessão, para quem entra com a palavra-passe do próprio a4a." O "para quem" em cadeia com a frase nominal: natural?
+- `builds.builds.reportCheck` é "Comunicar ao GitHub o resultado de cada execução". "Comunicar" num interruptor: natural, ou "reportar"?
+- `page.integrations.statusesTurnedOn` segue os check runs: "Estados de commit ativados: cada pull request recebe um na próxima vez que mudar." O plural "Estados de commit ativados" está claro (ativados é o interruptor, não os estados)?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` é “Entrou numa pesquisa que segue”. É a ordem natural em português, ou diria “passou a constar numa pesquisa que segue”?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` segue as irmãs (“aberto a convidados”). `issuesMatching` é “Itens que correspondem a”: natural, ou “que cumprem”?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` e `linkTo` seguem as ferramentas existentes. `writing.draftedWithTheAssistant` é “O assistente redigiu estas palavras.” — ou “escreveu”?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “Desenhar”, `page.whiteboard.picture` = “Imagem”, `whiteboards.kind.ink` = “um desenho”): natural, ou “Traçar” e “Foto”?
+
+Messages added in wave 13 (Matrix chat):
+
+- Wave 13 (Matrix): `page.chat.matrixHomeserver` = “Homeserver” — mantém-se o termo, ou “servidor Matrix”?
+
+Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
+
+- Wave 14 (folha de horas): `page.timesheet.submit` = “Enviar a semana” e `page.timesheet.sendBack` = “Devolvê-la” — naturais?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (biblioteca de scripts): `page.rules.library` = “Biblioteca de scripts” e `page.rules.libraryCode` = “O código partilhado” — naturais?
+
+Messages added with the configurable approval rule:
+
+- A aprovação configurável: `projects.workTypes.approvalEvery` = “Os seus gestores, entre os gestores de cada projeto onde a semana tem trabalho” — natural, apesar de longo?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (calendário de RH): `page.admin.hrCalendar` = “Calendário de RH” e a recusa “Estes dias vêm do calendário de RH...” — naturais?
+
+Messages added with the timesheet's personal view:
+
+- A vista pessoal: `page.timesheet.bauOrAnythingYouKeep` = “BAU, ou o que registar” e a recusa “...Mude-as uma a uma.” — naturais?
+
+Messages added with the queued scripts:
+
+- A fila: `rules.ruleForm.runFromTheQueue` = “Executar a partir da fila: pode levar o seu tempo e age sobre o que viu quando a regra disparou” — natural, apesar de longo?
+
+With the posts that change in place:
+
+- As publicações mudam no sítio – sem palavras novas; uma pergunta: deve ver-se no canal que foi editada, ou basta o conteúdo trocado em silêncio?
+
+Messages added with the load grid's team:
+
+- A carga: `plan.resources.nothingYet` = “Nada ainda” ao lado de quem não tem trabalho planeado — a palavra breve serve?
+
+Messages added with Teams' link unfurling:
+
+- O desdobrar: `server.chat.issue.isShared` = “partilhou a tarefa” — o verbo assenta na carta?
+
+With the requester's own language:
+
+- A língua do requerente: os emails seguem agora a do navegador (guardada no requerente). Sem palavras novas; uma pergunta: a página do portal deve mostrar um seletor de língua, ou o navegador basta?
+
+Messages added with SAML for requesters:
+
+- SAML para requerentes: `problem.portal.providers.samlNeedsBoth` = “Um fornecedor SAML precisa do seu URL de SSO e do seu certificado de assinatura.” — natural?
+
+Messages added with a desk's own provider:
+
+- O fornecedor próprio de um desk: `problem.portal.providers.onlyAdmins` = “Só os administradores gerem os fornecedores do servidor. Os seus, o gestor de um desk.” — a separação é natural?
+
+With the group's members hearing of its requests:
+
+- Os membros ouvem falar dos pedidos do seu grupo (sem palavras novas); uma pergunta: a cópia deve dizer «do seu grupo» no assunto ou no texto?
+
+With the customers' directory:
+
+- O diretório de clientes (sem palavras novas); uma pergunta: a lista do formulário deve mostrar só os nomes, ou também os domínios como pista ao lado?
+
+Messages added with the several groups:
+
+- Vários grupos por requerente: `problem.helpdesk.severalGroups` = “O requerente está em vários grupos de clientes aqui. Diga para qual é este pedido.” — natural?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -553,6 +993,94 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **A lane's own order** is "레인마다 순서를 따로 유지" (`page.board.laneOrder`, `laneOrderOn`, `laneOrderTurnedOn`), and "레인별 순서" in its help. A card's move in an issue's history reads "Platform board에서 BACK-31 위로 옮겼습니다", and "보드에서" where the reader no longer sees the board (`boards.history.moved`, "on a board"). Is "어느 보드에서" better there?
 - `page.admin.metadataInUse` says "번호 {no}" for FIDO's BLOB ("사용 중인 FIDO 메타데이터: 번호 87, 3시간 전 읽음."), since "87번" would read as a count of times. Clear?
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **커밋 상태** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): GitHub 한국어 UI도 "커밋 상태"라고 씁니다. "체크"와 구분되어 자연스러운가요?
+- `page.group.requirePasskeys`는 "이 그룹의 사람들에게 패스키 요구"입니다. 다른 스위치 라벨처럼 명사로 끝나는데, "패스키 필수"처럼 더 짧게 할 수도 있습니다. 어느 쪽이 낫나요?
+- `page.group.requirePasskeysHelp`는 "Single Sign-on과 디렉터리 계정은 계속 공급자 소관이며"라고 씁니다. "소관"은 문서체 느낌인데, "계속 공급자가 관리하며"가 나을까요? (카탈로그의 SSO 표기는 "SSO"입니다.)
+- `builds.builds.reportCheck`는 "각 실행의 결과를 GitHub에 보고"입니다. "보고"가 자연스러운가요, "전송"이나 "알리기"는 어떨까요?
+- `page.integrations.statusesLastProblem`은 "마지막 커밋 상태를 작성하지 못했습니다({when}). 오류: {problem}"로 check run 문장과 같은 꼴입니다. 괄호 안 시간 표기가 자연스러운지도 check run 질문과 함께 살펴주세요.
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn`은 “팔로우하는 검색에 포함되었습니다”입니다. 알림 제목에서 “포함”은 기계적으례 들리나요, “해당하게 되었습니다”가 나은가요?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle`는 기존 게스트 페이지의 표현을 따랐습니다. `issuesMatching`은 “{query}”에 해당하는 이슈” — “일치하는”이 더 자연스러운가요?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` 계열은 기존 도구 이름을 따랐습니다. `writing.draftedWithTheAssistant`는 “어시스턴트가 이 문장의 초안을 썼습니다.” — “작성했습니다”가 더 자연스러운가요?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “그리기”, `page.whiteboard.picture` = “그림”, `whiteboards.kind.ink` = “낙서”): 자연스러운가요?
+
+Messages added in wave 13 (Matrix chat):
+
+- Wave 13(Matrix): `page.chat.matrixHomeserver` = “홈서버” — 자연스럽나요?
+
+Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
+
+- Wave 14(시간 기록): `page.timesheet.submit` = “주 제출”, `page.timesheet.sendBack` = “반려” — 자연스럽나요?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16(스크립트 라이브러리): `page.rules.library` = “스크립트 라이브러리”, `page.rules.libraryCode` = “공유 코드” — 자연스럽나요?
+
+Messages added with the configurable approval rule:
+
+- 설정 가능한 승인: `projects.workTypes.approvalEvery` = “그 주의 작업이 있는 모든 프로젝트의 관리자 중 이 프로젝트의 관리자” — 길지만 자연스럽나요?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18(HR 달력): `page.admin.hrCalendar` = “HR 달력”, 거부 문구 = “이 날짜들은 HR 달력에서...” — 자연스럽나요?
+
+Messages added with the timesheet's personal view:
+
+- 개인 보기: `page.timesheet.bauOrAnythingYouKeep` = “BAU, 또는 당신이 기록하는 것”, 거부문 = “...하나씩 바꾸세요.” — 자연스럽나요?
+
+Messages added with the queued scripts:
+
+- 대기열: `rules.ruleForm.runFromTheQueue` = “대기열에서 실행: 시간이 걸려도 되며, 규칙이 발동했을 때 본 내용에 작용합니다” — 길지만 자연스럽나요?
+
+With the posts that change in place:
+
+- 게시물은 제자리에서 바뀝니다 – 새 문구는 없습니다. 질문: 채널에서 편집했음을 보여주어야 할까요, 아니면 조용히 바뀌는 것으로 충분할까요?
+
+Messages added with the load grid's team:
+
+- 부하: 계획된 업무가 없는 사람 옆의 `plan.resources.nothingYet` = “아직 없음” — 짧은 말로 자연스럽나요?
+
+Messages added with Teams' link unfurling:
+
+- 펼침: `server.chat.issue.isShared` = “님이 이슈를 공유했습니다” — 카드의 동사로 자연스럽나요?
+
+With the requester's own language:
+
+- 요청자의 언어: 이메일이 이제 브라우저의 언어를 따릅니다(요청자에 저장). 새 문구는 없습니다. 질문: 포털 페이지에 언어 선택기를 보여줘야 할까요, 브라우저로 충분할까요?
+
+Messages added with SAML for requesters:
+
+- 요청자용 SAML: `problem.portal.providers.samlNeedsBoth` = “SAML 제공자에는 SSO URL과 서명 인증서가 필요합니다.” — 자연스럽나요?
+
+Messages added with a desk's own provider:
+
+- 데스크 자체 제공자: `problem.portal.providers.onlyAdmins` = “서버 제공자는 관리자만 관리합니다. 데스크의 것은 그 데스크의 관리자가 관리합니다.” — 구분이 자연스럽나요?
+
+With the group's members hearing of its requests:
+
+- 구성원이 그룹의 요청 소식을 받습니다(새 문구 없음). 질문: 사본의 제목이나 본문에 '그룹에서 온 것'이라고 표시해야 할까요?
+
+With the customers' directory:
+
+- 고객 디렉터리(새 문구 없음). 질문: 양식의 목록에 이름만 표시할까요, 도메인도 옆에 힌트로 표시할까요?
+
+Messages added with the several groups:
+
+- 요청자당 여러 그룹: `problem.helpdesk.severalGroups` = “요청자가 여기서 여러 고객 그룹에 속해 있습니다. 이 요청이 어느 그룹을 위한 것인지 지정하세요.” — 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -659,6 +1187,94 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **The portal signs a requester out with 退出门户登录** (`helpdesk.portalPasskeys.notMeDoneAbout`, `server.portalPasskeys.notYou`), where the team's pages say 在所有设备上退出登录.
 - **The page behind the acknowledgement's link** reads 「您就“{summary}”发给 {desk} 的邮件抄送了以下人员。」 (`page.portal.confirm.lead`), with the desk's name unquoted, as the portal's pages say it; the desk's emails quote theirs, 「“BACK 的服务台”」 (`server.helpdesk.relay.whyAnswer`, `whyLink`).
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **提交状态** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): Gitea 和 GitLab 的中文界面都写“提交状态”。与“检查运行”并列时清楚吗？
+- `page.group.requirePasskeys` 是“要求此组成员使用通行密钥”，`page.project.requirePasskeys` 是“要求所有能看到此项目的人使用通行密钥”。“要求……使用通行密钥”的动词结构自然吗？
+- `page.group.requirePasskeysHelp` 以“凡使用 a4a 自身密码登录的成员”开头。“凡……的”这种书面结构在帮助文字里合适吗？
+- `builds.builds.reportCheck` 是“将每次运行的结果报告给 GitHub”。“报告给”用于自动上报自然吗？
+- `page.integrations.statusesNeedToken` 里“Gitea 和 Forgejo 还需要其 /api/v1 地址”中“其”字用法是否清楚（指 Gitea 和 Forgejo 各自的地址）？
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` 是“它进入了你关注的一个搜索”。“进入”在通知标题里自然吗，还是“开始符合你关注的搜索条件”更清楚？
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` 沿用了其他访客页的措辞。`issuesMatching` 是“与…匹配的问题”——用“符合”“符合条件”会不会更自然？
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` 系列沿用了现有工具名。`writing.draftedWithTheAssistant` 是“这些文字由助手起草。”——用“撰写”会不会更自然？
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “画”、`page.whiteboard.picture` = “图片”、`whiteboards.kind.ink` = “随手画的线”): 工具栏上读起来自然吗？
+
+Messages added in wave 13 (Matrix chat):
+
+- Wave 13（Matrix）: `page.chat.matrixHomeserver` = “Homeserver”——保留原文，还是译为“主服务器”更自然？
+
+Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
+
+- Wave 14（工时表）: `page.timesheet.submit` = “提交这一周”、`page.timesheet.sendBack` = “退回” ——自然吗？
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16（脚本库）: `page.rules.library` = “脚本库”、`page.rules.libraryCode` = “共享代码” ——自然吗？
+
+Messages added with the configurable approval rule:
+
+- 可配置的审批: `projects.workTypes.approvalEvery` = “它的管理者，且是该周有工作的每个项目的管理者”——虽然长，读起来自然吗？
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18（人事日历）: `page.admin.hrCalendar` = “人事日历”，拒绝说明 = “这些日子来自人事日历...” ——自然吗？
+
+Messages added with the timesheet's personal view:
+
+- 个人视图：`page.timesheet.bauOrAnythingYouKeep` = “BAU，或任何你记录的内容”，拒绝说明 = “请逐条修改...” ——自然吗？
+
+Messages added with the queued scripts:
+
+- 队列：`rules.ruleForm.runFromTheQueue` = “从队列运行：它可以慢慢来，并作用于规则触发时所见的内容” ——虽然长，自然吗？
+
+With the posts that change in place:
+
+- 帖子就地变化，没有新词。问题：应该在频道里标明“已编辑”，还是静静替换内容就好？
+
+Messages added with the load grid's team:
+
+- 负荷格：没有计划工作的人旁边的 `plan.resources.nothingYet` = “还没有” ——简短的词能传达吗？
+
+Messages added with Teams' link unfurling:
+
+- 展开：`server.chat.issue.isShared` = “分享了该问题” ——卡片上的动词自然吗？
+
+With the requester's own language:
+
+- 请求者的语言：邮件现在跟随浏览器的语言（保存在请求者上）。没有新词。问题：门户页面是否应显示语言选择器，还是浏览器就够了？
+
+Messages added with SAML for requesters:
+
+- 请求者的 SAML：`problem.portal.providers.samlNeedsBoth` = “SAML 提供者需要它的 SSO URL 和签名证书。”——自然吗？
+
+Messages added with a desk's own provider:
+
+- 工作台自己的提供者：`problem.portal.providers.onlyAdmins` = “只有管理员管理服务器的提供者。工作台自己的由它的管理者管理。”——区分自然吗？
+
+With the group's members hearing of its requests:
+
+- 成员会收到其组的请求（没有新词）。问题：副本的主题或正文中是否应标注“来自你的组”？
+
+With the customers' directory:
+
+- 客户目录（没有新词）。问题：表单的列表应该只显示名称，还是把域也作为提示放在旁边？
+
+Messages added with the several groups:
+
+- 一个请求者多个组：`problem.helpdesk.severalGroups` = “请求者在这里属于多个客户组。请说明此请求针对哪个组。”——自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -777,6 +1393,94 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **A desk that takes passkeys "cho đăng nhập bằng khóa truy cập"** (`problem.portal.passkeysOff`, `helpdesk.portalPasskeys.offDesks`), as one that takes passwords does. A requester's help desk passkey is "khóa truy cập bạn dùng cho bộ phận hỗ trợ" (`helpdesk.portalPasskeys.notMeCopied`, `server.portalPasskeys.subject`, `problem.portalPasskeys.teamPasskey`), since "khóa truy cập của bộ phận hỗ trợ" would read as the desk's own.
 - **Smaller choices**: GitHub's account kinds are "cá nhân" and "tổ chức" (`page.integrations.accountUser`, `page.integrations.accountOrganization`), where English says "user"; an installation GitHub says is gone "đã gỡ" (`page.integrations.installationGone`); "họ" stands for one person in "Đã CC 1 người: từ giờ, họ sẽ nhận …" (`page.portal.confirm.copied`), whose plural keeps `other` alone; and `server.portalPasskeys.removedByTeam` keeps `=1`, the one case that names the passkey.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Trạng thái commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): catalog giữ "commit" nguyên văn. GitLab tiếng Việt cũng nói "trạng thái commit". Được chứ?
+- `page.group.requirePasskeys` là "Yêu cầu khóa truy cập đối với người trong nhóm", `page.project.requirePasskeys` là "…với mọi người xem được dự án này". "Yêu cầu … đối với/với" — giới từ nào đúng hơn?
+- `page.project.requirePasskeysHelp` mở đầu "Từ lần đăng nhập tiếp theo, với ai đăng nhập bằng mật khẩu của a4a." Cụm "với ai đăng nhập" đọc có tự nhiên không?
+- `builds.builds.reportCheck` là "Báo cáo kết quả của mỗi lần chạy lên GitHub". "lên GitHub" cho hướng truyền đi: tự nhiên không, hay "tới GitHub"?
+- `page.integrations.statusesAudience` nói "trạng thái chỉ nêu vấn đề bằng mã" — check run thì "bằng mã và liên kết". Đối chiếu vậy rõ không?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` là “Vưa vào một tìm kiếm bạn theo dõi”. “Vưa vào” có nén rõ không?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` theo các trang khách. `issuesMatching` lá “Vấn đ khơp vôi”: tỳ nhiôn không?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` theo các công cụ sẵn có. `writing.draftedWithTheAssistant` là “Trợ lý đã soạn những lời này.” — hay “viết”?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “Vẽ”, `page.whiteboard.picture` = “Hình ảnh”, `whiteboards.kind.ink` = “một nét vẽ”): tự nhiên chứ?
+
+Messages added in wave 13 (Matrix chat):
+
+- Wave 13 (Matrix): `page.chat.matrixHomeserver` = “Homeserver” — giữ nguyên từ này hay dịch là “máy chủ Matrix”?
+
+Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
+
+- Wave 14 (bảng chấm công): `page.timesheet.submit` = “Gửi tuần” và `page.timesheet.sendBack` = “Trả lại” — tự nhiên chứ?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (thư viện script): `page.rules.library` = “Thư viện script” và `page.rules.libraryCode` = “Mã dùng chung” — tự nhiên chứ?
+
+Messages added with the configurable approval rule:
+
+- Duyệt có thể cấu hình: `projects.workTypes.approvalEvery` = “Người quản lý của nó, trong số người quản lý của mọi dự án mà tuần đó có việc” — dài nhưng tự nhiên chứ?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (lịch nhân sự): `page.admin.hrCalendar` = “Lịch nhân sự” và lời từ chối = “Những ngày này đến từ lịch nhân sự...” — tự nhiên chứ?
+
+Messages added with the timesheet's personal view:
+
+- Góc nhìn cá nhân: `page.timesheet.bauOrAnythingYouKeep` = “BAU, hoặc bất cứ gì bạn theo dõi” và lời từ chối = “...Hãy sửa từng mục một.” — tự nhiên chứ?
+
+Messages added with the queued scripts:
+
+- Hàng đợi: `rules.ruleForm.runFromTheQueue` = “Chạy từ hàng đợi: nó được phép tốn thời gian, và tác động lên những gì nó thấy khi quy tắc kích hoạt” — dài nhưng tự nhiên chứ?
+
+With the posts that change in place:
+
+- Bài đăng thay đổi ngay tại chỗ – không có từ mới. Câu hỏi: có nên cho kênh thấy là đã sửa, hay chỉ cần thay nội dung trong im lặng?
+
+Messages added with the load grid's team:
+
+- Tải: `plan.resources.nothingYet` = “Chưa có gì” cạnh người chưa có việc được lên kế hoạch — từ ngắn có ổn không?
+
+Messages added with Teams' link unfurling:
+
+- Mở rộng: `server.chat.issue.isShared` = “đã chia sẻ vấn đề” — động từ trên thẻ có ổn không?
+
+With the requester's own language:
+
+- Ngôn ngữ của người yêu cầu: email giờ theo ngôn ngữ trình duyệt (lưu trên người yêu cầu). Không có từ mới. Câu hỏi: trang cổng có nên hiện bộ chọn ngôn ngữ, hay trình duyệt là đủ?
+
+Messages added with SAML for requesters:
+
+- SAML cho người yêu cầu: `problem.portal.providers.samlNeedsBoth` = “Nhà cung cấp SAML cần URL SSO và chứng chỉ ký của nó.” — tự nhiên chứ?
+
+Messages added with a desk's own provider:
+
+- Nhà cung cấp riêng của một bàn: `problem.portal.providers.onlyAdmins` = “Chỉ quản trị viên quản lý các nhà cung cấp của máy chủ. Nhà cung cấp riêng do người quản lý của bàn đó quản lý.” — tách bạch vậy có tự nhiên không?
+
+With the group's members hearing of its requests:
+
+- Thành viên được nghe về các yêu cầu của nhóm (không có từ mới). Câu hỏi: bản sao có nên ghi “từ nhóm của bạn” trong chủ đề hoặc nội dung không?
+
+With the customers' directory:
+
+- Danh bạ khách hàng (không có từ mới). Câu hỏi: danh sách trong biểu mẫu chỉ nên hiện tên, hay cả miền làm gợi ý bên cạnh?
+
+Messages added with the several groups:
+
+- Nhiều nhóm mỗi người yêu cầu: `problem.helpdesk.severalGroups` = “Người yêu cầu thuộc nhiều nhóm khách hàng ở đây. Hãy nói yêu cầu này dành cho nhóm nào.” — tự nhiên chứ?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -892,6 +1596,94 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **Passkeys alone**: "Hanya kunci sandi" in the people table (`page.admin.passkeysAlone`), "Masuk hanya dengan kunci sandi" on the profile (`identity.passkeys.passkeysAlone`), and the setup link "tautan untuk menambahkan kunci sandi", which "kedaluwarsa dalam 3 hari" (`page.admin.linkRunsOut`, `page.passkeySetup.until`, `server.passkeySetup.*`). A passkey provider is a *penyedia kunci sandi* (`identity.passkeys.keepASpare`, `problem.passkeys.spareFirst`, `server.passkeySetup.leadFirst`), where Google names its own *Pengelola Sandi*.
 - **Forgejo's and Gitea's "Applications"** stays as their English settings name it (`builds.builds.forgeKeepsToken`, `builds.builds.tokenTooWide`), though their Indonesian says *Aplikasi*.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Status commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): katalog memakai "commit" tanpa diterjemahkan. GitLab berbahasa Indonesia juga menyebut "status commit". Cukup alami?
+- `page.group.requirePasskeys` adalah "Wajibkan kunci sandi bagi anggota grup ini", dan `page.project.requirePasskeys` "…bagi semua yang dapat melihat proyek ini". "bagi" atau "untuk" yang lebih cocok pada label?
+- `page.group.requirePasskeysHelp` diawali "Saat masuk dengan kata sandi a4a sendiri" — subjeknya "anggotanya" muncul setelahnya. Apakah urutannya terbaca jelas?
+- `builds.builds.reportCheck` adalah "Laporkan hasil tiap run ke GitHub". Kata "run" dibiarkan dalam bahasa Inggris seperti katalog Builds biasa. Konsisten?
+- `page.integrations.statusesNeedToken` memakai titik dua sebelum "Gitea dan Forgejo juga memerlukan alamat /api/v1." Apakah kalimat majemuk ini terbaca ringan pada layar kecil?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` adalah “Masuk ke pencarian yang Anda ikuti”. Apakah “masuk ke” cukup jelas untuk hasil pencarian, atau “kini sesuai dengan” lebih tepat?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` mengikuti halaman tamu yang lain. `issuesMatching` adalah “Isu yang cocok dengan” — atau “sesuai hasil pencarian”?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` mengikuti nama alat yang ada. `writing.draftedWithTheAssistant` adalah “Asisten menyusun kata-kata ini.” — atau “menulis”?
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “Menggambar”, `page.whiteboard.picture` = “Gambar”, `whiteboards.kind.ink` = “sebuah gambar”): apakah alami?
+
+Messages added in wave 13 (Matrix chat):
+
+- Wave 13 (Matrix): `page.chat.matrixHomeserver` = “Homeserver” — dipertahankan, atau “server Matrix”?
+
+Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
+
+- Wave 14 (lembar waktu): `page.timesheet.submit` = “Kirim minggunya” dan `page.timesheet.sendBack` = “Kirim balik” — apakah alami?
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (pustaka skrip): `page.rules.library` = “Pustaka skrip” dan `page.rules.libraryCode` = “Kode bersama” — apakah alami?
+
+Messages added with the configurable approval rule:
+
+- Persetujuan yang dapat diatur: `projects.workTypes.approvalEvery` = “Manajernya, di antara manajer setiap proyek yang pekan itu memuat pekerjaan” — apakah alami meski panjang?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (kalender SDM): `page.admin.hrCalendar` = “Kalender SDM” dan penolakan = “Hari-hari ini datang dari kalender SDM...” — apakah alami?
+
+Messages added with the timesheet's personal view:
+
+- Tampilan pribadi: `page.timesheet.bauOrAnythingYouKeep` = “BAU, atau apa pun yang kamu catat” dan penolakan = “...Ubah satu per satu.” — apakah alami?
+
+Messages added with the queued scripts:
+
+- Antrean: `rules.ruleForm.runFromTheQueue` = “Jalankan dari antrean: ia boleh memakan waktu, dan bertindak atas yang dilihatnya saat aturannya terpicu” — apakah alami meski panjang?
+
+With the posts that change in place:
+
+- Kiriman berubah di tempatnya – tanpa kata baru. Pertanyaan: perlukah saluran menandai bahwa kiriman diedit, atau cukup isinya diganti diam-diam?
+
+Messages added with the load grid's team:
+
+- Beban: `plan.resources.nothingYet` = “Belum ada” di samping orang tanpa pekerjaan terencana — apakah kata singkatnya pas?
+
+Messages added with Teams' link unfurling:
+
+- Membentangkan: `server.chat.issue.isShared` = “membagikan tiketnya” — apakah kata kerjanya pas di kartu?
+
+With the requester's own language:
+
+- Bahasa peminta: email kini mengikuti bahasa peramban (disimpan pada peminta). Tanpa kata baru. Pertanyaan: perlukah halaman portal menampilkan pemilih bahasa, atau peramban cukup?
+
+Messages added with SAML for requesters:
+
+- SAML untuk peminta: `problem.portal.providers.samlNeedsBoth` = “Penyedia SAML butuh URL SSO dan sertifikat penandatangannya.” — apakah alami?
+
+Messages added with a desk's own provider:
+
+- Penyedia sendiri milik desk: `problem.portal.providers.onlyAdmins` = “Hanya administrator yang mengelola penyedia server. Penyedia sendiri dikelola manajer desk-nya.” — apakah pemisahannya alami?
+
+With the group's members hearing of its requests:
+
+- Anggota mendengar permintaan grupnya (tanpa kata baru). Pertanyaan: perlukah salinannya menandai “dari grup Anda” di subjek atau isi?
+
+With the customers' directory:
+
+- Direktori pelanggan (tanpa kata baru). Pertanyaan: daftar di formulir cukup menampilkan nama, atau domain juga sebagai petunjuk di sampingnya?
+
+Messages added with the several groups:
+
+- Beberapa grup per peminta: `problem.helpdesk.severalGroups` = “Peminta ada di beberapa grup pelanggan di sini. Sebutkan untuk grup mana permintaan ini.” — apakah alami?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1008,6 +1800,94 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **The portal's notes after "added …, last used …" are whole sentences**, with their subject: “พาสคีย์นี้อาจถูกคัดลอก จึงไม่มีใครใช้เข้าสู่ระบบได้”, “พาสคีย์นี้สร้างไว้สำหรับ {host} จึงใช้เข้าสู่ระบบที่นี่ไม่ได้” (`helpdesk.portalPasskeys.mayBeCopied`, `helpdesk.portalPasskeys.elsewhere`), where the team's, after a badge, stay fragments.
 - **A GitHub App's installations** carry the badges “องค์กร”, “ผู้ใช้”, “ไม่มีแล้ว” for gone and “ถูกระงับ” for suspended (`page.integrations.accountOrganization`, `page.integrations.accountUser`, `page.integrations.installationGone`, `page.integrations.installationSuspended`). Is ไม่มีแล้ว clear, or should it say ถอนการติดตั้งแล้ว? Forgejo's and Gitea's “Applications” stays in Latin letters, as their settings show it (`builds.builds.forgeKeepsToken`, `builds.builds.tokenTooWide`).
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **สถานะคอมมิต** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): คำนี้ใช้ทั้ง GitHub และ GitLab ภาษาไทย อ่านสอดคล้องกับ "check run" ที่คงภาษาอังกฤษไหม
+- `page.group.requirePasskeys` คือ "กำหนดให้คนในกลุ่มนี้ต้องใช้พาสคีย์" และ `page.project.requirePasskeys` คือ "กำหนดให้ทุกคนที่เห็นโปรเจกต์นี้ได้ต้องใช้พาสคีย์" ยาวพอสำหรับป้ายกำกับหรือไม่ ตัดเป็น "ต้องใช้พาสคีย์" อย่างเดียวได้ไหม
+- `page.group.requirePasskeysHelp` ว่า "บัญชี single sign-on และไดเรกทอรียังเป็นของผู้ให้บริการ" คำ "ไดเรกทอรี" (directory account) ชัดเจนไหม
+- `builds.builds.reportCheck` คือ "รายงานผลของแต่ละการรันไปยัง GitHub" ใช้ "การรัน" ตามที่หน้า Builds ใช้อยู่ สอดคล้องไหม
+- `page.integrations.statusesAudience` ว่า "สถานะจึงระบุอิชชูด้วยรหัสเท่านั้น" ตรงข้ามกับ check run ที่มีลิงก์ อ่านเข้าใจไหม
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` คือ “เข้ามาในการค้นหาที่คุณติดตาม” “เข้ามาใน” อ่านเป็นการกระทำของใครหรือไม่ หรือควรเป็น “ตรงกับการค้นหาที่คุณติดตามแล้ว”
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` ตามถ้อยคำของหน้าแขกอื่น `issuesMatching` คือ “อิชชูที่ตรงกับ” — หรือ “ที่ตรงเงื่อนไข” จะดีกว่าไหม
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` ตามชื่อเครื่องมือที่มีอยู่ `writing.draftedWithTheAssistant` คือ “ผู้ช่วยร่างข้อความเหล่านี้” — ควรมีจุดท้ายประโยคตามหลักหรือไม่
+
+Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
+
+- Wave 11 (`page.whiteboard.draw` = “วาด”, `page.whiteboard.picture` = “รูปภาพ”, `whiteboards.kind.ink` = “เส้นที่วาด”): ดูเป็นธรรมชาติไหม
+
+Messages added in wave 13 (Matrix chat):
+
+- Wave 13 (Matrix): `page.chat.matrixHomeserver` = “โฮมเซิร์ฟเวอร์” — เหมาะสมหรือควรใช้คำทับศัพท์
+
+Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
+
+- Wave 14 (ใบบันทึกเวลา): `page.timesheet.submit` = “ส่งสัปดาห์” และ `page.timesheet.sendBack` = “ส่งกลับ” — ธรรมชาติหรือไม่
+
+Messages added in wave 16 (the script library's page):
+
+- Wave 16 (ไลบรารีสคริปต์): `page.rules.library` = “ไลบรารีสคริปต์” และ `page.rules.libraryCode` = “โค้ดที่ใช้ร่วมกัน” — ธรรมชาติหรือไม่
+
+Messages added with the configurable approval rule:
+
+- การอนุมัติที่ตั้งค่าได้: `projects.workTypes.approvalEvery` = “ผู้จัดการของมัน ในกลุ่มผู้จัดการของทุกโปรเจกต์ที่สัปดาห์นั้นมีงาน” — ยาวแต่เป็นธรรมชาติไหม
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (ปฏิทิน HR): `page.admin.hrCalendar` = “ปฏิทิน HR” และข้อความปฏิเสธ = “วันเหล่านี้มาจากปฏิทิน HR...” — ธรรมชาติหรือไม่
+
+Messages added with the timesheet's personal view:
+
+- มุมมองส่วนตัว: `page.timesheet.bauOrAnythingYouKeep` = “BAU หรืออะไรก็ตามที่คุณบันทึก” และข้อปฏิเสธ = “...เปลี่ยนทีละรายการ” — ธรรมชาติหรือไม่
+
+Messages added with the queued scripts:
+
+- คิว: `rules.ruleForm.runFromTheQueue` = “รันจากคิว: ใช้เวลาได้ และทำงานกับสิ่งที่เห็นตอนกฎทำงาน” — ยาวแต่เป็นธรรมชาติหรือไม่
+
+With the posts that change in place:
+
+- โพสต์เปลี่ยนที่เดิม – ไม่มีถ้อยคำใหม่ คำถาม: ควรให้ช่องเห็นว่าแก้ไขแล้ว หรือแทนที่เนื้อหาเงียบๆ ก็พอ
+
+Messages added with the load grid's team:
+
+- ภาระ: `plan.resources.nothingYet` = “ยังไม่มี” ข้างคนที่ยังไม่มีงานที่วางแผน — คำสั้นๆ เหมาะสมไหม
+
+Messages added with Teams' link unfurling:
+
+- การขยาย: `server.chat.issue.isShared` = “แชร์ตั๋วแล้ว” — คำกริยาบนการ์ดเหมาะสมไหม
+
+With the requester's own language:
+
+- ภาษาของผู้ร้อง: อีเมลตามภาษาของเบราว์เซอร์แล้ว (เก็บไว้ที่ผู้ร้อง) ไม่มีคำใหม่ คำถาม: หน้าพอร์ทัลควรมีตัวเลือกภาษาหรือไม่ หรือเบราว์เซอร์ก็พอ
+
+Messages added with SAML for requesters:
+
+- SAML สำหรับผู้ร้อง: `problem.portal.providers.samlNeedsBoth` = “ผู้ให้บริการ SAML ต้องมี URL SSO และใบรับรองการลงนาม” — เป็นธรรมชาติไหม
+
+Messages added with a desk's own provider:
+
+- ผู้ให้บริการของเดสก์เอง: `problem.portal.providers.onlyAdmins` = “มีเพียงผู้ดูแลที่จัดการผู้ให้บริการของเซิร์ฟเวอร์ ส่วนของตัวเอง ผู้จัดการของเดสก์เป็นคนจัดการ” — การแยกเป็นธรรมชาติไหม
+
+With the group's members hearing of its requests:
+
+- สมาชิกได้รับรู้คำขอของกลุ่ม (ไม่มีคำใหม่) คำถาม: ควรระบุ “จากกลุ่มของคุณ” ในหัวเรื่องหรือเนื้อหาของสำเนาหรือไม่
+
+With the customers' directory:
+
+- ไดเรกทอรีลูกค้า (ไม่มีคำใหม่) คำถาม: รายการในฟอร์มควรแสดงแค่ชื่อ หรือแสดงโดเมนเป็นคำใบ้ข้างๆ ด้วย
+
+Messages added with the several groups:
+
+- หลายกลุ่มต่อผู้ร้อง: `problem.helpdesk.severalGroups` = “ผู้ร้องอยู่ในกลุ่มลูกค้าหลายกลุ่มที่นี่ ระบุว่าคำขอนี้สำหรับกลุ่มใด” — เป็นธรรมชาติไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

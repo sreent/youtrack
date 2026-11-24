@@ -17,6 +17,14 @@ test.use({ storageState: SECOND_AUTH_FILE });
 
 /** Today, as the server (on this machine) reads it. */
 const today = () => new Date().toLocaleDateString('en-CA');
+/** The first working day from today: where a plan without a start date of its own begins (D43's revisit). */
+const workingToday = () => {
+  const t = today();
+  const day = new Date(`${t}T00:00:00Z`).getUTCDay();
+  if (day === 6) return new Date(Date.parse(`${t}T00:00:00Z`) + 2 * 86_400_000).toISOString().slice(0, 10);
+  if (day === 0) return new Date(Date.parse(`${t}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  return t;
+};
 
 async function cutoverPlan(api: Api, { startsToday = true } = {}) {
   const key = uniqueKey('PL');
@@ -173,7 +181,7 @@ test('levelling refuses a proposal the plan has moved on from (409), and shows t
 test('levelling a plan with no start date of its own leaves it levelled', async ({ page, api }) => {
   const plan = await cutoverPlan(api, { startsToday: false });
   const proposed = await plan.proposal();
-  expect(proposed.keepsStart).toBe(today());
+  expect(proposed.keepsStart).toBe(workingToday());
   const before = await plan.schedule();
   await page.goto(`/plan/${plan.key}/resources`);
   await expect(page.getByText(/has no start date of its own/)).toBeVisible();

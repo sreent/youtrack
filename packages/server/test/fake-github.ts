@@ -161,7 +161,7 @@ export async function startFakeGithub(opts: { appId?: number; slug?: string } = 
       }
       const b = body();
       if (req.method === 'POST' && !runs![1]) {
-        if (!b.head_sha || b.name !== 'a4a' || b.status !== 'completed' || !b.conclusion) return send(422, { message: 'Invalid request.' });
+        if (!b.head_sha || !b.name || b.status !== 'completed' || !b.conclusion) return send(422, { message: 'Invalid request.' });
         const run: FakeCheckRun = {
           id: nextRun++,
           repository,

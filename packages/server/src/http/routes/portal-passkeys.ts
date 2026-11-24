@@ -125,7 +125,7 @@ export function portalPasskeyRoutes(app: OpenAPIHono<HttpEnv>) {
       const runtime = c.get('runtime');
       sameOrigin(c);
       holdBack(c, runtime);
-      return portalSignInOptions(runtime, ticketFor(c, runtime), body.desk);
+      return portalSignInOptions(runtime, ticketFor(c, runtime), body.desk, body.rpId);
     },
   );
 
@@ -250,13 +250,13 @@ export function portalPasskeyRoutes(app: OpenAPIHono<HttpEnv>) {
 
   route(
     app,
-    { method: 'post', path: '/portal/me/confirm/passkey/options', tags, summary: 'Confirm it’s me with one of my passkeys: a challenge', auth: 'none', body: z.object({}), response: PasskeyOptionsSchema, status: 200 },
-    async ({ c }) => {
+    { method: 'post', path: '/portal/me/confirm/passkey/options', tags, summary: 'Confirm it’s me with one of my passkeys: a challenge', auth: 'none', body: z.object({ rpId: z.string().trim().max(255).optional() }), response: PasskeyOptionsSchema, status: 200 },
+    async ({ c, body }) => {
       const runtime = c.get('runtime');
       sameOrigin(c);
       const { r, session } = await signedIn(c);
       holdBack(c, runtime);
-      return portalConfirmOptions(runtime, r, session);
+      return portalConfirmOptions(runtime, r, session, body.rpId);
     },
   );
 

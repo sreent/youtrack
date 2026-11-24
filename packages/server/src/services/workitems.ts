@@ -19,13 +19,14 @@ import { resolveWorkType, workTypeNames } from './work-types';
 
 type WorkItemRow = typeof workItems.$inferSelect;
 
-async function dto(ctx: Ctx, row: WorkItemRow, issueReadable: string, typeName?: string): Promise<WorkItem> {
+async function dto(ctx: Ctx, row: WorkItemRow, issueReadable: string | null, typeName?: string, activity?: string | null): Promise<WorkItem> {
   const s = await ctx.app.schema.get();
   const author = row.authorId ? s.users.get(row.authorId) : undefined;
   if (row.workTypeId && typeName === undefined) typeName = (await workTypeNames(ctx.db, [row.workTypeId])).get(row.workTypeId);
   return {
     id: row.id,
     issueId: issueReadable,
+    activity: activity ?? null,
     author: author ? userRefDto(author) : null,
     date: row.date,
     minutes: row.minutes,
@@ -125,8 +126,14 @@ export async function logWork(
  */
 async function loadOwnOrManaged(ctx: Ctx, id: string, verb: string) {
   const [row] = await ctx.db.select().from(workItems).where(eq(workItems.id, id));
-  const issue = row ? await findVisibleIssue(ctx, row.issueId) : undefined;
-  if (!row || !issue) throw notFound('Work item').said('workItems.notFound');
+  if (!row) throw notFound('Work item').said('workItems.notFound');
+  // Their own row, without an issue (D43's revisit): the person's alone, or an administrator's.
+  if (!row.issueId) {
+    if (row.authorId !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('Not your work item').said('workItems.notFound');
+    return { row, issue: null };
+  }
+  const issue = await findVisibleIssue(ctx, row.issueId);
+  if (!issue) throw notFound('Work item').said('workItems.notFound');
   // Logging and changing work takes the time permission (D37), as logging it does.
   await assertCanProject(ctx, issue.projectId, 'time');
   if (row.authorId !== ctx.actor.user.id && !isAdmin(ctx) && !(await projectAccess(ctx)).canManage(issue.projectId)) {
@@ -134,8 +141,6 @@ async function loadOwnOrManaged(ctx: Ctx, id: string, verb: string) {
   }
   return { row, issue };
 }
-
-/** Corrects logged work (D43): its time, day, note or type. Recorded as work.updated. */
 export async function updateWorkItem(
   ctx: Ctx,
   id: string,
@@ -147,6 +152,11 @@ export async function updateWorkItem(
   const minutes = input.duration !== undefined ? minutesOrRefuse(input.duration) : row.minutes;
   const date = input.date ?? row.date;
   if (!isISODate(date)) throw badRequest('date must be YYYY-MM-DD').said('workItems.dateFormat');
+  // Their own row (D43's revisit): changed quietly, as it was logged.
+  if (!issue) {
+    const [updated] = await ctx.db.update(workItems).set({ minutes, date, ...(input.description !== undefined ? { description: input.description } : {}) }).where(eq(workItems.id, id)).returning();
+    return dto(ctx, updated!, null, undefined, row.activity);
+  }
   const project = s.projects.get(issue.projectId)!;
   const type =
     input.type !== undefined
@@ -185,6 +195,10 @@ export async function deleteWorkItem(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const { row, issue } = await loadOwnOrManaged(ctx, id, 'delete');
+  if (!issue) {
+    await ctx.db.delete(workItems).where(eq(workItems.id, id));
+    return;
+  }
   const ref = (await issueRefsById(ctx.db, s, [issue.id])).get(issue.id);
   const activity = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;

@@ -10,8 +10,8 @@ export const attachmentKeys = {
   article: (id: string) => ['articles', 'one', id, 'attachments'] as const,
 };
 
-export const useAttachmentLimits = () =>
-  useQuery({ queryKey: attachmentKeys.limits, queryFn: () => get<AttachmentLimits>('/attachments/limits'), staleTime: 300_000 });
+export const useAttachmentLimits = (enabled = true) =>
+  useQuery({ queryKey: attachmentKeys.limits, queryFn: () => get<AttachmentLimits>('/attachments/limits'), staleTime: 300_000, enabled });
 export const useIssueAttachments = (id: string) => useQuery({ queryKey: attachmentKeys.issue(id), queryFn: () => get<Attachment[]>(`/issues/${id}/attachments`) });
 export const useArticleAttachments = (id: string) =>
   useQuery({ queryKey: attachmentKeys.article(id), queryFn: () => get<Attachment[]>(`/articles/${id}/attachments`) });

@@ -12,6 +12,8 @@ import { Icon } from '../components/Icon';
 import { Empty, ErrorNote, Loading, PageHead } from '../components/States';
 import { FormField } from '../features/common/bits';
 import { createWhiteboard, useWhiteboards, whiteboardKeys } from '../features/whiteboards/api';
+import { LimitPicker, type Limit } from '../features/issues/VisibleTo';
+import { useMe } from '../api/queries';
 import { WHITEBOARD_LIMITS } from '@a4a/shared/constants';
 import { t } from '../i18n';
 
@@ -19,15 +21,18 @@ export default function WhiteboardsPage() {
   const [params, setParams] = useSearchParams();
   const project = params.get('project') ?? '';
   const list = useWhiteboards(project);
+  const me = useMe().data;
   const projects = useProjects().data ?? [];
   const writable = projects.filter((p: Project) => p.access.write && !p.archived);
   const [name, setName] = useState('');
-  const [where, setWhere] = useState('');
+  const [where, setWhere] = useState<string | null>(null);
+  const [share, setShare] = useState<'everyone' | 'limited'>('everyone');
+  const [sharedWith, setSharedWith] = useState<Limit>({ users: [], groups: [] });
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const target = where || (writable.some((p) => p.key === project) ? project : (writable[0]?.key ?? ''));
+  const target = where ?? (writable.some((p) => p.key === project) ? project : (writable[0]?.key ?? ''));
   return (
     <>
       <PageHead title={t('page.whiteboards.title')} about={t('page.whiteboards.about')} />
@@ -41,7 +46,8 @@ export default function WhiteboardsPage() {
               setBusy(true);
               setError(null);
               try {
-                const w = await createWhiteboard({ project: target, name: name.trim() });
+                const personal = !target;
+                const w = await createWhiteboard({ ...(personal ? {} : { project: target }), name: name.trim(), ...(personal ? { share, ...(share === 'limited' ? { sharedWith } : {}) } : {}) });
                 void qc.invalidateQueries({ queryKey: whiteboardKeys.all });
                 navigate(`/whiteboards/${w.id}`);
               } catch (err) {
@@ -57,7 +63,8 @@ export default function WhiteboardsPage() {
               </FormField>
               <FormField label={t('page.whiteboards.project')} help={t('page.whiteboards.projectHelp')}>
                 {(id, help) => (
-                  <select id={id} aria-describedby={help} value={target} onChange={(e) => setWhere(e.target.value)}>
+                  <select id={id} aria-describedby={help} value={where ?? target} onChange={(e) => setWhere(e.target.value)}>
+                    <option value="">{t('page.whiteboards.myOwn')}</option>
                     {writable.map((p) => (
                       <option key={p.key} value={p.key}>
                         {`${p.name} (${p.key})`}
@@ -66,10 +73,21 @@ export default function WhiteboardsPage() {
                   </select>
                 )}
               </FormField>
+              {!target ? (
+                <FormField label={t('page.whiteboards.whoReadsIt')} help={t('page.whiteboards.whoReadsItHelp')}>
+                  {(id, help) => (
+                    <select id={id} aria-describedby={help} value={share} onChange={(e) => setShare(e.target.value as 'everyone' | 'limited')}>
+                      <option value="everyone">{t('page.whiteboards.everyoneSignedIn')}</option>
+                      <option value="limited">{t('page.whiteboards.limitedToSome')}</option>
+                    </select>
+                  )}
+                </FormField>
+              ) : null}
+              {!target && share === 'limited' ? <LimitPicker value={sharedWith} onChange={setSharedWith} legend={t('page.whiteboards.whoElse')} /> : null}
             </div>
             {error ? <ErrorNote error={error} /> : null}
             <div className="cluster">
-              <button type="submit" className="primary" disabled={busy || !name.trim() || !target}>
+              <button type="submit" className="primary" disabled={busy || !name.trim() || (!target && share === 'limited' && !sharedWith.users.length && !sharedWith.groups.length)}>
                 {t('page.whiteboards.create')}
               </button>
             </div>
@@ -104,7 +122,7 @@ export default function WhiteboardsPage() {
                 <Icon name="whiteboard" />
                 <div className="directory-name">
                   <Link to={`/whiteboards/${w.id}`}>{w.name}</Link>
-                  <Chip mono>{w.project.key}</Chip>
+                  {w.project ? <Chip mono>{w.project.key}</Chip> : <Chip>{w.owner && me && w.owner.id === me.id ? t('page.whiteboards.yours') : t('page.whiteboards.sharedWithYou')}</Chip>}
                 </div>
                 <p className="note">{t('page.whiteboards.row', { n: w.elements, when: agoSaid(w.updatedAt) })}</p>
               </li>

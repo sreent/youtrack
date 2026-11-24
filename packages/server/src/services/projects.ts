@@ -22,6 +22,7 @@ import { checkDeskSignIn } from './portal-sign-in';
 import { newId } from '../lib/ids';
 import { accessChanged, issueSeenSql, projectAccess, requireProject, type AccessView } from './access';
 import { isUniqueViolation, keyHolders } from './project-keys';
+import { checkScopedRequirement } from './passkey-policy';
 import { getSetting } from './settings';
 import { resyncOpen } from './sla';
 import { fieldByName, findUser, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
@@ -60,6 +61,7 @@ export function projectSettings(row: ProjectRow): ProjectSettings {
   const raw = (row.settings ?? {}) as Partial<ProjectSettings>;
   return {
     triageMode: (raw.triageMode as TriageMode) ?? 'suggest',
+    requirePasskeys: raw.requirePasskeys ?? false,
     plan: { ...DEFAULT_PLAN, ...(raw.plan ?? {}) },
     helpdesk: { ...DEFAULT_HELPDESK, ...(raw.helpdesk ?? {}) },
     time: { ...DEFAULT_TIME, ...(raw.time ?? {}) },
@@ -175,7 +177,7 @@ export async function createProject(
   if (input.lead && !lead) throw notFound(`User ${input.lead}`).said('notFound.user', { id: input.lead });
   const defaultTriage = ((await getSetting(ctx.db, 'defaultTriageMode')) as TriageMode | undefined) ?? 'suggest';
   const id = newId();
-  const settings: ProjectSettings = { triageMode: defaultTriage, plan: { ...DEFAULT_PLAN, ...(input.plan ?? {}) }, helpdesk: DEFAULT_HELPDESK, time: DEFAULT_TIME };
+  const settings: ProjectSettings = { triageMode: defaultTriage, requirePasskeys: false, plan: { ...DEFAULT_PLAN, ...(input.plan ?? {}) }, helpdesk: DEFAULT_HELPDESK, time: DEFAULT_TIME };
   const keyTaken = () => badRequest(`Project key ${key} is already used`).said('projects.keyTaken', { key });
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -223,7 +225,7 @@ export async function updateProject(
     archived?: boolean;
     visibility?: ProjectVisibility;
     guestAccess?: boolean;
-    settings?: { triageMode?: TriageMode; plan?: Partial<PlanSettings>; helpdesk?: Partial<HelpdeskSettings>; time?: Partial<TimeSettings> };
+    settings?: { triageMode?: TriageMode; requirePasskeys?: boolean; plan?: Partial<PlanSettings>; helpdesk?: Partial<HelpdeskSettings>; time?: Partial<TimeSettings> };
   },
 ): Promise<Project> {
   // A project's settings are its managers' (and administrators') to change.
@@ -244,6 +246,7 @@ export async function updateProject(
   }
   const settings: ProjectSettings = {
     triageMode: input.settings?.triageMode ?? current.triageMode,
+    requirePasskeys: input.settings?.requirePasskeys ?? current.requirePasskeys,
     plan: { ...current.plan, ...(input.settings?.plan ?? {}) },
     helpdesk: { ...current.helpdesk, ...helpdesk },
     time: { ...current.time, ...(input.settings?.time ?? {}) },
@@ -285,6 +288,7 @@ export async function updateProject(
         updatedAt: new Date(),
       })
       .where(eq(projects.id, p.id));
+    if (settings.requirePasskeys && (!current.requirePasskeys || visibility === 'open')) await checkScopedRequirement(tx, ctx.app);
     if (signIn?.changed) {
       activities.push(await recordActivity(tx, ctx, { type: 'project.portal_sign_in.changed', projectId: p.id, issueId: null, payload: { data: signIn.data } }));
     }

@@ -1,15 +1,17 @@
 import type { IssueDetail, ProjectField, SimilarIssue } from '@a4a/shared';
 import { isOwnAgent } from '@a4a/shared/constants';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useRef, useId, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { post } from '../api/client';
+import { patch, post } from '../api/client';
 import { useAIStatus, useProjectFields, useProjects, useUsers } from '../api/queries';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Who } from '../components/Who';
 import { useStateTones } from '../features/issues/api';
 import { Badge } from '../components/Badges';
-import { RichField } from '../features/editor/RichField';
+import { placedMarkdown, RichField } from '../features/editor/RichField';
+import { imagePath } from '@a4a/shared/markdown';
+import { contentPath, uploadFile } from '../features/attachments/api';
 import { FormField } from '../components/Form';
 import { t, tr } from '../i18n';
 
@@ -185,6 +187,26 @@ export default function NewIssuePage() {
     [projectFields.data, setsPrivate],
   );
 
+  // Pictures pasted before the issue exists (D39): held, then uploaded to it, each where its mark stands.
+  const heldPictures = useRef<{ files: File[]; marks: string[] }[]>([]);
+  const descriptionRef = useRef(description);
+  descriptionRef.current = description;
+  const settlePictures = async (issueId: string) => {
+    for (const entry of heldPictures.current) {
+      for (const [i, file] of entry.files.entries()) {
+        const placed = await uploadFile(`/issues/${encodeURIComponent(issueId)}/attachments`, file, () => {}).then(
+          (stored) => (stored.inline ? { kind: 'image' as const, name: stored.name, href: imagePath(stored.id) } : { kind: 'link' as const, name: stored.name, href: contentPath(stored) }),
+          () => null,
+        );
+        const mark = entry.marks[i]!;
+        setDescription((d) => (d.includes(mark) ? d.replace(mark, placed ? placedMarkdown(placed) : '') : d));
+      }
+    }
+    heldPictures.current = [];
+    const now = descriptionRef.current;
+    if (now !== description) await patch<IssueDetail>(`/issues/${issueId}`, { description: now }).catch(() => {});
+  };
+
   const create = async () => {
     setBusy(true);
     setError(null);
@@ -193,6 +215,7 @@ export default function NewIssuePage() {
       const issue = await post<IssueDetail>('/issues', { project, summary: summary.trim(), description, fields: chosen }, { idempotencyKey: key });
       await qc.invalidateQueries({ queryKey: ['issues', 'list'] });
       navigate(`/issues/${issue.id}`);
+      if (heldPictures.current.length) void settlePictures(issue.id);
     } catch (e) {
       setError(e);
       setBusy(false);
@@ -244,6 +267,9 @@ export default function NewIssuePage() {
                 rows={8}
                 placeholder={t('page.newIssue.stepsWhatYouExpectedWhat')}
                 writing={{ kind: 'description', project: project || undefined, title: summary || undefined }}
+                holdPictures={(files, marks) => {
+                  heldPictures.current.push({ files, marks });
+                }}
               />
             )}
           </FormField>

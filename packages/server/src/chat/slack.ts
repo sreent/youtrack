@@ -164,6 +164,13 @@ export async function slackPost(app: AppServices, ws: WorkspaceRow, channel: str
   return typeof res.ts === 'string' ? res.ts : null;
 }
 
+/** A channel's post, changed in place as its issue changes (D42's revisit): the same ts, new words and blocks. */
+export async function slackUpdate(app: AppServices, ws: WorkspaceRow, channel: string, ts: string, issue: CardIssue, event: TrackerEvent): Promise<void> {
+  const tr = channelTr(app);
+  const change = cardChange(event, tr);
+  await slackCall(app, tokenOf(app, ws), 'chat.update', { channel, ts, text: fallbackText(issue, tr, change), blocks: slackBlocks(issue, tr, { change }) }, { json: true });
+}
+
 /** Something for one person alone, where they are; a direct message when there's no channel. */
 async function tellOne(app: AppServices, ws: WorkspaceRow, user: string, channel: string | undefined, answer: Answer | { text: string; blocks: unknown[] }): Promise<void> {
   const blocks = 'blocks' in answer ? answer.blocks : answerBlocks(answer);

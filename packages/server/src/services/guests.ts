@@ -15,7 +15,7 @@ import type { Ctx, UserRow } from '../context';
  */
 
 /** Who a guest is, as far as the code that wants a person goes: nobody in particular. */
-const GUEST_USER = {
+export const GUEST_USER = {
   id: 'guest',
   login: 'guest',
   name: 'Guest',

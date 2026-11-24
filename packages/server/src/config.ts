@@ -145,6 +145,8 @@ export interface Config {
    * PUBLIC_URL's origin is among the related origins.
    */
   passkeyRpId: string | undefined;
+  /** Earlier relying party ids whose existing passkeys may still sign in (PASSKEY_LEGACY_RP_IDS, D70). */
+  passkeyLegacyRpIds: string[];
   /** The origins `/.well-known/webauthn` names related to the relying party (PASSKEY_RELATED_ORIGINS, D68). */
   passkeyRelatedOrigins: string[];
   /**
@@ -740,7 +742,7 @@ export function relatedOriginsFromEnv(value: string | undefined): string[] {
  * (`example.com` for `a4a.example.com`), which every browser takes there; or, once an instance has
  * moved, the host it moved from, when PUBLIC_URL's origin is among the related origins that host serves.
  */
-export function passkeyRpIdFromEnv(value: string | undefined, publicUrl: string, related: string[]): string | undefined {
+export function passkeyRpIdFromEnv(value: string | undefined, publicUrl: string, related: string[], name = 'PASSKEY_RP_ID'): string | undefined {
   const raw = value?.trim().toLowerCase().replace(/\.$/, '');
   if (!raw) return undefined;
   let id: string;
@@ -748,21 +750,21 @@ export function passkeyRpIdFromEnv(value: string | undefined, publicUrl: string,
     // Through URL, so an international name is the punycode browsers compare.
     id = new URL(`https://${raw}`).hostname;
   } catch {
-    throw new Error(`PASSKEY_RP_ID=${value} isn't a domain name`);
+    throw new Error(`${name}=${value} isn't a domain name`);
   }
-  if (isIP(id.replace(/^\[|\]$/g, ''))) throw new Error(`PASSKEY_RP_ID=${value} is an address: a relying party id is a domain name`);
+  if (isIP(id.replace(/^\[|\]$/g, ''))) throw new Error(`${name}=${value} is an address: a relying party id is a domain name`);
   const host = hostOf(publicUrl);
   if (id === host) return id;
   if (host.endsWith(`.${id}`)) {
-    if (!registrable(id)) throw new Error(`PASSKEY_RP_ID=${value} is a public suffix, which anyone can register under: browsers make no passkeys for it. Use the domain your organisation registered, such as ${getDomain(host, PSL) ?? host}`);
+    if (!registrable(id)) throw new Error(`${name}=${value} is a public suffix, which anyone can register under: browsers make no passkeys for it. Use the domain your organisation registered, such as ${getDomain(host, PSL) ?? host}`);
     return id;
   }
   if (related.includes(new URL(publicUrl).origin)) {
-    if (!registrable(id) && !isLocalHost(id)) throw new Error(`PASSKEY_RP_ID=${value} is a public suffix: browsers make no passkeys for it`);
+    if (!registrable(id) && !isLocalHost(id)) throw new Error(`${name}=${value} is a public suffix: browsers make no passkeys for it`);
     return id;
   }
   throw new Error(
-    `PASSKEY_RP_ID=${value} must be PUBLIC_URL's host (${host}) or a parent domain of it, such as ${getDomain(host, PSL) ?? host}; or, for an instance that moved from ${value}, keep it and add PUBLIC_URL's origin (${new URL(publicUrl).origin}) to PASSKEY_RELATED_ORIGINS`,
+    `${name}=${value} must be PUBLIC_URL's host (${host}) or a parent domain of it, such as ${getDomain(host, PSL) ?? host}; or, for an instance that moved from ${value}, keep it and add PUBLIC_URL's origin (${new URL(publicUrl).origin}) to PASSKEY_RELATED_ORIGINS`,
   );
 }
 
@@ -780,7 +782,7 @@ function mdsRootsFromEnv(file: string | undefined): string[] | undefined {
   return certs.map((c) => `${c}\n`);
 }
 
-export function passkeysFromEnv(env: NodeJS.ProcessEnv, publicUrl: string): Pick<Config, 'passkeyRpId' | 'passkeyRelatedOrigins' | 'passkeyMds'> {
+export function passkeysFromEnv(env: NodeJS.ProcessEnv, publicUrl: string): Pick<Config, 'passkeyRpId' | 'passkeyLegacyRpIds' | 'passkeyRelatedOrigins' | 'passkeyMds'> {
   const passkeyRelatedOrigins = relatedOriginsFromEnv(env.PASSKEY_RELATED_ORIGINS);
   const allowHttpLoopback = truthy(env.PASSKEY_MDS_ALLOW_HTTP_LOOPBACK, false);
   const url = env.PASSKEY_MDS_URL?.trim() || FIDO_MDS_URL;
@@ -788,8 +790,13 @@ export function passkeysFromEnv(env: NodeJS.ProcessEnv, publicUrl: string): Pick
   if (u.protocol !== 'https:' && !(allowHttpLoopback && u.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname))) {
     throw new Error(`PASSKEY_MDS_URL=${url} must be https: a4a trusts what it reads there only by its signature, and fetches it in the open otherwise`);
   }
+  const passkeyRpId = passkeyRpIdFromEnv(env.PASSKEY_RP_ID, publicUrl, passkeyRelatedOrigins);
+  const legacy = (env.PASSKEY_LEGACY_RP_IDS ?? '').split(',').map((v) => v.trim()).filter(Boolean);
+  if (legacy.length > 5) throw new Error('PASSKEY_LEGACY_RP_IDS names more than five earlier domains');
+  const passkeyLegacyRpIds = [...new Set(legacy.map((id) => passkeyRpIdFromEnv(id, publicUrl, passkeyRelatedOrigins, 'PASSKEY_LEGACY_RP_IDS')!))].filter((id) => id !== (passkeyRpId ?? hostOf(publicUrl)));
   return {
-    passkeyRpId: passkeyRpIdFromEnv(env.PASSKEY_RP_ID, publicUrl, passkeyRelatedOrigins),
+    passkeyRpId,
+    passkeyLegacyRpIds,
     passkeyRelatedOrigins,
     passkeyMds: { url, file: env.PASSKEY_MDS_FILE?.trim() || undefined, rootCerts: mdsRootsFromEnv(env.PASSKEY_MDS_ROOT_CERT), allowHttpLoopback },
   };

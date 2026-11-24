@@ -6,6 +6,7 @@ import { api, ApiError, get, patch, post, put, qs } from '../api/client';
 import { Lone } from '../app/Auth';
 import { Badge } from '../components/Badges';
 import { Markdown } from '../components/Markdown';
+import { RichField } from '../features/editor/RichField';
 import { Icon } from '../components/Icon';
 import { ErrorNote, Loading } from '../components/States';
 import { Avatar, Who } from '../components/Who';
@@ -366,6 +367,7 @@ function Conversation({ r, me }: { r: PortalRequestDetail; me: PortalMe }) {
                 t1: (c: ReactNode) => <time dateTime={m.at}>{c}</time>,
               })}
             </p>
+            {m.aiDrafted ? <p className="note">{t('writing.draftedWithTheAssistant')}</p> : null}
             <div className="history-comment">
               <Markdown text={m.text} outside />
             </div>
@@ -597,6 +599,8 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
   const q = useQuery({ queryKey: ['portal', 'request', id], queryFn: () => get<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}`), retry: false });
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  // True while the reply's words are an accepted suggestion: the save keeps the mark (D59).
+  const drafted = useRef(false);
   const [error, setError] = useState<unknown>(null);
   if (q.error) return <ErrorNote error={q.error} />;
   if (!q.data) return <Loading what="loadingLine.request" />;
@@ -606,8 +610,9 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
     setBusy(true);
     setError(null);
     try {
-      qc.setQueryData(['portal', 'request', id], await post<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}/replies`, { text }));
+      qc.setQueryData(['portal', 'request', id], await post<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}/replies`, { text, aiDrafted: drafted.current }));
       setText('');
+      drafted.current = false;
       void qc.invalidateQueries({ queryKey: ['portal', 'requests'] });
     } catch (err) {
       setError(err);
@@ -651,7 +656,24 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
       {!r.requester.mine && !r.copied && r.canReply ? <p className="note">{tr('page.portal.sharedToAnswer', { name: r.requester.name, group: r.group ?? '' })}</p> : null}
       {r.canReply ? (
         <form className="form" onSubmit={reply}>
-          <FormField label={t('page.portal.yourReply')}>{(fid) => <textarea id={fid} rows={4} value={text} maxLength={HELP_LIMITS.reply} onChange={(e) => setText(e.target.value)} />}</FormField>
+          {/* The editor a4a gives every text (D39's revisit): pictures in the reply, and writing help of the requester's own (D59's revisit). */}
+          <FormField label={t('page.portal.yourReply')}>
+            {(fid) => (
+              <RichField
+                id={fid}
+                label={t('page.portal.yourReply')}
+                value={text}
+                onChange={setText}
+                rows={4}
+                people={[]}
+                uploadTo={`/portal/requests/${encodeURIComponent(id)}/attachments`}
+                writing={{ kind: 'comment', issue: id }}
+                writingEndpoint="/portal/write"
+                drafted={drafted}
+                skipLimits
+              />
+            )}
+          </FormField>
           {error ? <ErrorNote error={error} /> : null}
           <div className="cluster end">
             <button type="submit" className="primary" disabled={busy || !text.trim()}>
@@ -706,7 +728,21 @@ function NewRequest({ desks, me, onMade }: { desks: PortalDesk[]; me: PortalMe; 
         </FormField>
       ) : null}
       <FormField label={t('page.portal.whatDoYouNeed')}>{(id) => <input id={id} required maxLength={HELP_LIMITS.summary} value={summary} onChange={(e) => setSummary(e.target.value)} />}</FormField>
-      <FormField label={t('page.portal.details')}>{(id) => <textarea id={id} rows={4} maxLength={HELP_LIMITS.description} value={description} onChange={(e) => setDescription(e.target.value)} />}</FormField>
+      <FormField label={t('page.portal.details')}>
+        {(id) => (
+          <RichField
+            id={id}
+            label={t('page.portal.details')}
+            value={description}
+            onChange={setDescription}
+            rows={4}
+            people={[]}
+            writing={{ kind: 'comment', title: summary || undefined }}
+            writingEndpoint="/portal/write"
+            skipLimits
+          />
+        )}
+      </FormField>
       {group ? (
         <label className="check">
           <input type="checkbox" checked={keepPrivate} onChange={(e) => setKeepPrivate(e.target.checked)} />

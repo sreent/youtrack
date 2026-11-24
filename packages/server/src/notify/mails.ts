@@ -54,7 +54,8 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   if (!n.projectId || !view.canRead(n.projectId)) return null;
 
   const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e), shape: (e) => eventFor(view, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
-  if (!events.length) return null;
+  // A fact of time has no events (D31): the mail says the title alone, with what it always says.
+  if (!events.length && kind !== 'subscribed') return null;
   const issue = n.issue as IssueRef;
   const tr = translatorFor(localeOfPerson(app, user));
   const title = notificationTitle(tr, kind, events, reasons);

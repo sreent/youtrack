@@ -35,7 +35,13 @@ jobs:
       - run: pnpm typecheck
       # The web app's checks (its look all Ocean's, its words in every catalog, its problems keyed), the
       # server's tests on embedded PGlite, then the VS Code extension's.
-      - run: pnpm test
+      - run: pnpm test 2>&1 | tee /tmp/check-test-${{ matrix.node }}.log
+      - name: Keep the test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-test-log-node-${{ matrix.node }}
+          path: /tmp/check-test-${{ matrix.node }}.log
       - run: pnpm build
 
   postgres:
@@ -64,7 +70,13 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @a4a/server test
+      - run: pnpm --filter @a4a/server test 2>&1 | tee /tmp/postgres-test.log
+      - name: Keep the test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-test-log
+          path: /tmp/postgres-test.log
 
   s3:
     name: Files in an S3-compatible bucket (MinIO)

@@ -63,6 +63,8 @@ export type Delivery =
       /** GitHub's: the commit it's at, and its base's, which its check run is on and its commits lie between (D66). */
       headSha?: string | null;
       baseSha?: string | null;
+      /** The head commit's own message, where the delivery carries it (GitLab's last_commit). */
+      headMessage?: string | null;
     }
   | {
       /** A GitHub, Gitea or Forgejo Actions run, which a build source may take as a build (D46, D55). */
@@ -374,6 +376,8 @@ const GitlabMergeRequest = z.object({
     source_branch: text,
     target_branch: text,
     updated_at: text,
+    last_commit: z.object({ id: z.string().min(4).max(64), message: text }).nullish(),
+    diff_refs: z.object({ base_sha: z.string().min(4).max(64).nullish() }).nullish(),
   }),
 });
 
@@ -420,6 +424,9 @@ function gitlab(event: string, body: unknown): Delivery {
       // The person who acted, signed in: the request's author when it's opened.
       author: { name: p.user?.name ?? null, email: null, login: p.user?.username ?? null, match: present(p.user?.username) },
       at: when(mr.updated_at),
+      headSha: mr.last_commit?.id ?? null,
+      baseSha: mr.diff_refs?.base_sha ?? null,
+      headMessage: mr.last_commit?.message ?? null,
     };
   }
   return { kind: 'other', event };

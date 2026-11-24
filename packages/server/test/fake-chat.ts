@@ -101,13 +101,19 @@ export class FakeTeams {
     }
     const teams = /^teams\/([^/]+)\/conversations$/.exec(rest);
     if (req.method === 'GET' && teams) return json(res, 200, { conversations: this.channels });
-    const m = /^conversations\/([^/]+)\/activities(?:\/[^/]+)?$/.exec(rest);
+    const m = /^conversations\/([^/]+)\/activities(?:\/([^/]+))?$/.exec(rest);
     if (req.method === 'POST' && m) {
       const conversationId = decodeURIComponent(m[1]!);
       const fail = this.failures.get(conversationId)?.shift();
       if (fail) return json(res, fail.status, fail.body ?? {}, fail.retryAfter ? { 'retry-after': fail.retryAfter } : {});
       this.posted.push({ conversationId, activity: JSON.parse(body) as Record<string, unknown> });
       return json(res, 200, { id: `activity-${this.posted.length}` });
+    }
+    // A post changed in place (D42's revisit): the same activity, a new body.
+    if (req.method === 'PATCH' && m) {
+      const conversationId = decodeURIComponent(m[1]!);
+      this.posted.push({ conversationId, activity: JSON.parse(body) as Record<string, unknown> });
+      return json(res, 200, { id: m[2] });
     }
     return json(res, 404, { error: { code: 'NotFound' } });
   }

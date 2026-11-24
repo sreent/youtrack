@@ -7,10 +7,12 @@
  * within each installation's limit.
  */
 import { createHmac, randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createBuildSource } from '../src/ci/builds';
-import { activities, vcsChecks, vcsInstallations, vcsIntegrations } from '../src/db/schema';
+import { activities, buildChecks, vcsChecks, vcsInstallations, vcsIntegrations } from '../src/db/schema';
 import { toEventDto } from '../src/events/activity';
 import { createHttpApp } from '../src/http/app';
 import { createToken } from '../src/services/auth';
@@ -271,6 +273,10 @@ describe('check runs on pull requests', () => {
     w.app.config.vcsChecksPerMinute = 2;
     await w.app.db.update(vcsInstallations).set({ checksWindowAt: null, checksInWindow: 0 });
     for (const n of [20, 21, 22]) await deliver('pull_request', pull({ repository: 'acme/web', number: n, title: `${ids.guest} avatars`, head: sha(String(n % 10)) }));
+    // The sender claims in dueAt order; deliveries made at once share a clock tick, and Postgres
+    // returns tied rows in any order. Pin the order the test reads: 20, then 21, then 22.
+    let due = Date.now() - 3_000;
+    for (const n of [20, 21, 22]) await w.app.db.update(vcsChecks).set({ dueAt: new Date((due += 1_000)) }).where(eq(vcsChecks.number, n));
     const runs = gh.runs.length;
     await sender().drain();
     expect(gh.runs.length).toBe(runs + 2);
@@ -336,5 +342,197 @@ describe('check runs on pull requests', () => {
     const [row] = await w.app.db.select().from(vcsChecks).where(eq(vcsChecks.number, 3));
     expect(row!.attempts).toBe(1);
     expect(row!.dueAt!.getTime()).toBeGreaterThan(Date.now() + 30_000);
+  });
+});
+
+
+describe('a build’s own check run', () => {
+  it('reports the run’s result on its head commit, updates it on a rerun, and writes nothing for an identical report', async () => {
+    const source = await createBuildSource(w.adminCtx, { kind: 'github', name: 'Build result CI', project: 'BACK', integration, branch: 'main', workflow: 'CI', reportCheck: true });
+    expect(source.reportCheck).toBe(true);
+    const head = sha('4');
+    const run = (attempt: number, conclusion: string) => ({
+      action: 'completed',
+      repository: { full_name: 'acme/backend' },
+      workflow_run: {
+        id: 12001,
+        run_attempt: attempt,
+        run_number: 91,
+        name: 'CI',
+        path: '.github/workflows/ci.yml',
+        head_branch: 'main',
+        head_sha: head,
+        conclusion,
+        html_url: `https://github.com/acme/backend/actions/runs/12001/attempts/${attempt}`,
+        updated_at: new Date(Date.now() + attempt * 1000).toISOString(),
+        head_commit: { message: 'Build the release', timestamp: new Date().toISOString() },
+      },
+    });
+
+    const delivered = await deliver('workflow_run', run(1, 'failure'));
+    expect(delivered, JSON.stringify(delivered)).toMatchObject({ status: 200, body: { outcome: 'processed' } });
+    await sender().drain();
+    const queued = await w.app.db.select().from(buildChecks);
+    expect(queued).toHaveLength(1);
+    const made = gh.runs.find((r) => r.headSha === head && r.name === 'a4a: Build result CI');
+    expect(made).toMatchObject({ repository: 'acme/backend', conclusion: 'failure', title: '91: failed', installation: 77 });
+    expect(made?.summary).toContain('https://github.com/acme/backend/actions/runs/12001/attempts/1');
+
+    expect((await deliver('workflow_run', run(2, 'success'))).status).toBe(200);
+    await sender().drain();
+    const all = gh.runs.filter((r) => r.headSha === head && r.name === 'a4a: Build result CI');
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ conclusion: 'success', title: '91: passed' });
+
+    const writes = gh.writes.length;
+    expect((await deliver('workflow_run', run(2, 'success'))).body.outcome).toBe('ignored');
+    await sender().drain();
+    expect(gh.writes.length).toBe(writes);
+  });
+});
+
+
+/** A fake of GitLab's API: it answers only to its token, recording the statuses written and the compares read. */
+interface FakeGitlab {
+  url: string;
+  token: string;
+  statuses: { project: string; sha: string; auth: string | undefined; body: Record<string, any> }[];
+  compares: { project: string; from: string; to: string }[];
+  answer(path: string, fn: (u: URL) => unknown): void;
+  close(): Promise<void>;
+}
+
+async function fakeGitlab(token: string): Promise<FakeGitlab> {
+  const statuses: FakeGitlab['statuses'] = [];
+  const compares: FakeGitlab['compares'] = [];
+  const routes = new Map<string, (u: URL) => unknown>();
+  const server = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      const text = Buffer.concat(chunks).toString('utf8');
+      const u = new URL(req.url ?? '/', 'http://127.0.0.1');
+      const send = (status: number, body: unknown) => {
+        res.writeHead(status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(body));
+      };
+      if (req.headers['private-token'] !== token) return send(401, { message: '401 Unauthorized' });
+      const project = decodeURIComponent(/^\/api\/v4\/projects\/([^/]+)\//.exec(u.pathname)?.[1] ?? '');
+      if (/\/repository\/compare$/.test(u.pathname)) {
+        compares.push({ project, from: u.searchParams.get('from') ?? '', to: u.searchParams.get('to') ?? '' });
+        return send(200, (routes.get('compare') ?? (() => ({ commits: [] })))(u));
+      }
+      if (/\/statuses\/[^/]+$/.test(u.pathname) && req.method === 'POST') {
+        statuses.push({ project, sha: u.pathname.split('/').pop() ?? '', auth: String(req.headers['private-token']), body: JSON.parse(text || '{}') });
+        return send(201, { sha: u.pathname.split('/').pop(), status: 'success' });
+      }
+      const fn = routes.get(u.pathname);
+      if (!fn) return send(404, { message: '404 Project Not Found' });
+      return send(200, fn(u));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  return {
+    url,
+    token,
+    statuses,
+    compares,
+    answer: (path, fn) => routes.set(path, fn),
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
+describe("commit statuses on GitLab's pull requests", () => {
+  let gl: FakeGitlab;
+  let glId = '';
+  let glSecret = '';
+
+  /** A GitLab delivery from its webhook, the secret token it signs with in a header. */
+  const deliverGitlab = async (event: string, payload: unknown) => {
+    const body = JSON.stringify(payload);
+    const res = await http.request(`/api/v1/vcs/hooks/${glId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-gitlab-event': event, 'x-gitlab-event-uuid': randomUUID(), 'x-gitlab-token': glSecret },
+      body,
+    });
+    return { status: res.status, body: (await res.json()) as Record<string, any> };
+  };
+
+  /** A merge request as GitLab sends one: its head commit, and the base its commits lie between. */
+  const mr = (o: { iid: number; title: string; head: string; base?: string; state?: string }) => ({
+    object_kind: 'merge_request',
+    user: { name: 'Anna Schmidt', username: 'anna-s' },
+    project: { path_with_namespace: 'acme/backend' },
+    object_attributes: {
+      iid: o.iid,
+      title: o.title,
+      description: '',
+      state: o.state ?? 'opened',
+      action: 'open',
+      url: `https://gitlab.example/acme/backend/-/merge_requests/${o.iid}`,
+      source_branch: 'feature/avatars',
+      target_branch: 'main',
+      updated_at: new Date().toISOString(),
+      last_commit: { id: o.head, message: 'Fix the avatar upload' },
+      diff_refs: { base_sha: o.base ?? sha('0') },
+    },
+  });
+
+  beforeAll(async () => {
+    gl = await fakeGitlab('glpat-status-token');
+    const r = await rest('POST', '/vcs/integrations', { provider: 'gitlab', name: 'acme/backend', projects: ['BACK', 'WEB'], baseUrl: `${gl.url}/api/v4`, accessToken: 'glpat-status-token' });
+    expect(r.status).toBe(201);
+    glId = r.body.id;
+    glSecret = r.body.secret;
+    expect(r.body).toMatchObject({ hasAccessToken: true, baseUrl: `${gl.url}/api/v4`, checks: { enabled: false } });
+    // On, with its token in place: no permission to ask a provider for, as GitHub's app is asked.
+    const on = await rest('PATCH', `/vcs/integrations/${glId}`, { checks: { enabled: true } });
+    expect(on.body.checks).toMatchObject({ enabled: true, states: false, requireResolved: false });
+  });
+  afterAll(() => gl.close());
+
+  it('is refused when the integration holds no token to write them with', async () => {
+    const bare = await rest('POST', '/vcs/integrations', { provider: 'gitlab', name: 'acme/no-token' });
+    const on = await rest('PATCH', `/vcs/integrations/${bare.body.id}`, { checks: { enabled: true } });
+    expect([on.status, on.body.error.key]).toEqual([400, 'vcs.checks.needsToken']);
+    await rest('DELETE', `/vcs/integrations/${bare.body.id}`);
+  });
+
+  it('writes one status per changed head, in the words a check run uses, ids as plain words', async () => {
+    const mine = (await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Avatar upload rejects PNGs' })).id;
+    const guest = (await createIssue(w.as(w.anna), { project: 'WEB', summary: 'Dark mode loses contrast' })).id;
+    const head = sha('e');
+    gl.answer('compare', () => ({ commits: [{ id: sha('1'), message: `Also ${guest}` }] }));
+    const res = await deliverGitlab('merge_request', mr({ iid: 31, title: `Fixes ${mine}`, head }));
+    expect(res.body).toMatchObject({ outcome: 'processed' });
+    // GitLab shows the reply in its webhook's test page; the log keeps the words with the check in them.
+    expect(res.body.message).toContain('Read: 1 link made, 0 commands applied.');
+    expect((await listVcsDeliveries(w.adminCtx, glId))[0]!.message).toContain('Its check is due.');
+    await sender().drain();
+    expect(gl.statuses).toHaveLength(1);
+    expect(gl.statuses[0]).toMatchObject({ project: 'acme/backend', sha: head, auth: 'glpat-status-token' });
+    expect(gl.statuses[0]!.body).toMatchObject({ state: 'success', name: 'a4a', context: 'a4a', target_url: 'https://gitlab.example/acme/backend/-/merge_requests/31', description: `Names 2 issues: ${mine}, ${guest}` });
+    // The ids its commits name, read from GitLab's compare with the token, base to head.
+    expect(gl.compares).toEqual([{ project: 'acme/backend', from: sha('0'), to: head }]);
+    const [row] = await w.app.db.select().from(vcsChecks).where(eq(vcsChecks.integrationId, glId));
+    expect(row).toMatchObject({ checkRunId: `gitlab:${head}`, problem: null });
+    expect(row!.issueIds).toHaveLength(2);
+
+    // The rule makes it failed, in GitLab's own word; a new head gets a status of its own.
+    await rest('PATCH', `/vcs/integrations/${glId}`, { checks: { enabled: true, requireResolved: true } });
+    await sender().drain();
+    expect(gl.statuses).toHaveLength(2);
+    expect(gl.statuses[1]!.body).toMatchObject({ state: 'failed', description: `2 issues it names aren’t resolved: ${mine}, ${guest}` });
+    const moved = sha('f');
+    await deliverGitlab('merge_request', mr({ iid: 31, title: `Fixes ${mine}`, head: moved }));
+    await sender().drain();
+    expect(gl.statuses.map((s) => s.sha)).toEqual([head, head, moved]);
+
+    // The same words again: nothing more is written.
+    const writes = gl.statuses.length;
+    await deliverGitlab('merge_request', mr({ iid: 31, title: `Fixes ${mine}`, head: moved }));
+    await sender().drain();
+    expect(gl.statuses).toHaveLength(writes);
   });
 });

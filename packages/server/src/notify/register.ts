@@ -10,7 +10,7 @@ import { MailWorker, pruneMail, scheduleDigests } from '../mail/outbox';
 import { backgroundFactories, choreFactories, consumerFactories } from '../server';
 import { pruneHelpThrottle } from '../services/help-throttle';
 import { backfillWatchers } from '../services/watchers';
-import { notifierConsumer } from './notifier';
+import { notifierConsumer, recheckSearches } from './notifier';
 import { endInboxStreams } from './state';
 
 consumerFactories.push(notifierConsumer, helpdeskConsumer, relayConsumer);
@@ -25,6 +25,8 @@ choreFactories.push((runtime) => [
     },
   },
   { name: 'mail-digests', everyMs: 10 * 60_000, run: async () => void (await scheduleDigests(runtime)) },
+  // What time alone brings into a saved search (D31): the searches whose words read the clock, again.
+  { name: 'search-subscriptions', everyMs: 15 * 60_000, run: async () => void (await recheckSearches(runtime)) },
   { name: 'mail-prune', everyMs: 60 * 60_000, run: () => pruneMail(runtime) },
   { name: 'help-throttle', everyMs: 5 * 60_000, run: () => pruneHelpThrottle(runtime.db) },
 ]);

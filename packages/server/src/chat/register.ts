@@ -4,10 +4,12 @@
  */
 import { backgroundFactories, choreFactories, consumerFactories } from '../server';
 import { chatConsumer, ChatWorker, pruneChat } from './outbox';
+import { syncHrCalendars } from '../services/hr-calendar';
 
 consumerFactories.push(chatConsumer);
 
 choreFactories.push((runtime) => [{ name: 'chat-prune', everyMs: 3_600_000, run: () => pruneChat(runtime) }]);
+choreFactories.push((runtime) => [{ name: 'hr-calendars', everyMs: 6 * 3_600_000, run: () => syncHrCalendars(runtime) }]);
 
 backgroundFactories.push((runtime) => {
   const sender = new ChatWorker(runtime);

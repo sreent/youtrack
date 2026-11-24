@@ -166,6 +166,7 @@ export const UserSchema = UserRefSchema.extend({
     .describe("Their working week: hours on each weekday, Sunday first. Null: the plan's working days at their capacity"),
   createdAt: timestamp,
   signIn: SignInSchema.optional().describe('How they sign in: only in what administrators get'),
+  hrCalendar: z.string().nullable().optional().describe("Their HR calendar's iCal feed (D36's revisit): only in what administrators get"),
 }).meta({ id: 'User' });
 export type User = z.infer<typeof UserSchema>;
 
@@ -258,6 +259,12 @@ export const UpdateUserBody = z.object({
   hourlyRate: z.number().min(0).nullable().optional(),
   capacityHoursPerDay: z.number().min(0).max(24).optional(),
   workWeek: workWeek.nullable().optional().describe('Hours on each weekday, Sunday first; null for the plan\'s working days'),
+  hrCalendar: z
+    .string()
+    .url()
+    .nullable()
+    .optional()
+    .describe("Their HR calendar (D36's revisit): an iCal feed whose days away are filed for them; administrators set it"),
 });
 
 export const ApiTokenSchema = z
@@ -395,6 +402,11 @@ export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
 export const TimeSettingsSchema = z
   .object({
     workTypeRequired: z.boolean().describe('Whether work logged in the project must say its type (D43)'),
+  timesheetEnabled: z.boolean().optional().describe("Whether the project's logged work shows in its people's weekly timesheets (D43's revisit): yes by default; no hides it from the sheet, and its cells refuse"),
+  timesheetApproval: z
+    .enum(['every', 'any'])
+    .optional()
+    .describe("Who approves a week of time that holds this project's work (D43's revisit): 'every', its managers among the managers of every project the week holds work in (the default); 'any', a manager of any project the week holds work in"),
   })
   .meta({ id: 'TimeSettings' });
 export type TimeSettings = z.infer<typeof TimeSettingsSchema>;
@@ -402,6 +414,7 @@ export type TimeSettings = z.infer<typeof TimeSettingsSchema>;
 export const ProjectSettingsSchema = z
   .object({
     triageMode: z.enum(TRIAGE_MODES),
+    requirePasskeys: z.boolean().describe('Whether people who can access this project owe a passkey when a4a’s own password signs them in (D70)'),
     plan: PlanSettingsSchema,
     helpdesk: HelpdeskSettingsSchema,
     time: TimeSettingsSchema,
@@ -472,6 +485,7 @@ export const UpdateProjectBody = z.object({
   settings: z
     .object({
       triageMode: z.enum(TRIAGE_MODES).optional(),
+      requirePasskeys: z.boolean().optional().describe('Require a passkey of everyone who can access this project (D70)'),
       plan: PlanSettingsSchema.partial().optional(),
       helpdesk: HelpdeskSettingsSchema.partial()
         .extend({
@@ -766,6 +780,7 @@ export const IssueDetailSchema = IssueSchema.extend({
   pendingSuggestions: z.number().int(),
   voted: z.boolean().describe('Whether the caller voted for it'),
   reactions: z.array(ReactionSummarySchema).describe('Reactions to its description'),
+  descriptionAiDrafted: z.boolean().describe('Its saved description came from an accepted suggestion (D59); said beside it, cleared by an edit that does not say so'),
   formerIds: z.array(z.string()).describe('Ids it had before it moved: each still finds it (D41)'),
 }).meta({ id: 'IssueDetail' });
 export type IssueDetail = z.infer<typeof IssueDetailSchema>;
@@ -801,6 +816,7 @@ export const UpdateIssueBody = z.object({
   addTags: z.array(z.string()).optional(),
   removeTags: z.array(z.string()).optional(),
   expectedVersion: z.number().int().optional().describe('Fail with 409 if the issue changed since this version'),
+  descriptionAiDrafted: z.boolean().optional().describe('True when the saved description came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
 });
 export type UpdateIssueInput = z.infer<typeof UpdateIssueBody>;
 
@@ -839,10 +855,14 @@ export const CommentSchema = z
       .describe('Set when someone outside the team wrote it: the requester of a help desk request, someone copied on it, or someone of its customer group, on a page or by email'),
     visibleTo: VisibleToSchema.nullable().describe("Null: everyone who sees the issue sees it. Otherwise only these, besides its author, the project's managers and administrators"),
     reactions: z.array(ReactionSummarySchema),
+    aiDrafted: z.boolean().describe('Its saved words came from an accepted suggestion (D59); said beside them, cleared by an edit that does not say so'),
   })
   .meta({ id: 'Comment' });
 export type Comment = z.infer<typeof CommentSchema>;
-export const CommentBody = z.object({ text: z.string().min(1).max(50_000) });
+export const CommentBody = z.object({
+  text: z.string().min(1).max(50_000),
+  aiDrafted: z.boolean().optional().describe('True when the saved words came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
+});
 export const NewCommentBody = CommentBody.extend({
   visibility: z
     .enum(COMMENT_VISIBILITIES)
@@ -870,7 +890,8 @@ export const LinkBody = z.object({
 export const WorkItemSchema = z
   .object({
     id: z.string(),
-    issueId: z.string(),
+    issueId: z.string().nullable().describe('The readable id, or null on their own row (D43\'s revisit)'),
+    activity: z.string().nullable().describe("Their own row's name (D43's revisit), or null on an issue's work"),
     author: UserRefSchema.nullable(),
     date: isoDate,
     minutes: z.number().int(),
@@ -1717,6 +1738,7 @@ export const AttachmentSchema = z
     issue: z.string().nullable().describe('The issue it belongs to, also for a file on one of its comments'),
     comment: z.string().nullable().describe('The comment it was attached to, if any'),
     article: z.string().nullable().describe('The article it belongs to, if any'),
+    whiteboard: z.string().nullable().describe('The whiteboard whose picture it is, if any (D58\'s revisit)'),
     uploadedBy: UserRefSchema.nullable(),
     channel: z.enum(CHANNELS),
     token: z.string().nullable().describe('The token it came with, for an agent or a script'),
@@ -1799,6 +1821,7 @@ export const ArticleDetailSchema = ArticleSchema.extend({
     "Null: it isn't limited itself. Otherwise only these see it, besides its author, the project's managers and administrators (D51)",
   ),
   limitedAbove: z.array(ArticleRefSchema).describe('The limited articles it sits under, from the top: only who sees them sees it'),
+  aiDrafted: z.boolean().describe('Its saved words came from an accepted suggestion (D59); said beside them, cleared by an edit that does not say so'),
 }).meta({ id: 'ArticleDetail' });
 export type ArticleDetail = z.infer<typeof ArticleDetailSchema>;
 
@@ -1820,6 +1843,7 @@ export const UpdateArticleBody = z.object({
   parent: z.string().nullable().optional().describe('Move it under this article, or to the top with null'),
   position: z.number().int().min(0).optional().describe('Its place among its (new) siblings, from 0'),
   expectedVersion: z.number().int().optional().describe('Fail with 409 if its content changed since this version'),
+  aiDrafted: z.boolean().optional().describe('True when the saved words came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
 });
 export type UpdateArticleInput = z.infer<typeof UpdateArticleBody>;
 
@@ -2243,6 +2267,10 @@ export const RuleBody = z.object({
     .describe(
       'JavaScript run in a sandbox (D40) in place of the command (a change or scheduled rule) or of `requires` (a guard). Its globals: `issue`, `change`, `project`, and apply(command[, issueId]), comment(text), refuse(message), log(...). Administrators only',
     ),
+  queued: z
+    .boolean()
+    .default(false)
+    .describe("A scripted rule (D40's revisit): its worker runs it, so it may take its time. Administrators only"),
   enabled: z.boolean().default(true),
 });
 export type RuleInput = z.input<typeof RuleBody>;
@@ -2293,6 +2321,7 @@ export const RuleSchema = z
       .nullable()
       .describe('The webhook it calls, if any'),
     script: z.string().nullable().describe('A scripted rule\'s JavaScript (D40), or null'),
+    queued: z.boolean().describe("Runs from the queue (D40's revisit): a worker runs it, so it may take its time"),
     enabled: z.boolean(),
     sentence: z.string().describe('The rule in words: "When an issue is created, if it matches …, then apply …"'),
     problems: z
@@ -2403,10 +2432,10 @@ export const VcsGithubAppSchema = z
   .meta({ id: 'VcsGithubApp' });
 export type VcsGithubApp = z.infer<typeof VcsGithubAppSchema>;
 
-/** A GitHub integration's check runs on pull requests, as its app (D66). */
+/** Check runs or commit statuses on pull requests: GitHub's as its app (D66), GitLab's and Forgejo's with their token (D70). */
 export const VcsChecksSchema = z
   .object({
-    enabled: z.boolean().describe('Whether a4a reports to each pull request as a check run named "a4a". Off by default; it takes the app\'s Checks: Read and write'),
+    enabled: z.boolean().describe('Whether a4a reports to each pull request as a check run named "a4a" (GitHub) or a commit status (GitLab, Forgejo). Off by default; GitHub takes the app\'s Checks: Read and write, the others a token that may write statuses'),
     states: z.boolean().describe("Whether the check says each issue's state, beside its id and link"),
     requireResolved: z.boolean().describe("Whether the check fails while an issue it names isn't resolved, or an id names no issue a4a shows; otherwise it's neutral"),
     problem: z.string().nullable().describe('Why the last check run a4a wrote for it didn\'t go, in the words of its deliveries\' log; null when the last went'),
@@ -2427,7 +2456,9 @@ export const VcsIntegrationSchema = z
     baseUrl: z.string().nullable().describe("Bitbucket Data Center's address, where a4a reads the commits a push moved; GitHub Enterprise Server's API address; null for the others"),
     hasAccessToken: z.boolean().describe('Whether a4a has an access token: to read the commits a delivery leaves out (Bitbucket), or those a build holds (GitHub). The token is never shown'),
     githubApp: VcsGithubAppSchema.nullable().describe('GitHub: the GitHub App a4a reads as instead of an access token (D54); null when it reads with a token, or not at all'),
-    checks: VcsChecksSchema.nullable().describe('GitHub: check runs on pull requests, written as its app (D66); null for the other providers'),
+    checks: VcsChecksSchema.nullable().describe(
+      'GitHub: check runs on pull requests, written as its app (D66); GitLab and Forgejo: commit statuses, written with the integration’s access token (D70); null for the other providers',
+    ),
     createdAt: timestamp,
     lastDeliveryAt: timestamp.nullable(),
   })
@@ -2742,6 +2773,7 @@ export const GroupRefSchema = z
       .string()
       .nullable()
       .describe('Its name at the identity provider, when it comes from there: who is in it is then set at each sign-in, never by hand'),
+    requirePasskeys: z.boolean().describe('Whether its people owe a passkey when a4a’s own password signs them in (D70)'),
     size: z.number().int().describe('How many people are in it'),
   })
   .meta({ id: 'GroupRef' });
@@ -2782,11 +2814,13 @@ export const CreateGroupBody = z.object({
     .nullable()
     .optional()
     .describe("Its name at the identity provider (the groups claim's or attribute's value), to take who is in it from there"),
+  requirePasskeys: z.boolean().default(false).describe('Require its people to use a passkey with a4a’s own password sign-in (D70)'),
 });
 export const UpdateGroupBody = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   description: z.string().max(500).optional(),
   providerName: z.string().trim().min(1).max(200).nullable().optional(),
+  requirePasskeys: z.boolean().optional(),
 });
 export const AddGroupMemberBody = z.object({ user: z.string().min(1).describe('Login of the person') });
 
@@ -3316,6 +3350,7 @@ export const CreateScimTokenBody = z.object({ name: z.string().trim().min(1).max
 /** A comment's new words, against the version read: an edit made meanwhile refuses this one (409). */
 export const UpdateCommentBody = CommentBody.extend({
   expectedVersion: z.number().int().optional().describe('The version you read; without it, the edit is written whatever happened meanwhile'),
+  aiDrafted: z.boolean().optional().describe('True when the saved words came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
 });
 export type UpdateCommentInput = z.input<typeof UpdateCommentBody>;
 
@@ -3430,9 +3465,21 @@ export const TimesheetSchema = z
   .object({
     user: UserRefSchema,
     week: isoDate.describe('Its Monday'),
+    status: z.enum(['open', 'submitted', 'approved']).describe("The week's state (D43's revisit): open to change, submitted to a manager, or approved"),
+    submittedAt: timestamp.nullable(),
+    approvedBy: UserRefSchema.nullable().describe('Who approved it, when it is'),
     days: z.array(isoDate).length(7),
     hours: z.array(z.number()).length(7).describe('Their working hours each day: their working week, less days away'),
     totals: z.array(z.number().int()).length(7).describe('Minutes logged each day'),
+    personal: z
+      .array(
+        z.object({
+          activity: z.string().describe("Their own row's name (D43's revisit): BAU, or anything they keep"),
+          minutes: z.array(z.number().int()).length(7),
+          entries: z.array(z.number().int()).length(7),
+        }),
+      )
+      .describe("Their own rows, each a name of their choosing, beside their issues'"),
     rows: z.array(
       z.object({
         issue: IssueRefSchema,
@@ -3446,6 +3493,17 @@ export const TimesheetSchema = z
 export type Timesheet = z.infer<typeof TimesheetSchema>;
 export const TimesheetQuery = z.object({
   week: isoDate.optional().describe('Any day of the week; this week by default'),
+  user: z.string().optional().describe('Whose (a login); yours by default. Administrators only for others'),
+});
+export const TimesheetWeekBody = z.object({
+  week: isoDate.optional().describe('Any day of the week; this week by default'),
+  user: z.string().optional().describe('Whose (a login); yours by default'),
+});
+export type TimesheetPersonalInput = z.infer<typeof TimesheetPersonalBody>;
+export const TimesheetPersonalBody = z.object({
+  date: isoDate,
+  minutes: z.number().int().min(0).max(24 * 60),
+  activity: z.string().min(1).max(100).describe('Their own row\'s name: BAU, or anything they keep'),
   user: z.string().optional().describe('Whose (a login); yours by default. Administrators only for others'),
 });
 export const TimesheetCellBody = z.object({
@@ -3554,11 +3612,24 @@ export const ChatStatusSchema = z
         .object({ commands: z.string(), interactivity: z.string(), events: z.string() })
         .describe("Where Slack sends what people do, for the app's settings"),
     }),
+    matrix: z.object({
+      connected: z.boolean(),
+      homeserver: z.string().nullable(),
+      userId: z.string().nullable().describe("The bot account's Matrix id, e.g. @a4a:matrix.org"),
+      connectedBy: UserRefSchema.nullable(),
+      connectedAt: timestamp.nullable(),
+      removed: z.string().nullable().describe("Why it stopped: an administrator disconnected it, or its token was refused"),
+      removedSaid: z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }).nullable().describe("Why it stopped as a problem's words, problem.<key> in the catalogs, for a page in another language (D49)"),
+    }),
     channels: z.array(ChatChannelSchema),
   })
   .meta({ id: 'ChatStatus' });
 export type ChatStatus = z.infer<typeof ChatStatusSchema>;
 
+export const ConnectMatrixBody = z.object({
+  homeserver: z.string().trim().min(1).max(200).describe("The homeserver's address, e.g. https://matrix.org"),
+  accessToken: z.string().trim().min(1).max(500).describe("The bot account's access token, from its settings, kept sealed"),
+});
 export const ConnectSlackBody = z.object({
   botToken: z.string().trim().regex(/^xoxb-/, "A bot token starts with xoxb-: it's under OAuth & Permissions in the app's settings"),
   signingSecret: z.string().trim().min(16).describe("Under Basic Information in the app's settings"),
@@ -3591,6 +3662,7 @@ export const BuildSourceSchema = z
     hookUrl: z.string().nullable().describe('generic: where a CI posts its builds'),
     tokenPrefix: z.string().nullable().describe("generic: the token's first characters, to recognise it by"),
     active: z.boolean(),
+    reportCheck: z.boolean().describe('github: report each finished run as a check run on its head commit, as the integration’s GitHub App (D70)'),
     createdAt: timestamp,
     lastBuildAt: timestamp.nullable(),
   })
@@ -3622,6 +3694,7 @@ export const BuildSourceBody = z.object({
     .optional()
     .describe('github: only this workflow, by name or file. gitea: by its file, such as ci.yml (Forgejo names no workflow by name). null: any'),
   active: z.boolean().default(true),
+  reportCheck: z.boolean().default(false).describe('github: report each run’s own result as a GitHub check run on its head commit'),
 });
 export const UpdateBuildSourceBody = z.object({
   name: z.string().trim().min(1).max(120).optional(),
@@ -3629,6 +3702,7 @@ export const UpdateBuildSourceBody = z.object({
   branch: z.string().trim().max(200).nullable().optional(),
   workflow: z.string().trim().max(200).nullable().optional(),
   active: z.boolean().optional(),
+  reportCheck: z.boolean().optional(),
 });
 
 export const BuildIssueSchema = z
@@ -3914,6 +3988,7 @@ export const PortalRequestDetailSchema = PortalRequestSchema.extend({
       name: z.string(),
       text: z.string(),
       at: timestamp,
+      aiDrafted: z.boolean().describe('Its saved words came from an accepted suggestion (D59): said beside them to the requester too, who asked for them'),
     }),
   ),
   ccs: z
@@ -3939,12 +4014,16 @@ export const PortalRedeemBody = z.object({ token: z.string().min(10).max(200) })
 export const PortalNameBody = z.object({ name: z.string().trim().min(1).max(200) });
 export const PortalNewRequestBody = z.object({
   desk: z.string().trim().min(1).max(20),
+  group: z.string().trim().max(100).optional().describe("Which of their several groups at the desk this one is for (D56's revisit): its name, when there are several"),
   summary: z.string().trim().min(1).max(500),
   description: z.string().max(50_000).default(''),
   private: z.boolean().default(false).describe("Keep it from their customer group's other members (D56)"),
 });
 export const PortalRequestUpdateBody = z.object({ private: z.boolean().describe("Keep it from their customer group's other members, or share it again (D56)") });
-export const PortalReplyBody = z.object({ text: z.string().trim().min(1).max(50_000) });
+export const PortalReplyBody = z.object({
+  text: z.string().trim().min(1).max(50_000),
+  aiDrafted: z.boolean().optional().describe('True when the saved words came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
+});
 
 const kindChoice = z.object({ inbox: z.boolean(), email: z.boolean() });
 /** For each kind of change, whether it reaches the inbox and email (D45). Kinds left out keep their default. */
@@ -4434,7 +4513,7 @@ export const WhiteboardElementId = z
 export const WhiteboardElementSchema = z
   .object({
     id: z.string(),
-    kind: z.enum(WHITEBOARD_KINDS).describe('note, text (a label or heading), issue or article (a card), arrow, or section (a frame that groups what lies inside it)'),
+    kind: z.enum(WHITEBOARD_KINDS).describe('note, text (a label or heading), issue or article (a card), arrow, section (a frame that groups what lies inside it), ink (a freehand drawing) or image (a picture)'),
     x: z.number(),
     y: z.number(),
     w: z.number(),
@@ -4446,6 +4525,8 @@ export const WhiteboardElementSchema = z
     from: z.string().nullable().describe("An arrow's start: an element's id"),
     to: z.string().nullable().describe("An arrow's end: an element's id"),
     linked: z.string().nullable().describe('An arrow made into a link between its two issues: the link, as said from its start, e.g. "depends on"'),
+    points: z.string().nullable().describe("A freehand drawing's stroke (D58's revisit): points in its own box, as `x,y x,y`..."),
+    attachment: z.string().nullable().describe("A picture on the whiteboard: its attachment's id, uploaded through the whiteboard's own route"),
     seq: z.number().int().describe('The whiteboard’s change that last changed it'),
     version: z.number().int().describe('Raised by each change to it'),
     updatedAt: timestamp,
@@ -4480,15 +4561,22 @@ export const WhiteboardSchema = z
   .object({
     id: z.string(),
     name: z.string(),
-    project: ProjectRefSchema,
+    /** Null for a person's own whiteboard, shared with people and groups or limited to some (D58's revisit). */
+    project: ProjectRefSchema.nullable(),
+    /** Its project's whiteboards have no owner; a person's does, whoever made it. */
+    owner: UserRefSchema.nullable().describe('Who it belongs to, for a person’s own whiteboard'),
     createdBy: UserRefSchema.nullable(),
     createdAt: timestamp,
     updatedAt: timestamp,
     seq: z.number().int().describe('Its latest change; its live stream resumes after it'),
     elements: z.number().int(),
+    /** A personal whiteboard's readers: everyone signed in, or the people and groups named. */
+    share: z.enum(['everyone', 'limited']),
+    sharedWith: VisibleToSchema,
     access: z.object({
-      edit: z.boolean().describe('May change it: whoever may change its project’s issues'),
-      delete: z.boolean().describe('May delete it: whoever made it, and its project’s managers'),
+      edit: z.boolean().describe('May change it: whoever may change its project’s issues, or a personal whiteboard’s owner and its named people'),
+      delete: z.boolean().describe('May delete it: whoever made it, and its project’s managers; a personal whiteboard’s owner'),
+      share: z.boolean().describe('A personal whiteboard’s owner may say who else reads it'),
     }),
   })
   .meta({ id: 'Whiteboard' });
@@ -4505,10 +4593,16 @@ export const WhiteboardDetailSchema = z
 export type WhiteboardDetail = z.infer<typeof WhiteboardDetailSchema>;
 
 export const WhiteboardCreateBody = z.object({
-  project: z.string().trim().min(1).max(40).describe('Its project, by key: who reads the project reads it, and who may change its issues changes it'),
+  project: z.string().trim().min(1).max(40).optional().describe('Its project, by key: who reads the project reads it, and who may change its issues changes it. Without one, a whiteboard of your own'),
   name: z.string().trim().min(1).max(WHITEBOARD_LIMITS.name),
+  share: z.enum(['everyone', 'limited']).default('everyone').describe('A personal whiteboard’s readers: everyone signed in, or the people and groups named'),
+  sharedWith: VisibleToInput.optional().describe('The people (logins) and groups (ids or names) it is shared with, when it is limited to some'),
 });
 export const WhiteboardRenameBody = z.object({ name: z.string().trim().min(1).max(WHITEBOARD_LIMITS.name) });
+export const WhiteboardShareBody = z.object({
+  share: z.enum(['everyone', 'limited']).describe('A personal whiteboard’s readers: everyone signed in, or the people and groups named'),
+  sharedWith: VisibleToInput.optional().describe('The people (logins) and groups (ids or names) it is shared with, when it is limited to some'),
+});
 
 const wbSet = z.object({ x: wbCoord, y: wbCoord, w: wbSize, h: wbSize, z: wbZ, text: wbText, tone: z.enum(WHITEBOARD_TONES), label: wbLabel }).partial();
 
@@ -4527,6 +4621,8 @@ export const WhiteboardOpSchema = z.discriminatedUnion('op', [
     label: wbLabel.optional(),
     issue: z.string().trim().min(1).max(40).optional().describe('An issue card: the issue, e.g. BACK-12'),
     article: z.string().trim().min(1).max(40).optional().describe('An article card: the article, e.g. BACK-A-3'),
+    points: z.string().max(WHITEBOARD_LIMITS.points).optional().describe("A freehand drawing's stroke, in its own box: `x,y x,y`..."),
+    attachment: z.string().trim().min(1).max(64).optional().describe("A picture: its attachment's id, from the whiteboard's own upload"),
     from: WhiteboardElementId.optional().describe("An arrow's start"),
     to: WhiteboardElementId.optional().describe("An arrow's end"),
   }),
@@ -4648,12 +4744,15 @@ export const PortalProviderSchema = z
   .object({
     id: z.string(),
     name: z.string().describe('What the sign-in page calls it: "Sign in through <name>"'),
-    kind: z.literal('oidc').describe('OpenID Connect, the authorization code flow with PKCE'),
-    issuer: z.string().describe('Its issuer, as its discovery document gives it'),
-    clientId: z.string(),
+    kind: z.enum(['oidc', 'saml']).describe('OpenID Connect, or SAML 2.0 (D63\'s revisit)'),
+    issuer: z.string().describe('Its issuer, as its discovery document gives it (OIDC), or its entity id (SAML)'),
+    clientId: z.string().nullable().describe('OIDC only: its client id; null for a SAML provider'),
     hasSecret: z.boolean().describe('A client secret is kept, sealed; it is never shown again'),
     scopes: z.string(),
     domains: z.array(z.string()).describe('The email domains it may vouch for; empty: any. An address outside them is refused'),
+    samlEntryPoint: z.string().nullable().describe('SAML only: its SSO URL'),
+    hasCert: z.boolean().describe('SAML only: its signing certificate is kept; it is never shown again'),
+    project: z.string().nullable().describe("A desk's own (D63's revisit): its key; null for the server's, offered to any desk"),
     redirectUri: z.string().describe('Register this with the provider, exactly'),
     desks: z.array(z.string()).describe('The keys of the desks that offer it, among those the reader sees'),
     createdAt: timestamp,
@@ -4662,12 +4761,16 @@ export const PortalProviderSchema = z
 export type PortalProvider = z.infer<typeof PortalProviderSchema>;
 
 export const PortalProviderBody = z.object({
+  project: z.string().trim().max(20).optional().describe("A desk's own provider: its key; a desk's managers make it there. Left out: the server's, an administrator's"),
   name: z.string().trim().min(1).max(100),
-  issuer: z.string().trim().url().max(500).describe('https; plain http only on this machine'),
-  clientId: z.string().trim().min(1).max(500),
+  kind: z.enum(['oidc', 'saml']).default('oidc').describe('SAML providers name their own SSO URL and certificate instead (D63\'s revisit)'),
+  issuer: z.string().trim().url().max(500).describe('https; plain http only on this machine. SAML: the entity id'),
+  clientId: z.string().trim().min(1).max(500).optional().describe('OIDC only'),
   clientSecret: z.string().min(1).max(2000).nullable().optional().describe('Empty for a public client (PKCE alone)'),
   scopes: z.string().trim().max(500).optional().describe('Default: openid email profile'),
   domains: z.array(providerDomain).max(50).default([]),
+  samlEntryPoint: z.string().trim().url().max(500).optional().describe('SAML only: its SSO URL'),
+  samlCert: z.string().min(1).max(20_000).optional().describe('SAML only: its signing certificate, PEM'),
 });
 export const PortalProviderUpdateBody = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -4679,6 +4782,12 @@ export const PortalProviderUpdateBody = z.object({
 });
 
 /** How the portal's sign-in page signs someone in, for a desk or for the portal as a whole (D63). */
+export const CustomerDirectorySchema = z.object({
+  name: z.string(),
+  domains: z.array(z.string()),
+});
+export type CustomerDirectoryEntry = z.infer<typeof CustomerDirectorySchema>;
+
 export const PortalSignInMethodsSchema = z
   .object({
     desk: z.object({ key: z.string(), name: z.string() }).nullable().describe('The desk asked about, when one takes requests by that key; null otherwise'),
@@ -4770,7 +4879,13 @@ export type MyPasskeys = z.infer<typeof MyPasskeysSchema>;
 
 /** What `navigator.credentials.create()` or `.get()` takes, as JSON (WebAuthn's `PublicKeyCredential*OptionsJSON`). */
 export const PasskeyOptionsSchema = z
-  .looseObject({ challenge: z.string(), timeout: z.number().optional(), rpId: z.string().optional() })
+  .looseObject({
+    challenge: z.string(),
+    timeout: z.number().optional(),
+    rpId: z.string().optional(),
+    /** Earlier relying party ids whose passkeys still sign in, the current id first (D70). */
+    legacyRpIds: z.string().array().optional(),
+  })
   .describe('Hand it to @simplewebauthn/browser’s startRegistration or startAuthentication as optionsJSON, or decode it for navigator.credentials')
   .meta({ id: 'PasskeyOptions' });
 export type PasskeyOptions = z.infer<typeof PasskeyOptionsSchema>;
@@ -4918,7 +5033,7 @@ export const PortalPasskeyAlertSchema = z
   .meta({ id: 'PortalPasskeyAlert' });
 export type PortalPasskeyAlert = z.infer<typeof PortalPasskeyAlertSchema>;
 const portalDesk = z.string().trim().max(20).optional().describe('The desk whose page they sign in from: it must take passkeys');
-export const PortalPasskeyOptionsBody = z.object({ desk: portalDesk });
+export const PortalPasskeyOptionsBody = z.object({ desk: portalDesk, rpId: z.string().trim().max(255).optional() });
 export const PortalPasskeySignInBody = PasskeySignInBody.extend({ desk: portalDesk });
 
 /** How many passkeys the team took from a requester (D69). */

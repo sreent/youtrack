@@ -9,8 +9,9 @@ import { formatPeriod, parsePeriod } from '@a4a/shared/periods';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { get, put, qs } from '../api/client';
+import { get, post, put, qs } from '../api/client';
 import { ErrorLine, ErrorNote, Loading, PageHead } from '../components/States';
+import { Badge } from '../components/Badges';
 import { errorText } from '../features/issues/api';
 import { formatItems, intlLocale, t as tx, tr } from '../i18n';
 
@@ -33,6 +34,36 @@ interface Row {
 }
 
 /** One day of one row: the time, typed as "1h 30m" or minutes, saved when it's left. */
+/** One day of the person's own row (D43's revisit): the same cell, on their activity's minutes. */
+function PersonalCell({ row, date, index, label, onSave }: { row: Timesheet['personal'][number]; date: string; index: number; label: string; onSave: (name: string, date: string, minutes: number) => Promise<void> }) {
+  const [text, setText] = useState<string | null>(null);
+  const value = text ?? shown(row.minutes[index] ?? 0);
+  const commit = async () => {
+    if (text === null) return;
+    const minutes = text.trim() === '' ? 0 : parsePeriod(text.trim());
+    if (minutes === null || minutes < 0) return;
+    if (minutes !== (row.minutes[index] ?? 0)) await onSave(row.activity, date, minutes);
+    setText(null);
+  };
+  return (
+    <td className="num">
+      <input
+        className="mono"
+        aria-label={label}
+        value={value}
+        placeholder="–"
+        size={6}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') setText(null);
+        }}
+      />
+    </td>
+  );
+}
+
 function Cell({ row, date, index, label, onSave }: { row: Row; date: string; index: number; label: string; onSave: (row: Row, date: string, minutes: number) => Promise<void> }) {
   const [text, setText] = useState<string | null>(null);
   const value = text ?? shown(row.minutes[index] ?? 0);
@@ -80,6 +111,7 @@ export default function TimesheetPage() {
   const [extra, setExtra] = useState<Row[]>([]);
   const [issue, setIssue] = useState('');
   const [type, setType] = useState('');
+  const [activity, setActivity] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState('');
   const formId = useId();
@@ -97,6 +129,27 @@ export default function TimesheetPage() {
       setExtra((rows) => rows.filter((r) => !(r.issue === row.issue && r.type === row.type)));
       setSaid(minutes ? tx('page.timesheet.savedOn', { formatPeriod: periodWords(minutes), issue: row.issue, dayName: dayName(date) }) : tx('page.timesheet.removedTheTimeOn', { issue: row.issue, dayName: dayName(date) }));
       await qc.invalidateQueries({ queryKey: ['issues', 'one', row.issue] });
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const savePersonal = async (name: string, date: string, minutes: number) => {
+    setError(null);
+    try {
+      const next = await put<Timesheet>('/timesheet/personal', { activity: name, date, minutes });
+      qc.setQueryData(key, next);
+      setSaid(minutes ? tx('page.timesheet.savedYourOwn', { formatPeriod: periodWords(minutes), activity: name, dayName: dayName(date) }) : tx('page.timesheet.removedYourOwn', { activity: name, dayName: dayName(date) }));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
+  const weekAction = async (what: 'submit' | 'approve' | 'reopen') => {
+    setError(null);
+    try {
+      const next = await post<Timesheet>(`/timesheet/${what}`, { week: week0 });
+      qc.setQueryData(key, next);
+      setSaid(tx(what === 'submit' ? 'page.timesheet.said.submitted' : what === 'approve' ? 'page.timesheet.said.approved' : 'page.timesheet.said.sentBack'));
     } catch (e) {
       setError(errorText(e));
     }
@@ -131,6 +184,10 @@ export default function TimesheetPage() {
         }
         actions={
           <div className="cluster">
+            {t.status === 'open' ? <button type="button" className="primary" onClick={() => void weekAction('submit')}>{tx('page.timesheet.submit')}</button> : null}
+            {t.status === 'submitted' ? <button type="button" className="primary" onClick={() => void weekAction('approve')}>{tx('page.timesheet.approve')}</button> : null}
+            {t.status !== 'open' ? <button type="button" onClick={() => void weekAction('reopen')}>{tx('page.timesheet.sendBack')}</button> : null}
+            {t.status !== 'open' ? <Badge tone={t.status === 'approved' ? 'good' : 'warn'}>{t.status === 'approved' ? tx('page.timesheet.approved') : tx('page.timesheet.submitted')}</Badge> : null}
             <button type="button" onClick={() => go(addDays(week0, -7))}>{tx('page.timesheet.previousWeek')}</button>
             <button type="button" onClick={() => go(localToday())}>{tx('page.timesheet.thisWeek')}</button>
             <button type="button" onClick={() => go(addDays(week0, 7))}>{tx('page.timesheet.nextWeek')}</button>
@@ -175,6 +232,25 @@ export default function TimesheetPage() {
                   ))}
                 </tr>
               ))}
+              {(t.personal ?? []).map((r) => (
+                <tr key={`personal|${r.activity}`} className="personal-row">
+                  <th scope="row" className="row-head">
+                    <span className="mono">{r.activity}</span>
+                    <span className="item-about">{tx('page.timesheet.myOwnTime')}</span>
+                  </th>
+                  {t.days.map((d, i) => (
+                    <PersonalCell key={d} row={r} date={d} index={i} label={formatItems([r.activity, dayName(d)])} onSave={savePersonal} />
+                  ))}
+                </tr>
+              ))}
+              <tr className="add-activity">
+                <th scope="row">
+                  <input value={activity} onChange={(e) => setActivity(e.target.value)} placeholder={tx('page.timesheet.bauOrAnythingYouKeep')} aria-label={tx('page.timesheet.newActivity')} />
+                </th>
+                {t.days.map((d) => (
+                  <td key={d} className="muted num">{t.personal?.some((r) => r.activity === activity.trim()) ? null : activity.trim() ? tx('page.timesheet.nameItThenFillIt') : null}</td>
+                ))}
+              </tr>
             </tbody>
             <tfoot>
               <tr>

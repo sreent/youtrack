@@ -277,8 +277,8 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
       // Who opened it, as the provider signed them in; known to a4a by their login there.
       const author = found.length ? await authorOf(app.db, s, providerId, delivery.author) : null;
       const r = await syncPullRequest(app, s, integration, delivery, issues, author?.user?.id ?? null);
-      // Its check run, as the app (D66): written by the sender, from what the pull request is now.
-      const check = providerId === 'github' && (await queueCheck(app, integration, delivery)) ? ' Its check run is due.' : '';
+      // Its check run or commit status (D66, D70): written by the sender from what it is now.
+      const check = (await queueCheck(app, integration, delivery)) ? ' Its check is due.' : '';
       if (!r.said.length) {
         return {
           outcome: 'processed',

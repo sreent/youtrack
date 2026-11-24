@@ -62,6 +62,12 @@ export function eventVerb(tr: Translator, e: TrackerEvent): string {
       return t('server.notify.verb.ruleMessage', { rule: ruleName(tr, e) });
     case 'rule.called':
       return t('server.notify.verb.ruleWebhook', { rule: ruleName(tr, e) });
+    case 'script.called':
+      return t('server.notify.verb.scriptWebhook', { origin: (e.data as { name?: unknown } | undefined)?.name ?? '' });
+    case 'timesheet.submitted':
+      return t('server.notify.verb.timesheetSubmitted', { who: (e.data as { user?: { name?: string } } | undefined)?.user?.name ?? '' });
+    case 'timesheet.approved':
+      return t('server.notify.verb.timesheetApproved', { who: (e.data as { user?: { name?: string } } | undefined)?.user?.name ?? '' });
     // These reach only those whose saved search an issue came into (D31).
     case 'comment.deleted':
       return t('server.notify.verb.deletedComment');
@@ -99,7 +105,8 @@ export function eventDetail(tr: Translator, e: TrackerEvent): string[] {
 /** "Anna Schmidt mentioned you", "Anna Schmidt and Ben Okafor made 4 changes". */
 export function notificationTitle(tr: Translator, kind: NotificationKind, events: TrackerEvent[], reasons: Map<number, NotificationKind>): string {
   const t = tr.t;
-  if (!events.length) return t('server.notify.title.somethingChanged');
+  // A search's chore tells of what time alone brought in: no event behind it, so no one did anything.
+  if (!events.length) return kind === 'subscribed' ? t('server.notify.title.cameIn') : t('server.notify.title.somethingChanged');
   const lead = events.find((e) => reasons.get(e.id) === kind) ?? events[events.length - 1]!;
   const who = actorName(tr, lead);
   switch (kind) {

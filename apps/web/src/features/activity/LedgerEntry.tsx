@@ -337,6 +337,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       };
     }
     case 'rule.called':
+    case 'script.called':
       return { text: <>{tr('activity.ledgerEntry.calledAWebhookAbout', { issue: issue })}</>, badge: ['outside', tx('activity.ledgerEntry.badgeCallsOut')] };
     default:
       return {

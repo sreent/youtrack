@@ -664,7 +664,16 @@ const LINK_EVENTS = ['link.created', 'link.deleted'];
  * is the instance's, and everyone sees it, unless it is about an issue (whose project was deleted
  * since). Whether its issue or comment is limited away from them is `eventSeen`'s to say.
  */
+/** A whiteboard's life, the events the feed hears (D58): a personal board's ride on its own sharing. */
+const WHITEBOARD_EVENTS: readonly string[] = ['whiteboard.created', 'whiteboard.renamed', 'whiteboard.deleted', 'whiteboard.converted'];
+
 export function eventVisible(view: AccessView, s: SchemaSnapshot, e: Pick<TrackerEvent, 'type' | 'project' | 'issue' | 'data'>): boolean {
+  // A week of time, submitted or approved (D43's revisit): the person and administrators alone.
+  if (!e.project && !e.issue && WHITEBOARD_EVENTS.includes(e.type)) {
+    const personal = (e.data as { whiteboard?: { personal?: { share?: string; people?: string[]; groups?: string[] } } } | undefined)?.whiteboard?.personal;
+    if (!personal || view.guest) return false;
+    return personal.share === 'everyone' || (personal.people ?? []).includes(view.userId) || (personal.groups ?? []).some((g) => view.groupIds.includes(g));
+  }
   const visible = view.visibleIds();
   if (visible === null) return true;
   const readable = (key: string | null) => {
@@ -759,7 +768,11 @@ export async function eventLimited(db: Db, s: SchemaSnapshot, e: Pick<TrackerEve
 /** The same rule as `eventSeen`, as SQL over `activities`, so a feed's pages and cursor stay whole. */
 export function eventsVisibleSql(view: AccessView, s: SchemaSnapshot): SQL | undefined {
   const visible = view.visibleIds();
-  if (visible === null) return undefined;
+  // Even who sees every project hears only the personal whiteboards whose sharing names them (D58's revisit).
+  if (visible === null) {
+    const personal = sql`(${activities.projectId} IS NOT NULL OR ${activities.payload}->'issue' IS NOT NULL OR ${activities.type} NOT IN ('whiteboard.created', 'whiteboard.renamed', 'whiteboard.deleted', 'whiteboard.converted') OR coalesce(${activities.payload}->'data'->'whiteboard'->'personal'->>'share', 'everyone') = 'everyone' OR ${activities.payload}->'data'->'whiteboard'->'personal'->'people' ? ${view.userId} OR EXISTS (SELECT 1 FROM group_members seen_adm_gm WHERE seen_adm_gm.user_id = ${view.userId} AND ${activities.payload}->'data'->'whiteboard'->'personal'->'groups' ? seen_adm_gm.group_id))`;
+    return personal;
+  }
   const ids = visible.filter((id) => view.canRead(id));
   // A link written before its other end's project was renamed names it by a key it had (D52).
   const keys = ids.flatMap((id) => (s.projects.has(id) ? keysOfProject(s, id) : [view.keyOf(id)?.toUpperCase()])).filter((k): k is string => Boolean(k));
@@ -767,7 +780,14 @@ export function eventsVisibleSql(view: AccessView, s: SchemaSnapshot): SQL | und
   const targetKey = sql`upper(split_part(${activities.payload}->'data'->'target'->>'id', '-', 1))`;
   const targetSeen = keys.length ? sql`coalesce(${targetKey} IN (${list(keys)}), FALSE)` : sql`FALSE`;
   const parts: SQL[] = [
-    sql`(${inIds} OR (${activities.projectId} IS NULL AND ${activities.payload}->'issue' IS NULL))`,
+    // Nothing to do with a project shows in everyone's feed; a personal whiteboard's events only in its readers' (D58's revisit),
+    // as the event kept its sharing: everyone, or its people and groups, which a deleted whiteboard can no longer say itself.
+    sql`(${inIds} OR (${activities.projectId} IS NULL AND ${activities.payload}->'issue' IS NULL AND (
+      ${activities.type} NOT IN ('whiteboard.created', 'whiteboard.renamed', 'whiteboard.deleted', 'whiteboard.converted')
+      OR coalesce(${activities.payload}->'data'->'whiteboard'->'personal'->>'share', 'everyone') = 'everyone'
+      OR ${activities.payload}->'data'->'whiteboard'->'personal'->'people' ? ${view.userId}
+      OR EXISTS (SELECT 1 FROM group_members seen_gm WHERE seen_gm.user_id = ${view.userId} AND ${activities.payload}->'data'->'whiteboard'->'personal'->'groups' ? seen_gm.group_id)
+    )))`,
     sql`(${activities.type} NOT IN ('link.created', 'link.deleted') OR ${targetSeen})`,
   ];
   // An issue, or a comment, limited away from them hides its events (D37); and a link's, when its other end is.

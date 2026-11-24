@@ -7,7 +7,7 @@ import { notesIn } from '@a4a/shared/notes';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { runCommand } from '../src/commands/executor';
-import { rules, ruleRuns, stateMachines, workflowActions } from '../src/db/schema';
+import { rules, ruleRuns, scriptJobs, stateMachines, workflowActions } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { createHttpApp } from '../src/http/app';
 import { issueActivity } from '../src/services/activity';
@@ -15,13 +15,14 @@ import { issueAgentToken, undoAgentChange } from '../src/services/agents';
 import { actorFromToken, issueTokenFor } from '../src/services/auth';
 import { createUser } from '../src/services/users';
 import { addComment, listComments } from '../src/services/comments';
-import { createIssue, getIssue, updateIssue } from '../src/services/issues';
+import { createIssue, findIssue, findVisibleIssue, getIssue, updateIssue } from '../src/services/issues';
 import { updateProject } from '../src/services/projects';
 import { presentField } from '../src/tools/registry';
 import { createAction, issueWorkflow, runAction, runTransition, updateAction } from '../src/workflow/actions';
-import { RuleEngine } from '../src/workflow/engine';
+import { RuleEngine, runScriptJobs } from '../src/workflow/engine';
 import { createMachine, updateMachine } from '../src/workflow/machines';
-import { checkRulePart, createRule, listRuleRuns, previewRule, testRule, updateRule } from '../src/workflow/rules';
+import { checkRulePart, createRule, listRuleRuns, previewRule, setScriptLibrary, testRule, updateRule } from '../src/workflow/rules';
+import { createWebhook } from '../src/events/webhooks';
 import { translatorFor } from '../src/i18n';
 import { createWorld, type TestWorld } from './helpers';
 
@@ -425,5 +426,59 @@ describe('over REST', () => {
     const test = { project: 'WEB', name: 'T', kind: 'change', trigger: 'created', script: "log(issue.id)", issue: issue.id };
     expect((await call(anna, 'POST', '/rules/test', test)).status).toBe(403);
     expect((await call(admin, 'POST', '/rules/test', test)).body).toMatchObject({ ok: true, logs: [issue.id] });
+  });
+});
+describe("a script calls out, and a project's scripts share a library (D40's revisit)", () => {
+  it('calls only the webhook it names, by its origin, with its own body', async () => {
+    const hook = await createWebhook(w.adminCtx, { url: 'https://hooks.example/deliver', events: ['*'], project: 'BACK' });
+    const rule = await createRule(w.adminCtx, { project: 'BACK', name: 'Ring the hook', kind: 'change', trigger: 'created', query: 'Type: Bug', script: `call('https://hooks.example', { n: 1 }); log('asked');` });
+    const ring = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Ring it', fields: { Type: 'Bug' } });
+    await settle();
+    const events = await issueActivity(w.adminCtx, ring.id);
+    const called = events.filter((e) => e.type === 'script.called');
+    const runs = await listRuleRuns(w.adminCtx, { project: 'BACK' });
+    expect(called.length, runs[0]?.message).toBe(1);
+    expect(called[0]!.data).toMatchObject({ webhook: hook.id });
+    expect(runs[0]!.message).toContain('Called https://hooks.example');
+  });
+  it('runs its project\'s library before every script in it, as `library`', async () => {
+    await setScriptLibrary(w.adminCtx, 'BACK', '({ twice: (n) => n * 2 })');
+    const rule = await createRule(w.adminCtx, { project: 'BACK', name: 'Twice', kind: 'change', trigger: 'created', query: 'Type: Bug', script: `apply('tag doubled'); comment('Twice ' + library.twice(4));` });
+    const issue = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Twice four', fields: { Type: 'Bug' } });
+    await settle();
+    const after = await getIssue(w.adminCtx, issue.id);
+    const runs = await listRuleRuns(w.adminCtx, { project: 'BACK', rule: rule.id });
+    expect(tagsOf(after), runs[0]?.message).toContain('doubled');
+  });
+});
+
+describe("a queued script (D40's revisit)", () => {
+  it('waits in the queue, then the worker applies what it asked for, on what it saw', async () => {
+    const who = w.as(w.ben);
+    const issue = await createIssue(who, { project: 'BACK', summary: 'The queued one', fields: { Type: 'Task' } });
+    const rule = await createRule(w.adminCtx, {
+      project: 'BACK',
+      name: 'Queue me',
+      kind: 'change',
+      trigger: 'created',
+      query: 'Type: Task',
+      script: 'apply(`assignee anna tag queued`)',
+      queued: true,
+    });
+    // The engine's turn, as a fired rule's would be: it files the job and leaves the issue alone.
+    const s = await w.app.schema.get();
+    const row = s.rules.find((x) => x.id === rule.id)!;
+    const issueRow = (await findIssue(w.app.db, s, issue.id))!;
+    await engine.apply(s, row, issueRow, { origin: 'evt-1', depth: 0, me: null, eventId: 1, actorId: w.ben.id });
+    const jobs = await w.app.db.select().from(scriptJobs).where(eq(scriptJobs.issueId, issue.uid));
+    expect(jobs).toHaveLength(1);
+    expect(value(await getIssue(w.adminCtx, issue.id), 'Assignee')).toBeNull();
+    // The worker's turn: it applies on what it saw, and the job is gone.
+    await runScriptJobs(w.app);
+    const after = await getIssue(w.adminCtx, issue.id);
+    expect(value(after, 'Assignee')).toBe('anna');
+    expect(tagsOf(after)).toContain('queued');
+    const left = await w.app.db.select().from(scriptJobs).where(eq(scriptJobs.issueId, issue.uid));
+    expect(left).toHaveLength(0);
   });
 });

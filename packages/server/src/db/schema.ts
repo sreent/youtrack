@@ -83,6 +83,8 @@ export const users = pgTable(
      * days at their capacity. The timesheet, the load grid, scheduling and levelling use it.
      */
     workWeek: jsonb('work_week').$type<number[]>(),
+  /** Their HR calendar (D36's revisit): an iCal feed an administrator sets, whose days away are filed for them. */
+  hrCalendar: text('hr_calendar'),
     /** Their time zone (IANA), for "today" in their searches, their digest's hour and their email's times. Null: the server's. */
     timeZone: text('time_zone'),
     /** The language they read a4a in (D49): one of LOCALES, or null for their browser's (and, by email, the server's default). */
@@ -200,6 +202,8 @@ export const projects = pgTable(
     visibility: text('visibility').notNull().default('open'),
     /** Anyone may read it without signing in (D37). */
     guestAccess: boolean('guest_access').notNull().default(false),
+    /** A project's shared code for its scripts (D40's revisit): every script in it runs with it as `library`. */
+    scriptLibrary: text('script_library'),
     settings: jsonb('settings').notNull(),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -318,6 +322,8 @@ export const issues = pgTable(
     limited: boolean('limited').notNull().default(false),
     visibleUserIds: text('visible_user_ids').array().notNull().default(sql`'{}'::text[]`),
     visibleGroupIds: text('visible_group_ids').array().notNull().default(sql`'{}'::text[]`),
+    /** Its saved description came from an accepted suggestion (D59): said beside it, cleared by an edit that doesn't say so. */
+    descriptionAiDrafted: boolean('description_ai_drafted').notNull().default(false),
   },
   (t) => [
     uniqueIndex('issues_project_number').on(t.projectId, t.number),
@@ -436,17 +442,35 @@ export const comments = pgTable(
     limited: boolean('limited').notNull().default(false),
     visibleUserIds: text('visible_user_ids').array().notNull().default(sql`'{}'::text[]`),
     visibleGroupIds: text('visible_group_ids').array().notNull().default(sql`'{}'::text[]`),
+    /** Its saved words came from an accepted suggestion (D59): said beside them, cleared by an edit that doesn't say so. */
+    aiDrafted: boolean('ai_drafted').notNull().default(false),
   },
   (t) => [index('comments_issue').on(t.issueId, t.createdAt), index('comments_search').using('gin', t.searchVector)],
+);
+
+export const timesheetWeeks = pgTable(
+  'timesheet_weeks',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    /** The week's Monday (D43's revisit): one row per person and week, its state as it goes. */
+    week: date('week', { mode: 'string' }).notNull(),
+    status: text('status').notNull().default('open'),
+    submittedAt: ts('submitted_at'),
+    approvedAt: ts('approved_at'),
+    approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('timesheet_weeks_person_week').on(t.userId, t.week)],
 );
 
 export const workItems = pgTable(
   'work_items',
   {
     id: text('id').primaryKey(),
-    issueId: text('issue_id')
-      .notNull()
-      .references(() => issues.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'cascade' }),
+    /** Their own row's name (D43's revisit): BAU or any activity they keep; null on an issue's work. */
+    activity: text('activity'),
     authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
     date: date('date', { mode: 'string' }).notNull(),
     minutes: integer('minutes').notNull(),
@@ -736,6 +760,8 @@ export const rules = pgTable(
      * scheduled rule) or of what it requires (a guard). Only administrators write scripts.
      */
     script: text('script'),
+    /** Runs from the queue (D40's revisit): a worker of its own runs it, so it may take its time. */
+    queued: boolean('queued').notNull().default(false),
     /** The app that installed it (D48): it acts as that app's agent, where the app is enabled, and goes with it. */
     appId: text('app_id').references((): AnyPgColumn => apps.id, { onDelete: 'cascade' }),
     enabled: boolean('enabled').notNull().default(true),
@@ -786,6 +812,24 @@ export const ruleRuns = pgTable(
     uniqueIndex('rule_runs_once').on(t.ruleId, t.issueId, t.originId).where(sql`${t.originId} IS NOT NULL`),
   ],
 );
+export const scriptJobs = pgTable(
+  'script_jobs',
+  {
+    id: text('id').primaryKey(),
+    ruleId: text('rule_id').notNull(),
+    projectId: text('project_id').notNull(),
+    issueId: text('issue_id').notNull(),
+    /** The event's origin, for the run's claim: a replayed event makes no second job. */
+    origin: text('origin'),
+    /** The script's frozen input, as it was when the rule fired. */
+    input: jsonb('input').notNull(),
+    state: text('state').notNull().default('queued'),
+    claimedAt: ts('claimed_at'),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex('script_jobs_once').on(t.ruleId, t.issueId, t.origin)],
+);
+
 
 // ---------------------------------------------------------------------------
 // Version control: GitHub, GitLab, Bitbucket, Gitea and Forgejo send pushes and pull requests here
@@ -1004,6 +1048,8 @@ export const articles = pgTable(
     limited: boolean('limited').notNull().default(false),
     visibleUserIds: text('visible_user_ids').array().notNull().default(sql`'{}'::text[]`),
     visibleGroupIds: text('visible_group_ids').array().notNull().default(sql`'{}'::text[]`),
+    /** Its saved words came from an accepted suggestion (D59): said beside them, cleared by an edit that doesn't say so. */
+    aiDrafted: boolean('ai_drafted').notNull().default(false),
   },
   (t) => [
     uniqueIndex('articles_project_number').on(t.projectId, t.number),
@@ -1075,13 +1121,13 @@ export const attachments = pgTable(
   'attachments',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    // An issue's file, or a comment's (which also names the comment's issue), or an article's.
+    /** The issue's or the article's project; a whiteboard's picture keeps its board instead. */
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    // An issue's file, or a comment's (which also names the comment's issue), or an article's, or a whiteboard's picture (D58's revisit).
     issueId: text('issue_id').references(() => issues.id, { onDelete: 'cascade' }),
     commentId: text('comment_id').references(() => comments.id, { onDelete: 'cascade' }),
     articleId: text('article_id').references(() => articles.id, { onDelete: 'cascade' }),
+    whiteboardId: text('whiteboard_id').references(() => whiteboards.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     contentType: text('content_type').notNull(),
     size: bigint('size', { mode: 'number' }).notNull(),
@@ -1099,7 +1145,7 @@ export const attachments = pgTable(
     index('attachments_article').on(t.articleId, t.createdAt),
     index('attachments_comment').on(t.commentId),
     uniqueIndex('attachments_blob').on(t.blobKey),
-    check('attachments_one_owner', sql`(${t.issueId} IS NULL) <> (${t.articleId} IS NULL) AND (${t.commentId} IS NULL OR ${t.issueId} IS NOT NULL)`),
+    check('attachments_one_owner', sql`((${t.issueId} IS NOT NULL AND ${t.articleId} IS NULL AND ${t.whiteboardId} IS NULL) OR (${t.issueId} IS NULL AND ${t.articleId} IS NOT NULL AND ${t.whiteboardId} IS NULL) OR (${t.issueId} IS NULL AND ${t.articleId} IS NULL AND ${t.whiteboardId} IS NOT NULL)) AND (${t.commentId} IS NULL OR ${t.issueId} IS NOT NULL) AND (${t.projectId} IS NOT NULL OR ${t.whiteboardId} IS NOT NULL)`),
   ],
 );
 
@@ -1356,6 +1402,8 @@ export const requesters = pgTable(
     name: text('name').notNull(),
     /** Their portal password (D63), as scrypt hashes members' (lib/crypto.ts); null for none. It opens the portal alone. */
     passwordHash: text('password_hash'),
+    /** Their own language (D63's revisit): the portal's emails follow it, as their browser asked; null for the desk's. */
+    locale: text('locale'),
     passwordSetAt: ts('password_set_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -1563,6 +1611,10 @@ export const absences = pgTable(
     half: text('half'),
     /** 'holiday' | 'sick' | 'training' | 'other': seen only by the person, administrators and whoever entered it. */
     kind: text('kind').notNull(),
+    /** 'entered' by a person, or 'hr': filed from the person's HR calendar (D36's revisit), which alone changes it. */
+    source: text('source').notNull().default('entered'),
+    /** The HR calendar event's UID, so one event is never filed twice. */
+    externalId: text('external_id'),
     note: text('note').notNull().default(''),
     version: integer('version').notNull().default(1),
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
@@ -1598,6 +1650,8 @@ export const groups = pgTable(
     description: text('description').notNull().default(''),
     /** Its name at the identity provider (an OIDC claim's or a SAML attribute's value), when it comes from there. */
     providerName: text('provider_name'),
+    /** Whether its people owe a passkey when a4a's own password signs them in (D70). */
+    requirePasskeys: boolean('require_passkeys').notNull().default(false),
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -2330,6 +2384,19 @@ export const chatLinkTokens = pgTable(
  * What a4a posts to channels: a row first, written by the outbox's consumer, sent after, at least once,
  * as mail is (mail_outbox). One per channel per event, whichever subscriptions matched it.
  */
+export const chatPosts = pgTable(
+  'chat_posts',
+  {
+    id: text('id').primaryKey(),
+    channelId: text('channel_id').notNull().references(() => chatChannels.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id').notNull(),
+    /** The post as its provider knows it (Slack's ts, Teams' activity id, Matrix's event id). */
+    messageId: text('message_id').notNull(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('chat_posts_channel_issue').on(t.channelId, t.issueId)],
+);
+
 export const chatOutbox = pgTable(
   'chat_outbox',
   {
@@ -2384,6 +2451,8 @@ export const buildSources = pgTable('build_sources', {
   /** generic: the token's SHA-256. */
   tokenHash: text('token_hash'),
   tokenPrefix: text('token_prefix'),
+  /** github: report each finished run's own result as a check run on its head commit (D70). */
+  reportCheck: boolean('report_check').notNull().default(false),
   active: boolean('active').notNull().default(true),
   createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
@@ -2863,7 +2932,8 @@ export const customerGroupMembers = pgTable(
     addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
     addedAt: created(),
   },
-  (t) => [primaryKey({ columns: [t.projectId, t.requesterId] }), index('customer_group_members_group').on(t.groupId)],
+  // A requester may be in several groups at a desk (D56's revisit): the membership is the three together.
+  (t) => [primaryKey({ columns: [t.projectId, t.requesterId, t.groupId] }), index('customer_group_members_group').on(t.groupId)],
 );
 
 /** A group's dedicated agents, in order: its members' new requests go to one of them. */
@@ -2994,15 +3064,19 @@ export const whiteboards = pgTable(
   'whiteboards',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
+    /** A project's whiteboard; null for a person's own, shared as below (D58's revisit). */
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     /** Its latest change. Each change takes the next under the whiteboard's row lock, so they never cross. */
     seq: bigint('seq', { mode: 'number' }).notNull().default(0),
+    /** Who it belongs to: for a person's whiteboard, whoever made it (createdById). */
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
+    /** Who besides its owner reads and changes a personal whiteboard: everyone signed in, or the people and groups named. */
+    share: text('share').notNull().default('everyone'),
+    /** Its people (logins) and groups (ids), when share is 'limited'. */
+    sharedWith: jsonb('shared_with').notNull().default({ people: [], groups: [] }),
   },
   (t) => [index('whiteboards_project').on(t.projectId)],
 );
@@ -3035,6 +3109,10 @@ export const whiteboardElements = pgTable(
     articleId: text('article_id').references(() => articles.id, { onDelete: 'set null' }),
     /** An arrow made into a link between its issues: the link as it reads from the arrow's start. */
     linked: text('linked'),
+    /** A freehand drawing's stroke (D58's revisit): points in its own box, `x,y x,y`... */
+    points: text('points'),
+    /** A picture on the whiteboard: its attachment, uploaded and kept like every file. */
+    attachmentId: text('attachment_id').references(() => attachments.id, { onDelete: 'set null' }),
     /** The whiteboard's change that last changed it. */
     seq: bigint('seq', { mode: 'number' }).notNull(),
     version: integer('version').notNull().default(1),
@@ -3107,6 +3185,14 @@ export const portalProviders = pgTable('portal_providers', {
   scopes: text('scopes').notNull().default('openid email profile'),
   /** The email domains it may vouch for, in lower case; empty: any. */
   domains: text('domains').array().notNull().default(sql`'{}'::text[]`),
+  /** A desk's own (D63's revisit): the project it belongs to; null: the server's, offered to any desk. */
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  /** 'oidc' or 'saml' (D63's revisit): how the provider speaks. */
+  kind: text('kind').notNull().default('oidc'),
+  /** A SAML provider's own: its SSO URL, its signing certificate (PEM), and its entity id. */
+  samlEntryPoint: text('saml_entry_point'),
+  samlCert: text('saml_cert'),
+  samlEntityId: text('saml_entity_id'),
   createdAt: created(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
@@ -3282,6 +3368,10 @@ export const vcsChecks = pgTable(
     state: text('state').notNull(),
     headSha: text('head_sha').notNull(),
     baseSha: text('base_sha'),
+    /** Its page at the provider, for a commit status's target link. */
+    url: text('url'),
+    /** The head commit's own message, where a delivery carries it (GitLab's last_commit). */
+    headMessage: text('head_message').notNull().default(''),
     /** The ids its commits name, read as the app from GitHub's compare of its base and head, and the head they were read at. */
     commitIds: text('commit_ids').array().notNull().default(sql`'{}'::text[]`),
     commitsOf: text('commits_of'),
@@ -3306,6 +3396,43 @@ export const vcsChecks = pgTable(
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('vcs_checks_pull').on(t.integrationId, t.repository, t.number), index('vcs_checks_due').on(t.dueAt)],
+);
+
+/** A finished GitHub Actions run's own result, queued as a check run on the commit it built (D70). */
+export const buildChecks = pgTable(
+  'build_checks',
+  {
+    id: text('id').primaryKey(),
+    buildId: text('build_id')
+      .notNull()
+      .unique()
+      .references(() => builds.id, { onDelete: 'cascade' }),
+    sourceId: text('source_id')
+      .notNull()
+      .references(() => buildSources.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => vcsIntegrations.id, { onDelete: 'cascade' }),
+    repository: text('repository').notNull(),
+    headSha: text('head_sha').notNull(),
+    name: text('name').notNull(),
+    sourceName: text('source_name').notNull(),
+    status: text('status').notNull(),
+    url: text('url'),
+    checkRunId: text('check_run_id'),
+    checkSha: text('check_sha'),
+    written: text('written'),
+    writtenAt: ts('written_at'),
+    marks: integer('marks').notNull().default(0),
+    dueAt: ts('due_at'),
+    lockedUntil: ts('locked_until'),
+    attempts: integer('attempts').notNull().default(0),
+    problem: text('problem'),
+    problemAt: ts('problem_at'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('build_checks_due').on(t.dueAt)],
 );
 
 // ---------------------------------------------------------------------------

@@ -47,6 +47,7 @@ import { absencesForPlan } from './absences';
 import { canReadProject, hiddenFields, issueSeenSql, projectAccess, requireProject, seenIssueIds, type AccessView, type ProjectNeed } from './access';
 import { readableId, stateNames, type IssueRow } from './issue-refs';
 import { applyChanges, resolveFieldsInput } from './issues';
+import { projectWorkers } from './agile';
 import { projectSettings } from './projects';
 import { fieldByName, findUser, idWithKeyNow, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { userRefDto } from './values';
@@ -140,7 +141,7 @@ export async function loadPlan(
     for (const e of ext) if (view.canRead(e.projectId) && seen.has(e.id)) rid.set(e.id, readableId(s, e));
   }
 
-  const work = ids.length ? await ctx.db.select().from(workItems).where(inArray(workItems.issueId, ids)) : [];
+  const work = ids.length ? (await ctx.db.select().from(workItems).where(inArray(workItems.issueId, ids))).filter((w): w is typeof w & { issueId: string } => w.issueId !== null) : [];
   const spent = new Map<string, number>();
   const firstWork = new Map<string, string>();
   for (const w of work) {
@@ -181,6 +182,9 @@ export async function loadPlan(
   const people = new Set<string>();
   for (const t of tasks) if (t.assigneeId) people.add(t.assigneeId);
   for (const w of work) if (w.authorId) people.add(w.authorId);
+  // A team is more than who is busy (D43's revisit): the project's members who can change its
+  // issues join the grid with their capacity, so a person with nothing planned is seen too.
+  for (const id of await projectWorkers(ctx.db, [project.id])) people.add(id);
   const resources: PlanResource[] = [...people]
     .map((id) => s.users.get(id))
     .filter((u): u is NonNullable<typeof u> => Boolean(u))

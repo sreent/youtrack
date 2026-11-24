@@ -21,10 +21,10 @@ import type { MyPasskeys, PasskeySetupInfo, PasskeySetupLink, PasskeysRequired }
 import { PASSKEYS_REQUIRED } from '@a4a/shared';
 import { langTag } from '@a4a/shared/i18n';
 import type { RegistrationResponseJSON } from '@simplewebauthn/server';
-import { and, eq, gt, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, ne, or, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { passkeys, passkeySetupLinks, recoveryCodes, sessions, users, userTotp } from '../db/schema';
+import { groupMembers, groups, passkeys, passkeySetupLinks, projectGroupRoles, projectMembers, projects, recoveryCodes, sessions, users, userTotp } from '../db/schema';
 import { randomToken, sha256 } from '../lib/crypto';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
@@ -45,6 +45,7 @@ import {
   rpOf,
   tellOf,
   working,
+  workingFor,
   type SessionRef,
 } from './passkeys';
 import type { UserRow } from './schema-cache';
@@ -65,6 +66,27 @@ export async function requiredOfWhom(db: Db): Promise<PasskeysRequired> {
   return (PASSKEYS_REQUIRED as readonly unknown[]).includes(v) ? (v as PasskeysRequired) : 'off';
 }
 
+/** Whether a group or a project this person belongs to asks for a passkey (D70). */
+async function scopedRequirement(db: Db, user: UserRow): Promise<boolean> {
+  const inGroup = await db
+    .select({ id: groups.id })
+    .from(groupMembers)
+    .innerJoin(groups, eq(groups.id, groupMembers.groupId))
+    .where(and(eq(groupMembers.userId, user.id), eq(groups.requirePasskeys, true)))
+    .limit(1);
+  if (inGroup.length) return true;
+  const required = sql`${projects.settings}->>'requirePasskeys' = 'true'`;
+  const membership = or(
+    eq(projects.visibility, 'open'),
+    eq(projects.leadId, user.id),
+    ...(user.role === 'admin' ? [sql`true`] : []),
+    sql`exists (select 1 from ${projectMembers} where ${projectMembers.projectId} = ${projects.id} and ${projectMembers.userId} = ${user.id})`,
+    sql`exists (select 1 from ${projectGroupRoles} inner join ${groupMembers} on ${groupMembers.groupId} = ${projectGroupRoles.groupId} where ${projectGroupRoles.projectId} = ${projects.id} and ${groupMembers.userId} = ${user.id})`,
+  );
+  const inProject = await db.select({ id: projects.id }).from(projects).where(and(required, membership)).limit(1);
+  return inProject.length > 0;
+}
+
 /**
  * What a password sign-in owes, as passkeys go: nothing; a passkey (`owed`); or, for someone an
  * administrator let off, a code in its place (`exempt`). Only where passkeys are on: required while
@@ -73,7 +95,7 @@ export async function requiredOfWhom(db: Db): Promise<PasskeysRequired> {
 export async function passkeyOwed(app: AppServices, user: UserRow): Promise<'no' | 'owed' | 'exempt'> {
   if (!mayHavePasskeys(user) || (await passkeysOff(app)) !== null) return 'no';
   const required = await requiredOfWhom(app.db);
-  const applies = required === 'everyone' || (required === 'admins' && user.role === 'admin');
+  const applies = required === 'everyone' || (required === 'admins' && user.role === 'admin') || (await scopedRequirement(app.db, user));
   if (!applies) return 'no';
   return user.passkeyExemptAt ? 'exempt' : 'owed';
 }
@@ -115,7 +137,7 @@ async function adminsWhoSignIn(tx: Db, app: AppServices, policy: { required: Pas
       if (holds) n++;
       continue;
     }
-    const asked = policy.passkeysOn && (policy.required === 'everyone' || policy.required === 'admins');
+    const asked = policy.passkeysOn && (policy.required === 'everyone' || policy.required === 'admins' || (await scopedRequirement(tx, a)));
     if (!asked || a.passkeyExemptAt || holds) n++;
   }
   return n;
@@ -124,6 +146,12 @@ async function adminsWhoSignIn(tx: Db, app: AppServices, policy: { required: Pas
 const configOn = (app: AppServices) => Boolean(rpOf(app)) && app.config.passwordLogin;
 /** Whether passkeys sign anyone in now, read through the transaction (a query beside it would wait on it). */
 const passkeysOnIn = async (tx: Db, app: AppServices) => configOn(app) && (await getSetting(tx, 'passkeys')) !== false;
+
+/** Check a group or project requirement after its row is changed, inside the same transaction (D70). */
+export async function checkScopedRequirement(tx: Db, app: AppServices): Promise<void> {
+  if (!(await passkeysOnIn(tx, app))) throw cantRequireWhileOff();
+  if ((await adminsWhoSignIn(tx, app, { required: await requiredOfWhom(tx), passkeysOn: true })) === 0) throw wouldLockOut();
+}
 
 /** The administrator's passkey settings (D62's switch, and D68's policy and list), refused where they'd lock administrators out. */
 export async function applyPasskeySettings(ctx: Ctx, input: { passkeys?: boolean; requirePasskeys?: PasskeysRequired; passkeyAuthenticators?: string[] | null }): Promise<void> {
@@ -153,7 +181,7 @@ export async function applyPasskeySettings(ctx: Ctx, input: { passkeys?: boolean
 export const ownRemovalCheck = (app: AppServices, user: UserRow) => async (tx: Db) => {
   const [me] = await tx.select().from(users).where(eq(users.id, user.id)).for('update');
   if (!me) return;
-  const left = working(await tx.select().from(passkeys).where(eq(passkeys.userId, me.id)), rpOf(app));
+  const left = workingFor(app, await tx.select().from(passkeys).where(eq(passkeys.userId, me.id)));
   if (me.passkeysOnly && !left.length) throw onlyWayIn();
   if (me.role === 'admin' && (await adminsWhoSignIn(tx, app, { required: await requiredOfWhom(tx), passkeysOn: await passkeysOnIn(tx, app) })) === 0) throw lastAdmin();
 };
@@ -184,7 +212,7 @@ export async function setPasskeyExempt(ctx: Ctx, userId: string, exempt: boolean
 export async function passwordState(app: AppServices, user: UserRow, session: SessionRef | null): Promise<NonNullable<MyPasskeys['password']>> {
   const set = Boolean(user.passwordHash);
   if (!set || !mayHavePasskeys(user) || (await passkeysOff(app)) !== null) return { set, removable: false, needs: null };
-  const left = working(await app.db.select().from(passkeys).where(eq(passkeys.userId, user.id)), rpOf(app));
+  const left = workingFor(app, await app.db.select().from(passkeys).where(eq(passkeys.userId, user.id)));
   if (!spare(left)) return { set, removable: false, needs: 'spare' };
   const proved = Boolean(confirmedUntil(session)) && session?.verifiedBy === 'passkey';
   return { set, removable: proved, needs: proved ? null : 'passkey' };
@@ -219,16 +247,16 @@ const noPasswordToRemove = () => conflict('You have no password', 'You sign in w
  * it (a code only follows a password), and so do the other sessions no passkey signed in.
  */
 export async function removePassword(app: AppServices, user: UserRow, session: SessionRef): Promise<void> {
-  const rp = await requireOn(app, user);
+  await requireOn(app, user);
   if (!user.passwordHash) throw noPasswordToRemove();
   // In the order the profile says them: a spare first, then a passkey's proof. The spare is counted again under the lock.
-  if (!spare(working(await app.db.select().from(passkeys).where(eq(passkeys.userId, user.id)), rp))) throw spareFirst();
+  if (!spare(workingFor(app, await app.db.select().from(passkeys).where(eq(passkeys.userId, user.id))))) throw spareFirst();
   if (!confirmedUntil(session) || session.verifiedBy !== 'passkey') throw passkeyProofFirst();
   await app.db.transaction(async (raw) => {
     const tx = raw as unknown as Db;
     const [me] = await tx.select().from(users).where(eq(users.id, user.id)).for('update');
     if (!me?.passwordHash) throw noPasswordToRemove();
-    if (!spare(working(await tx.select().from(passkeys).where(eq(passkeys.userId, me.id)), rp))) throw spareFirst();
+    if (!spare(workingFor(app, await tx.select().from(passkeys).where(eq(passkeys.userId, me.id))))) throw spareFirst();
     await tx.update(users).set({ passwordHash: null, passkeysOnly: true, updatedAt: new Date() }).where(eq(users.id, me.id));
     await tx.delete(userTotp).where(eq(userTotp.userId, me.id));
     await tx.delete(recoveryCodes).where(eq(recoveryCodes.userId, me.id));

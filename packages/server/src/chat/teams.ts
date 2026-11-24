@@ -21,12 +21,14 @@ import { addComment } from '../services/comments';
 import { bindTemplate, cardAttachment, cardChange, previewOf, teamsChangeCard, teamsIssueCard, type CardIssue } from './cards';
 import { checkIssueForm, creatableProjects, draftFor, isRefusal, makeChatIssue, openIssueForm, threadMayHear, type IssueForm, type MadeIssue, type Refusal } from './issues';
 import { escapeMd, FORM_MAX, teamsHtmlToMarkdown } from './markdown';
+import { findVisibleIssue } from '../services/issues';
 import { TEAMS_ISSUE_COMMAND } from './package';
 import { callable, channelTr, ChatCallError, chatCtx, personTr, retryAfterMs, stopError, stopReason, type Answer } from './common';
 import {
   channelByExternal,
   commandOutcome,
   issueForCard,
+  whyNotFor,
   linkUrl,
   markChannelGone,
   markWorkspaceRemoved,
@@ -185,7 +187,7 @@ async function botToken(app: AppServices): Promise<string> {
 }
 
 /** A call to Teams at a service URL, as the bot. */
-async function connector(app: AppServices, serviceUrl: string, method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<Record<string, unknown> | null> {
+async function connector(app: AppServices, serviceUrl: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH', path: string, body?: unknown): Promise<Record<string, unknown> | null> {
   const cfg = app.config.teams;
   if (!cfg) throw new ChatCallError('Teams isn’t set up here', 'failed');
   if (!callable(app, serviceUrl, cfg.serviceHosts)) throw new ChatCallError(`${serviceUrl} isn't one of Bot Framework's hosts`, 'failed');
@@ -225,6 +227,11 @@ const conv = (id: string) => `v3/conversations/${encodeURIComponent(id)}/activit
 export async function teamsSend(app: AppServices, serviceUrl: string, conversationId: string, activity: Record<string, unknown>): Promise<string | null> {
   const res = await connector(app, serviceUrl, 'POST', conv(conversationId), { type: 'message', ...activity });
   return typeof res?.id === 'string' ? res.id : null;
+}
+
+/** A channel's post, changed in place as its issue changes (D42's revisit): the same activity, new body. */
+export async function teamsUpdate(app: AppServices, serviceUrl: string, conversationId: string, messageId: string, activity: Record<string, unknown>): Promise<void> {
+  await connector(app, serviceUrl, 'PATCH', `${conv(conversationId)}/${encodeURIComponent(messageId)}`, activity);
 }
 
 /** The bot's personal chat with someone, made if it isn't there yet. */
@@ -468,6 +475,7 @@ export async function handleTeamsActivity(app: AppServices, a: TeamsActivity): P
         if (a.name === 'adaptiveCard/action') return { status: 200, body: await onAction(app, a) };
         if (a.name === 'composeExtension/fetchTask') return { status: 200, body: await onFetchTask(app, a) };
         if (a.name === 'composeExtension/submitAction') return { status: 200, body: await onSubmitAction(app, a) };
+        if (a.name === 'composeExtension/queryLink') return { status: 200, body: await onQueryLink(app, a) };
         return { status: 200, body: {} };
       default:
         return { status: 200 };
@@ -560,6 +568,38 @@ async function actionChannel(app: AppServices, a: TeamsActivity) {
   const known = await channelByExternal(app.db, ws.id, channelId);
   const channel = known && !known.goneAt ? known : await upsertChannel(app.db, ws.id, channelId, a.channelData?.channel?.name ?? known?.name ?? 'General');
   return { workspace: ws, channel };
+}
+
+/**
+ * A link pasted in the compose box (composeExtension/queryLink), unfurled (D42's revisit): a linked
+ * person's card of the issue, only what every reader of its project may see, as Slack's links come.
+ */
+async function onQueryLink(app: AppServices, a: TeamsActivity): Promise<Record<string, unknown>> {
+  const empty = { composeExtension: { type: 'result', attachmentLayout: 'list', attachments: [] } };
+  const who = personOf(app, a);
+  if (!who) return empty;
+  const user = await personFor(app, who);
+  if (!user) return empty;
+  const url = (a.value as { url?: unknown } | undefined)?.url;
+  if (typeof url !== 'string') return empty;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return empty;
+  }
+  const id = /^\/issues\/([A-Za-z][A-Za-z0-9]*-[0-9]+)\/?$/.exec(parsed.pathname)?.[1];
+  if (parsed.origin !== new URL(app.config.publicUrl).origin || !id) return empty;
+  const ctx = chatCtx(app, user, 'teams');
+  const row = await findVisibleIssue(ctx, id);
+  if (!row || row.limited) return empty;
+  const s = await app.schema.get();
+  const project = s.projects.get(row.projectId);
+  if (!project || (await whyNotFor(app.db, user.id, row.projectId, project.name))) return empty;
+  const tr = channelTr(app);
+  const issue = await issueForCard(ctx, id, { everyone: true });
+  const card = teamsChangeCard(issue, { who: user.name, did: tr.t('server.chat.issue.isShared'), kind: 'changed', details: [] }, tr);
+  return { composeExtension: { type: 'result', attachmentLayout: 'list', attachments: [{ contentType: 'application/vnd.microsoft.card.adaptive', content: card }] } };
 }
 
 /**

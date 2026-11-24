@@ -6,12 +6,14 @@ import { z } from 'zod';
 import type { Ctx } from '../../context';
 import { wantedRange } from '../../attachments/range';
 import { receiveFile } from '../../attachments/receive';
+import { getCookie } from 'hono/cookie';
 import { contentDisposition, formatBytes, isInline } from '../../attachments/sniff';
-import { unauthorized } from '../../lib/errors';
+import { AppError, unauthorized } from '../../lib/errors';
 import {
   articleUploadTarget,
   attachmentForDownload,
   attachmentForImage,
+  attachmentForRequester,
   attachmentLimits,
   commentUploadTarget,
   deleteAttachment,
@@ -25,6 +27,7 @@ import {
   type AttachmentRow,
   type UploadTarget,
 } from '../../services/attachments';
+import { PORTAL_COOKIE, portalRequester } from '../../services/portal';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
 
@@ -37,7 +40,7 @@ const errors = {
   404: { description: 'Not found, or not yours to see', content: { 'application/json': { schema: ErrorSchema } } },
   413: { description: 'Larger than one file may be, or more than its issue or article has room for', content: { 'application/json': { schema: ErrorSchema } } },
 };
-const MultipartFile = z.object({ file: z.string().meta({ format: 'binary', description: 'The file. Its type is read from its bytes; its name is made safe.' }) });
+export const MultipartFile = z.object({ file: z.string().meta({ format: 'binary', description: 'The file. Its type is read from its bytes; its name is made safe.' }) });
 
 function need(c: Context<HttpEnv>): Ctx {
   const ctx = c.get('ctx');
@@ -46,7 +49,7 @@ function need(c: Context<HttpEnv>): Ctx {
 }
 
 /** Document a multipart upload in OpenAPI; the handler reads the body itself, as a stream. */
-function uploadRoute(app: OpenAPIHono<HttpEnv>, path: string, summary: string, description: string, target: (ctx: Ctx, id: string) => Promise<UploadTarget>) {
+export function uploadRoute(app: OpenAPIHono<HttpEnv>, path: string, summary: string, description: string, target: (ctx: Ctx, id: string) => Promise<UploadTarget>) {
   app.openAPIRegistry.registerPath(
     createRoute({
       method: 'post',
@@ -186,8 +189,18 @@ export function attachmentRoutes(app: OpenAPIHono<HttpEnv>) {
     }),
   );
   app.get('/attachments/:id/image', async (c) => {
+    let row: AttachmentRow;
     const ctx = need(c);
-    const row = await attachmentForImage(ctx, c.req.param('id'));
+    try {
+      row = await attachmentForImage(ctx, c.req.param('id'));
+    } catch (e) {
+      // A request's own pictures, to whoever reads it on the portal (D39's revisit): the portal's
+      // cookie names them, and the file is theirs only when the request is.
+      if (!(e instanceof AppError) || (e.status !== 401 && e.status !== 404)) throw e;
+      const r = await portalRequester(c.get('runtime'), getCookie(c, PORTAL_COOKIE), c.req.header('accept-language')).catch(() => null);
+      if (!r) throw e;
+      row = await attachmentForRequester(c.get('runtime'), r, c.req.param('id'));
+    }
     const headers = downloadHeaders(row, false);
     const etag = headers.get('etag')!;
     const sent = c.req.header('if-none-match');

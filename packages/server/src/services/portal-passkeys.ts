@@ -50,7 +50,7 @@ import { projectAccess } from './access';
 import { readableId } from './issue-refs';
 import { resolveIssue } from './issues';
 import { credentialFree } from './passkey-credentials';
-import { ALERT_TTL_MS, CHALLENGE_TTL_MS, MAX_PASSKEYS, passkeyName, RECENT_MS, rpOf, type RelyingParty } from './passkeys';
+import { ALERT_TTL_MS, CHALLENGE_TTL_MS, MAX_PASSKEYS, passkeyName, RECENT_MS, rpFor, rpOf, rpsOf, workingFor, type RelyingParty } from './passkeys';
 import { deskSignIn } from './portal-sign-in';
 import { projectSettings } from './projects';
 import { getSetting } from './settings';
@@ -206,7 +206,7 @@ const verifiedPerson = (authData: Uint8Array) => parseAuthenticatorData(new Uint
 // What a requester sees
 // ---------------------------------------------------------------------------
 
-function dto(row: PasskeyRow, rp: RelyingParty | null): Passkey {
+function dto(row: PasskeyRow, rp: RelyingParty | null, accepted: string[] = rp ? [rp.id] : []): Passkey {
   return {
     id: row.id,
     name: row.name,
@@ -214,7 +214,7 @@ function dto(row: PasskeyRow, rp: RelyingParty | null): Passkey {
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
     synced: row.multiDevice,
     copied: Boolean(row.copiedAt),
-    elsewhere: rp && row.rpId !== rp.id ? row.rpId : null,
+    elsewhere: !accepted.includes(row.rpId) ? row.rpId : null,
   };
 }
 
@@ -249,11 +249,11 @@ export async function myPortalPasskeys(app: AppServices, requester: Pick<Request
   const rows = await rowsOf(app.db, requester.id);
   const off = await portalPasskeysOff(app);
   return {
-    passkeys: rows.map((r) => dto(r, rp)),
+    passkeys: rows.map((r) => dto(r, rp, rpsOf(app).map((x) => x.id))),
     on: off === null,
     off,
     confirmedUntil: confirmedUntil(session)?.toISOString() ?? null,
-    confirmWith: { passkey: off === null && working(rows, rp).length > 0, link: mailConfigured(app) },
+    confirmWith: { passkey: off === null && workingFor(app, rows).length > 0, link: mailConfigured(app) },
   };
 }
 
@@ -417,7 +417,7 @@ export async function removeRequesterPasskeys(ctx: Ctx, issueId: string): Promis
 async function requestOptions(app: AppServices, rp: RelyingParty, purpose: Ceremony, boundTo: string, requesterId: string | null): Promise<PasskeyOptions> {
   const challenge = await newChallenge(app.db, purpose, boundTo, requesterId);
   const allow = requesterId ? working(await rowsOf(app.db, requesterId), rp) : [];
-  return (await generateAuthenticationOptions({
+  const options = (await generateAuthenticationOptions({
     rpID: rp.id,
     challenge: new Uint8Array(Buffer.from(challenge, 'base64url')),
     timeout: CHALLENGE_TTL_MS,
@@ -425,18 +425,24 @@ async function requestOptions(app: AppServices, rp: RelyingParty, purpose: Cerem
     // Signing in names nobody: the browser offers the passkeys it holds for this host.
     ...(requesterId ? { allowCredentials: allow.map((r) => ({ id: r.credentialId, transports: r.transports })) } : {}),
   })) as unknown as PasskeyOptions;
+  return { ...options, legacyRpIds: rpsOf(app).filter((x) => x.id !== rp.id).map((x) => x.id) };
 }
 
 /** Options for signing in from the portal's sign-in page, bound to the browser's ticket. */
-export async function portalSignInOptions(app: AppServices, ticket: string, deskKey?: string): Promise<PasskeyOptions> {
-  const rp = await requireOn(app);
+export async function portalSignInOptions(app: AppServices, ticket: string, deskKey?: string, rpId?: string): Promise<PasskeyOptions> {
+  await requireOn(app);
+  const rp = rpFor(app, rpId);
+  if (!rp) throw elsewhere(rpId ?? '');
   await assertDeskTakes(app, deskKey);
   return requestOptions(app, rp, 'sign-in', sha256(ticket), null);
 }
 
 /** Options for confirming it's them, in a signed-in portal session: their own passkeys. */
-export async function portalConfirmOptions(app: AppServices, requester: Pick<RequesterRow, 'id'>, session: PortalSessionRef): Promise<PasskeyOptions> {
-  return requestOptions(app, await requireOn(app), 'confirm', session.id, requester.id);
+export async function portalConfirmOptions(app: AppServices, requester: Pick<RequesterRow, 'id'>, session: PortalSessionRef, rpId?: string): Promise<PasskeyOptions> {
+  await requireOn(app);
+  const rp = rpFor(app, rpId);
+  if (!rp) throw elsewhere(rpId ?? '');
+  return requestOptions(app, rp, 'confirm', session.id, requester.id);
 }
 
 async function rowByCredential(db: Db, credentialId: string): Promise<PasskeyRow | undefined> {
@@ -462,9 +468,10 @@ async function markCopied(app: AppServices, row: PasskeyRow): Promise<void> {
 }
 
 /** Check one assertion against its passkey, and move the passkey's count on to it, as D62 does. */
-async function verifyAssertion(app: AppServices, rp: RelyingParty, row: PasskeyRow, response: AuthenticationResponseJSON, challenge: string): Promise<void> {
+async function verifyAssertion(app: AppServices, current: RelyingParty, row: PasskeyRow, response: AuthenticationResponseJSON, challenge: string): Promise<void> {
   if (row.copiedAt) throw copiedProblem();
-  if (row.rpId !== rp.id) throw elsewhere(row.rpId);
+  const rp = rpsOf(app).find((x) => x.id === row.rpId);
+  if (!rp) throw elsewhere(row.rpId);
   checkClient(rp, response.response.clientDataJSON, 'webauthn.get');
   let uv: boolean;
   try {

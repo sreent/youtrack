@@ -25,7 +25,7 @@ async function boardId(ctx: Ctx, ref: string): Promise<string> {
   const named = (await listWhiteboards(ctx)).filter((w) => w.name.toLowerCase() === ref.trim().toLowerCase());
   if (named.length === 1) return named[0]!.id;
   // api only: an MCP tool's input, which agents read in English
-  if (named.length > 1) throw badRequest(`${named.length} whiteboards are called "${ref}"`, `Give its id: ${named.map((w) => `${w.id} (${w.project.key})`).join(', ')}.`);
+  if (named.length > 1) throw badRequest(`${named.length} whiteboards are called "${ref}"`, `Give its id: ${named.map((w) => `${w.id} (${w.project ? w.project.key : 'yours'})`).join(', ')}.`);
   throw notFound('Whiteboard').said('notFound.whiteboard');
 }
 
@@ -65,7 +65,7 @@ const listWhiteboardsTool = defineTool({
   async run(ctx, input) {
     const all = await listWhiteboards(ctx, { project: input.project });
     return {
-      data: all.map((w) => ({ id: w.id, name: w.name, project: w.project.key, elements: w.elements, updated: w.updatedAt, can_edit: w.access.edit })),
+      data: all.map((w) => ({ id: w.id, name: w.name, project: w.project ? w.project.key : 'yours', elements: w.elements, updated: w.updatedAt, can_edit: w.access.edit })),
       summary: all.length ? `${all.length} whiteboard${all.length === 1 ? '' : 's'}` : 'No whiteboards',
     };
   },
@@ -90,7 +90,7 @@ const getWhiteboardTool = defineTool({
       return c?.shown && c.id ? `${c.id} (${e.id})` : `${e.kind} ${e.id}`;
     };
     const lines = [
-      `${d.whiteboard.name} (${d.whiteboard.project.key}), ${d.elements.length} element${d.elements.length === 1 ? '' : 's'}`,
+      `${d.whiteboard.name} (${d.whiteboard.project ? (d.whiteboard.project ? d.whiteboard.project.key : 'yours') : 'yours'}), ${d.elements.length} element${d.elements.length === 1 ? '' : 's'}`,
       ...o.sections.flatMap((s) => [`## ${s.section.text || 'Untitled section'} (section ${s.section.id})`, ...s.inside.map((e) => line(e, cards))]),
       ...(o.loose.length ? [o.sections.length ? '## In no section' : '## Elements', ...o.loose.map((e) => line(e, cards))] : []),
       ...(o.arrows.length
@@ -101,7 +101,7 @@ const getWhiteboardTool = defineTool({
       data: {
         id: d.whiteboard.id,
         name: d.whiteboard.name,
-        project: d.whiteboard.project.key,
+        project: d.whiteboard.project ? (d.whiteboard.project ? d.whiteboard.project.key : 'yours') : 'yours',
         can_edit: d.whiteboard.access.edit,
         looking: d.viewers.map((v) => v.user.login),
         sections: o.sections.map((s) => ({ id: s.section.id, title: s.section.text ?? '', holds: s.inside.map((e) => describe(e, cards)) })),
@@ -197,7 +197,7 @@ const addToWhiteboardTool = defineTool({
       input.articles.length ? `article card${input.articles.length === 1 ? '' : 's'} ${input.articles.map((a) => a.article.toUpperCase()).join(', ')}` : '',
       input.arrows.length ? `${input.arrows.length} arrow${input.arrows.length === 1 ? '' : 's'}` : '',
     ].filter(Boolean);
-    return parts.length ? `Add ${parts.join(', ')} to the whiteboard ${d.whiteboard.name} (${d.whiteboard.project.key}).` : 'Nothing to add.';
+    return parts.length ? `Add ${parts.join(', ')} to the whiteboard ${d.whiteboard.name} (${(d.whiteboard.project ? d.whiteboard.project.key : 'yours')}).` : 'Nothing to add.';
   },
   async run(ctx, input) {
     const { id, d, ops } = await planAdd(ctx, input);

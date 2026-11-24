@@ -5,8 +5,8 @@
  * nothing is saved until they save the field, as ever. Offered only while the server has an AI provider.
  */
 import type { DiffLine, TextSummary, WriteResult, WritingAction, WritingFor } from '@a4a/shared';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { post } from '../../api/client';
+import { useEffect, useId, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { post, postStream } from '../../api/client';
 import { useAIStatus } from '../../api/queries';
 import { Markdown } from '../../components/Markdown';
 import { ErrorLine } from '../../components/States';
@@ -154,6 +154,8 @@ type Asked =
  */
 export function useWritingHelp({
   at,
+  endpoint = '/ai/write',
+  drafted,
   value,
   selected,
   pick,
@@ -162,6 +164,10 @@ export function useWritingHelp({
   say,
 }: {
   at: WritingFor | undefined;
+  /** Where the ask goes: the portal's own route for a requester's pages (D59's revisit). */
+  endpoint?: string;
+  /** Set true while the field's text is an accepted suggestion, for its save to keep (D59). */
+  drafted?: MutableRefObject<boolean>;
   value: string;
   selected: boolean;
   pick: () => Picked | null;
@@ -186,8 +192,21 @@ export function useWritingHelp({
     setOpen(false);
     setBusy(true);
     setAsked({ kind: 'write', action, original: action === 'continue' ? '' : original, picked });
+    // A draft streams (D59's revisit): the card fills in as the words come, each finished line checked.
+    if (action === 'draft' && scope === 'all') {
+      try {
+        await postStream<{ text?: string; message?: string }>(`${endpoint}/stream`, { action, text: original, for: at }, (e) => {
+          setAsked((a) => (a?.kind === 'write' && a.picked === picked ? (e.message && e.text === undefined ? { ...a, error: e.message } : { ...a, text: e.text ?? a.text }) : a));
+        });
+      } catch (e) {
+        setAsked((a) => (a?.kind === 'write' && a.picked === picked ? { ...a, error: errorText(e) } : a));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     try {
-      const r = await post<WriteResult>('/ai/write', { action, text: original, for: at });
+      const r = await post<WriteResult>(endpoint, { action, text: original, for: at });
       setAsked((a) => (a?.kind === 'write' && a.picked === picked ? { ...a, text: lead + r.text + trail } : a));
     } catch (e) {
       setAsked((a) => (a?.kind === 'write' && a.picked === picked ? { ...a, error: errorText(e) } : a));
@@ -220,6 +239,8 @@ export function useWritingHelp({
   const accept = (text: string) => {
     if (asked?.kind !== 'write') return;
     if (!asked.picked.apply(text)) return setAsked({ ...asked, error: t('writing.changedSince') });
+    // The field's save will say these words are the assistant's, unless they're changed first (D59).
+    if (drafted) drafted.current = true;
     close(t('writing.accepted'));
   };
 

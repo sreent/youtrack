@@ -24,17 +24,18 @@
  * own project's names (match.ts, ruleWorld), as it was checked when it was made.
  */
 import type { Change, NoteSaid, RuleSchedule, TrackerEvent } from '@a4a/shared';
-import { and, asc, eq, gt, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { commandSpec } from '../commands/executor';
 import { parseCommand } from '../commands/parser';
 import type { AppServices, AutomationCause, Ctx, UserRow } from '../context';
 import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
-import { issues, ruleRuns, rules, webhooks } from '../db/schema';
+import { issues, ruleRuns, rules, scriptJobs, webhooks } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { callableUrl, webhookOrigin } from '../events/webhooks';
 import type { Chore, OutboxConsumer } from '../events/worker';
 import { AppError, asSentence, saidProblems } from '../lib/errors';
+import { newId } from '../lib/ids';
 import { issueRef, readableId, stateNames } from '../services/issue-refs';
 import { findIssue, type IssueRow } from '../services/issues';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
@@ -57,7 +58,17 @@ const CHECK_EVERY_MS = 15_000;
 const PRUNE_EVERY_MS = 3_600_000;
 const BROKEN_NOTE_EVERY_MS = 3_600_000;
 
-export type Outcome = 'applied' | 'unchanged' | 'failed' | 'skipped' | 'duplicate';
+export type Outcome = 'applied' | 'unchanged' | 'failed' | 'skipped' | 'duplicate' | 'queued';
+
+/** What became of a script's call(): the webhook it names, and whether it will be called. */
+interface CallOutcome {
+  name: string;
+  body: string;
+  ok: boolean;
+  hook: { id: string; url: string; active: boolean } | null;
+  why: string;
+  whyKey: string;
+}
 
 interface Chain {
   /** The change that started the chain (an event id), or null for a scheduled run. */
@@ -341,6 +352,76 @@ export class RuleEngine {
   }
 
   /**
+   * A queued script's run (D40's revisit): the worker's turn, on the input its rule saw when it fired.
+   * The same discipline as an inline run - the run's claim, the changes as the workflow agent, the
+   * run log - only it may take its time, and the issue as it is now gets the change (it is read fresh).
+   */
+  async applyQueued(s: SchemaSnapshot, rule: RuleRow, job: typeof scriptJobs.$inferSelect): Promise<void> {
+    const issue = await findIssue(this.app.db, s, job.issueId);
+    if (!issue) {
+      await this.record(s, rule, null, { origin: job.origin, depth: 0, me: null, eventId: null, actorId: null }, 'failed', 'The issue was gone when the queued script ran.');
+      return;
+    }
+    const chain: Chain = { origin: job.origin, depth: 0, me: null, eventId: null, actorId: null };
+    if (job.origin !== null && (await this.actedFor(rule, issue, job.origin))) return;
+    const bot = s.usersByLogin.get(WORKFLOW_BOT);
+    if (!bot) return;
+    const ctx: Ctx = { ...botCtx(this.app, bot, issue.projectId), automation: { rule: rule.id, name: rule.name, origin: job.origin, depth: 1, by: null } };
+    const d = draftOf(rule);
+    const out = await runScript(rule.script!, job.input as never, { timeMs: 30_000, library: s.projects.get(issue.projectId)?.scriptLibrary ?? undefined });
+    const logged = logWords(out.intents.logs);
+    if (out.error) {
+      await this.record(s, rule, issue, chain, 'failed', `${scriptErrorText(out)}.${logged}`, [
+        { key: 'problem.rule.scriptStopped', values: { error: scriptErrorSaid(out.error) } },
+        ...logSaid(out.intents.logs),
+      ]);
+      return;
+    }
+    if (out.intents.refusal !== null) {
+      await this.record(s, rule, issue, chain, 'skipped', `It did nothing: ${out.intents.refusal}${logged}`, [
+        { key: 'rules.run.didNothing', values: { refusal: out.intents.refusal } },
+        ...logSaid(out.intents.logs),
+      ]);
+      return;
+    }
+    let planned: Planned[] = [];
+    try {
+      planned = await plannedChanges(ctx, this.app.db, s, issue, (job.input as { issue: never }).issue, out.intents, { meId: undefined });
+    } catch (err) {
+      await this.record(s, rule, issue, chain, 'failed', `${errorText(err)}${logged}`, [errorSaid(err), ...logSaid(out.intents.logs)]);
+      return;
+    }
+    try {
+      const out2 = await this.app.db.transaction(async (txRaw) => {
+        const tx = txRaw as unknown as Db;
+        const res = planned.length ? await applyPlanned(tx, ctx, s, issue, planned) : { changes: [] as Change[], others: [] as OtherChanged[], activities: [] as ActivityRow[] };
+        const after = planned.length ? ((await findIssue(tx, s, issue.id)) ?? issue) : issue;
+        const ref = d.notify && after ? await refOf(tx, s, after) : null;
+        let told: UserRow[] = [];
+        if (d.notify && ref) {
+          told = await recipientsFor(tx, s, d.notify, after, {});
+          if (told.length) {
+            res.activities.push(await recordActivity(tx, ctx, { type: 'rule.notified', projectId: after.projectId, issueId: after.id, payload: { issue: ref, data: { message: d.notify.message, to: d.notify.to, people: told.map((u) => u.login) } } }));
+          }
+        }
+        const changed = res.changes.length > 0 || res.others.length > 0;
+        const acted = changed || told.length > 0;
+        const said = [
+          res.changes.length ? changeWords(res.changes) : '',
+          res.others.length ? `Also changed ${othersWords(res.others)}` : '',
+          told.length ? `Told ${people(told)}` : d.notify ? 'Had nobody to tell' : '',
+        ].filter(Boolean).join('. ');
+        return { after, acted, changed, said, activities: res.activities };
+      });
+      const { after, acted, changed, said, activities } = out2;
+      await this.record(s, rule, after, chain, acted ? (changed ? 'applied' : 'unchanged') : 'unchanged', said || 'Its script ran from the queue and changed nothing.');
+      await publishActivities(this.app, activities);
+    } catch (err) {
+      await this.record(s, rule, issue, chain, 'failed', `${errorText(err)}${logged}`, [errorSaid(err), ...logSaid(out.intents.logs)]);
+    }
+  }
+
+  /**
    * Do what a rule does to one issue, as the workflow agent, all in one transaction with its run:
    * apply its command, tell the people it tells (the notifier delivers the message, as for any
    * event), and ask the webhook sender to call its webhook. If the run log says the rule already
@@ -361,12 +442,21 @@ export class RuleEngine {
     // transaction, as the workflow agent, with "me" as whoever set it off.
     let planned: Planned[] = [];
     let logs: string[] = [];
+    let calls: CallOutcome[] = [];
     if (rule.script) {
       // An app's rule reads comments only if its app was granted them (D48), and never a limited one.
       const input = await scriptInput(this.app.db, s, issue, chain.change ?? changeOf('scheduled', null), { unlimited: Boolean(owner) });
       if (owner && !owner.granted.read.includes('comments')) input.issue.comments = [];
+      // A queued script (D40's revisit): the worker runs it later, on what it saw now, so it may take its time.
+      if (rule.queued) {
+        await this.app.db
+          .insert(scriptJobs)
+          .values({ id: newId(), ruleId: rule.id, projectId: issue.projectId, issueId: issue.id, origin: chain.origin, input: input as unknown as Record<string, unknown> })
+          .onConflictDoNothing({ target: [scriptJobs.ruleId, scriptJobs.issueId, scriptJobs.origin] });
+        return 'queued';
+      }
       // And its app's settings, the project's over the app's.
-      const out = await runScript(rule.script, owner ? { ...input, settings: await settingsForRule(this.app, owner.id, issue.projectId) } : input);
+      const out = await runScript(rule.script, owner ? { ...input, settings: await settingsForRule(this.app, owner.id, issue.projectId) } : input, { library: s.projects.get(issue.projectId)?.scriptLibrary ?? undefined });
       const logged = logWords(out.intents.logs);
       if (out.error) {
         await this.record(s, rule, issue, chain, 'failed', `${scriptErrorText(out)}.${logged}`, [
@@ -389,6 +479,7 @@ export class RuleEngine {
         return 'failed';
       }
       logs = out.intents.logs;
+      calls = await this.callsOf(issue.projectId, out.intents.calls);
     } else if (d.command || d.comment) {
       try {
         const parsed = parseCommand(rule.command, s, [issue.projectId]);
@@ -413,7 +504,7 @@ export class RuleEngine {
         const res = planned.length ? await applyPlanned(tx, ctx, s, issue, planned) : { changes: [] as Change[], others: [] as OtherChanged[], activities: [] as ActivityRow[] };
         const activities = [...res.activities];
         const after = planned.length ? ((await findIssue(tx, s, issue.id)) ?? fresh) : fresh;
-        const ref = (d.notify || call?.ok) && after ? await refOf(tx, s, after) : null;
+        const ref = (d.notify || call?.ok || calls.some((x) => x.ok)) && after ? await refOf(tx, s, after) : null;
 
         // Whom it tells, as the issue is after its change: "its assignee" is whoever it just assigned.
         let told: UserRow[] = [];
@@ -440,21 +531,35 @@ export class RuleEngine {
             }),
           );
         }
+        for (const x of calls) {
+          if (x.ok && ref) {
+            activities.push(
+              await recordActivity(tx, ctx, {
+                type: 'script.called',
+                projectId: after.projectId,
+                issueId: after.id,
+                payload: { issue: ref, data: { webhook: x.hook!.id, name: x.name, body: x.body } },
+              }),
+            );
+          }
+        }
 
         const changed = res.changes.length > 0 || res.others.length > 0;
-        const acted = changed || told.length > 0 || Boolean(call?.ok);
+        const acted = changed || told.length > 0 || Boolean(call?.ok) || calls.some((x) => x.ok);
         if (chain.origin !== null || acted) {
           const said = [
             res.changes.length ? changeWords(res.changes) : '',
             res.others.length ? `Also changed ${othersWords(res.others)}` : '',
             told.length ? `Told ${people(told)}` : d.notify ? 'Had nobody to tell: whoever set it off isn’t told, and only people who can see the issue are' : '',
             call?.ok ? `Called ${call.origin ?? 'its webhook'}` : call ? call.why : '',
+            ...calls.map((x) => (x.ok ? `Called ${x.name}` : x.why)),
           ].filter(Boolean);
           const words: NoteSaid[] = [
             ...changesSaid(res.changes),
             ...(res.others.length ? [othersSaid(res.others)] : []),
             ...(told.length ? [toldSaid(told)] : d.notify ? [{ key: 'rules.run.toldNobody' }] : []),
             ...(call?.ok ? [call.origin ? { key: 'rules.run.called', values: { origin: call.origin } } : { key: 'rules.run.calledItsWebhook' }] : call ? [{ key: call.whyKey }] : []),
+            ...calls.map((x) => (x.ok ? { key: 'rules.run.called', values: { origin: x.name } } : { key: x.whyKey })),
           ];
           const claimed = await tx
             .insert(ruleRuns)
@@ -485,6 +590,21 @@ export class RuleEngine {
       await this.record(s, rule, issue, chain, 'failed', errorText(e), [errorSaid(e)]);
       return 'failed';
     }
+  }
+
+  /** A script's call, resolved: which webhook it names, and whether it can be called now. */
+  private async callsOf(projectId: string, asked: { webhook: string; body: string }[]): Promise<CallOutcome[]> {
+    // A script names a webhook as its page does: by origin, never its path, which can hold a secret (D32).
+    const rows = await this.app.db.select().from(webhooks).where(or(eq(webhooks.projectId, projectId), isNull(webhooks.projectId)));
+    return asked.map((x) => {
+      const named = rows.filter((h) => webhookOrigin(h.url) === x.webhook);
+      if (!named.length) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `It called ${x.webhook}, which isn't a webhook of this project`, whyKey: 'rules.run.scriptCalledNobody' };
+      if (named.length > 1) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `More than one webhook has the origin ${x.webhook}, so nothing was called`, whyKey: 'rules.run.scriptCalledAmbiguous' };
+      const hook = named[0]!;
+      if (!callableUrl(hook.url)) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `Its webhook's address isn't https, so ${x.webhook} wasn't called`, whyKey: 'rules.run.webhookNotHttps' };
+      if (!hook.active) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `Its webhook is paused, so ${x.webhook} wasn't called`, whyKey: 'rules.run.webhookPaused' };
+      return { name: x.webhook, body: x.body, ok: true, hook, why: '', whyKey: '' };
+    });
   }
 
   /** Whether the webhook a rule calls can be called now: there, on, and https (or this machine). */
@@ -610,4 +730,41 @@ export function rulesConsumer(app: AppServices): OutboxConsumer {
 /** The rule engine's chores (registered in server.ts), for the worker that holds the lease. */
 export function ruleChores(app: AppServices & { worker?: { active: boolean } | null }): Chore[] {
   return new RuleEngine(app).chores(() => app.worker?.active ?? true);
+}
+/**
+ * The queued scripts' worker (D40's revisit): claims what waited, runs each on the input it saw when
+ * its rule fired, and applies what it asked for, as the workflow agent. Long scripts get their time
+ * here; a job whose issue is gone, or whose rule is, is closed without a run.
+ */
+export async function runScriptJobs(app: AppServices): Promise<void> {
+  const s = await app.schema.get();
+  for (;;) {
+    const batch = await app.db.transaction(async (txRaw) => {
+      const tx = txRaw as unknown as Db;
+      const ids = await tx
+        .execute(sql`SELECT id FROM script_jobs WHERE state = 'queued' ORDER BY created_at LIMIT 10 FOR UPDATE SKIP LOCKED`);
+      const rows = (ids as unknown as { rows: { id: string }[] }).rows.map((x) => x.id);
+      if (!rows.length) return [];
+      await tx.update(scriptJobs).set({ state: 'running', claimedAt: new Date() }).where(inArray(scriptJobs.id, rows));
+      return rows.map((id) => ({ id, tx: false }));
+    });
+    if (!batch.length) return;
+    for (const { id } of batch) {
+      await runQueuedJob(app, s, id).catch((err) => console.warn(`queued script ${id} failed`, err));
+    }
+  }
+}
+
+async function runQueuedJob(app: AppServices, s: SchemaSnapshot, jobId: string): Promise<void> {
+  const [job] = await app.db.select().from(scriptJobs).where(eq(scriptJobs.id, jobId));
+  if (!job) return;
+  const rule = s.rules.find((x) => x.id === job.ruleId);
+  if (!rule || rule.projectId !== job.projectId) {
+    await app.db.delete(scriptJobs).where(eq(scriptJobs.id, jobId));
+    return;
+  }
+  const engine = new RuleEngine(app);
+  const done = await engine.applyQueued(s, rule, job);
+  await app.db.delete(scriptJobs).where(eq(scriptJobs.id, jobId));
+  void done;
 }

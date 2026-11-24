@@ -6,7 +6,7 @@
  */
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { absences, activities, helpdeskRequests, issueFieldValues, notifications, projects, users } from '../src/db/schema';
+import { absences, activities, customerGroups, helpdeskRequests, issueFieldValues, notifications, projects, requestCcs, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { helpdeskConsumer } from '../src/helpdesk/consumer';
 import { receiveMail } from '../src/helpdesk/inbound';
@@ -20,6 +20,8 @@ import { searchIssues } from '../src/search/service';
 import { listComments } from '../src/services/comments';
 import {
   addGroupMember,
+  customerDirectory,
+  groupsOfRequester,
   createCustomerGroup,
   groupOfRequester,
   listCustomerGroups,
@@ -126,8 +128,8 @@ describe('customer groups', () => {
     // By hand, whatever their address says; one group at a desk.
     await addGroupMember(w.adminCtx, 'BACK', globex.id, { email: 'rita@gmail.com', name: 'Rita' });
     await addGroupMember(w.adminCtx, 'BACK', globex.id, { email: 'zoe@acme.com', name: 'Zoe' });
-    const twice = await refused(addGroupMember(w.adminCtx, 'BACK', acme.id, { email: 'Rita@gmail.com' }));
-    expect([twice.status, twice.message]).toEqual([409, 'rita@gmail.com is in Globex at this desk']);
+    // A requester may be in several groups at a desk (D56's revisit): the consultant joins both.
+    await addGroupMember(w.adminCtx, 'BACK', acme.id, { email: 'Rita@gmail.com' });
     const back = await desk('BACK');
     const of = async (email: string) => (await groupOfRequester(w.app.db, back.id, { id: null, email }))?.name ?? null;
     expect(await of('carl@acme.com')).toBe('Acme');
@@ -137,7 +139,7 @@ describe('customer groups', () => {
     const zoe = await requesterByEmail(w.app.db, 'zoe@acme.com');
     expect((await groupOfRequester(w.app.db, back.id, zoe))?.name).toBe('Globex'); // by hand beats the domain
     expect((await listCustomerGroups(w.as(w.viewer), 'BACK')).map((g) => [g.name, g.members])).toEqual([
-      ['Acme', 0],
+      ['Acme', 1],
       ['Globex', 2],
     ]);
   });
@@ -321,9 +323,9 @@ describe('customer groups', () => {
     const back = await desk('BACK');
     expect(await receiveMail(w.app, raw('Dina <dina@acme.com>'), { via: 'webhook', desk: back })).toMatchObject({ outcome: 'reply', reason: 'a reply by its reply address, from someone of its customer group' });
     expect((await listComments(w.adminCtx, r.id)).at(-1)).toMatchObject({ text: 'Same here, since Monday.', visibility: 'public', requester: { name: 'dina' } });
-    for (const from of ['sam@other.org', 'rita@gmail.com']) {
-      expect((await receiveMail(w.app, raw(from), { via: 'webhook', desk: back })).outcome).toBe('refused');
-    }
+    expect((await receiveMail(w.app, raw('sam@other.org'), { via: 'webhook', desk: back })).outcome).toBe('refused');
+    // Rita is in a group that shares to comment too (D56's revisit): her answer is taken.
+    expect((await receiveMail(w.app, raw('rita@gmail.com'), { via: 'webhook', desk: back })).outcome).toBe('reply');
     // A group that shares to read takes no answers from its members, by email either.
     const [row] = await w.app.db.select().from(helpdeskRequests).where(eq(helpdeskRequests.issueId, r.uid));
     const acme = (await listCustomerGroups(w.adminCtx, 'BACK')).find((g) => g.id === row!.groupId)!;
@@ -333,7 +335,44 @@ describe('customer groups', () => {
     const globex = (await listCustomerGroups(w.adminCtx, 'BACK')).find((g) => g.name === 'Globex')!;
     const rita = await requesterByEmail(w.app.db, 'rita@gmail.com');
     await removeGroupMember(w.adminCtx, 'BACK', globex.id, rita.id);
-    expect(await groupOfRequester(w.app.db, back.id, rita)).toBeNull();
+    // Still in Acme (D56's revisit: several groups, one taken off leaves the other).
+    expect((await groupOfRequester(w.app.db, back.id, rita))?.name).toBe('Acme');
     expect((await refused(removeGroupMember(w.adminCtx, 'BACK', globex.id, rita.id))).status).toBe(404);
+  });
+});
+describe("the group's members hear of its requests", () => {
+  it("files a new request with its members copied, for the email alone", async () => {
+    const group = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'MembersHear', domains: ['hear.example'], sharing: 'none' });
+    await addGroupMember(w.adminCtx, 'BACK', group.id, { email: 'colleague@hear.example' });
+    const desk = (await w.app.schema.get()).projectsByKey.get('BACK')!;
+    const issue = await openRequest(w.app, desk, { name: 'Rita', email: 'rita@hear.example', summary: 'Tell my group', description: 'Please.', via: 'form' });
+    const ccs = await w.app.db.select().from(requestCcs).where(eq(requestCcs.issueId, issue.uid));
+    expect(ccs.map((c) => c.email)).toContain('colleague@hear.example');
+    expect(ccs.every((c) => c.via === 'group')).toBe(true);
+    expect(ccs.map((c) => c.email)).not.toContain('rita@hear.example');
+  });
+});
+describe("the customers' directory (D56's revisit)", () => {
+  it('names each customer once, across the desks the caller can read', async () => {
+    const list = await customerDirectory(w.adminCtx);
+    const acme = list.find((c) => c.name.toLowerCase() === 'acme');
+    expect(acme).toBeDefined();
+    expect(acme!.domains).toContain('acme.com');
+    expect(list.filter((c) => c.name.toLowerCase() === 'acme')).toHaveLength(1);
+  });
+});
+describe("a requester in several groups (D56's revisit)", () => {
+  it('files under the one they name, and refuses without one', async () => {
+    const desk = (await w.app.schema.get()).projectsByKey.get('BACK')!;
+    const a = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'AlphaCo', domains: [], sharing: 'none' });
+    const b = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'BetaCo', domains: [], sharing: 'none' });
+    await addGroupMember(w.adminCtx, 'BACK', a.id, { email: 'consultant@example.org' });
+    await addGroupMember(w.adminCtx, 'BACK', b.id, { email: 'consultant@example.org' });
+    await expect(openRequest(w.app, desk, { name: 'Consultant', email: 'consultant@example.org', summary: 'For which?', description: '', via: 'form' })).rejects.toMatchObject({ status: 400 });
+    const issue = await openRequest(w.app, desk, { name: 'Consultant', email: 'consultant@example.org', summary: 'For BetaCo', description: '', via: 'form', group: 'BetaCo' });
+    const [req] = await w.app.db.select({ groupId: helpdeskRequests.groupId }).from(helpdeskRequests).where(eq(helpdeskRequests.issueId, issue.uid));
+    const s = await w.app.schema.get();
+    const groups = await w.app.db.select().from(customerGroups).where(eq(customerGroups.projectId, desk.id));
+    expect(groups.find((g) => g.id === req!.groupId)?.name).toBe('BetaCo');
   });
 });

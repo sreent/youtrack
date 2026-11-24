@@ -103,6 +103,7 @@ function PersonRow({ user, isMe, ways, required }: { user: User; isMe: boolean; 
     banned: user.banned,
     hourlyRate: user.hourlyRate === null ? '' : String(user.hourlyRate),
     capacity: String(user.capacityHoursPerDay),
+    hrCalendar: user.hrCalendar ?? '',
   };
   const [form, setForm] = useState(initial);
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
@@ -117,6 +118,7 @@ function PersonRow({ user, isMe, ways, required }: { user: User; isMe: boolean; 
         ...(isMe ? {} : { role: form.role, banned: form.banned }),
         hourlyRate: num(form.hourlyRate),
         capacityHoursPerDay: num(form.capacity) ?? 0,
+        ...(!isMe ? { hrCalendar: form.hrCalendar.trim() || null } : {}),
       }),
     onSuccess: () => {
       setSaid({ text: t('page.admin.saved') });
@@ -252,6 +254,17 @@ function PersonRow({ user, isMe, ways, required }: { user: User; isMe: boolean; 
           onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))}
           aria-label={label(t('page.admin.hoursADay'))}
           className="tw:w-26"
+        />
+      </td>
+      <td>
+        <input
+          type="url"
+          value={form.hrCalendar}
+          onChange={(e) => setForm((f) => ({ ...f, hrCalendar: e.target.value }))}
+          placeholder="https://hr.example/cal/ical"
+          aria-label={label(t('page.admin.hrCalendar'))}
+          disabled={isMe}
+          className="tw:w-56"
         />
       </td>
       <td>
@@ -622,6 +635,7 @@ export default function AdminPage() {
                   <th scope="col">{t('page.admin.role')}</th>
                   <th scope="col">{t('page.admin.ratePerHour')}</th>
                   <th scope="col">{t('page.admin.hoursADay')}</th>
+      <th scope="col">{t('page.admin.hrCalendar')}</th>
                   <th scope="col">{t('page.admin.access')}</th>
                   <th scope="col">
                     <span className="hidden">{t('page.admin.save')}</span>
@@ -630,7 +644,7 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {people.map((u) => (
-                  <PersonRow key={u.id} user={u} isMe={u.id === me.data?.id} ways={ways} required={(settings.data?.requirePasskeys ?? 'off') !== 'off'} />
+                  <PersonRow key={u.id} user={u} isMe={u.id === me.data?.id} ways={ways} required={Boolean(settings.data?.passkeys)} />
                 ))}
               </tbody>
             </table>

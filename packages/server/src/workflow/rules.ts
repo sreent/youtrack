@@ -37,7 +37,7 @@ import { describeCommand, parseCommand, suggestCommand } from '../commands/parse
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
-import { issues, ruleRuns, rules, webhooks } from '../db/schema';
+import { issues, projects, ruleRuns, rules, webhooks } from '../db/schema';
 import { callableUrl, webhookOrigin } from '../events/webhooks';
 import { AppError, badRequest, conflict, errorWords, forbidden, keyedProblem, noted, notFound, saidProblems, wordsOf } from '../lib/errors';
 import { translatorFor } from '../i18n';
@@ -93,6 +93,8 @@ export interface Draft {
   callWebhookId: string | null;
   /** A scripted rule's JavaScript (D40): it runs in place of the command, or of what a guard requires. */
   script: string | null;
+  /** Runs from the queue (D40's revisit): a worker runs it, on what it saw when the rule fired. */
+  queued: boolean;
   enabled: boolean;
 }
 
@@ -162,6 +164,7 @@ export function draftOf(row: RuleRow): Draft {
     notify: notifyOf(row.notify),
     callWebhookId: row.callWebhookId,
     script: row.script ?? null,
+    queued: row.queued,
     enabled: row.enabled,
   };
 }
@@ -227,6 +230,7 @@ function draftFrom(projectId: string | null, input: RuleInput): Draft {
     notify: input.notify ? { to: input.notify.to ?? [], people: input.notify.people ?? [], message: input.notify.message } : null,
     callWebhookId: input.call?.webhook ?? null,
     script: input.script ?? null,
+    queued: input.queued ?? false,
     enabled: input.enabled ?? true,
   });
 }
@@ -478,6 +482,7 @@ export function ruleDto(s: SchemaSnapshot, seen: SchemaSnapshot, row: RuleRow, l
     notify: d.notify,
     call: row.callWebhookId ? { webhook: row.callWebhookId, origin: callOrigin } : null,
     script: row.script ?? null,
+    queued: row.queued,
     enabled: row.enabled,
     sentence: ruleSentence({ ...d, callOrigin, calls: Boolean(row.callWebhookId) }),
     problems: readingProblems(row.projectId ? ruleWorld(s, row.projectId) : seen, d),
@@ -659,6 +664,7 @@ export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
       notify: d.notify,
       callWebhookId: d.callWebhookId,
       script: d.script,
+      queued: d.queued,
       enabled: d.enabled,
       nextRunAt: d.schedule && d.enabled ? nextRunAfter(d.schedule, new Date()) : null,
       createdById: ctx.actor.user.id,
@@ -707,6 +713,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
       : {}),
     ...(input.call !== undefined ? { callWebhookId: input.call?.webhook ?? null } : {}),
     ...(input.script !== undefined ? { script: input.script ?? null } : {}),
+  ...(input.queued !== undefined ? { queued: input.queued } : {}),
     ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
   });
   // Turning off a rule that calls a webhook is anyone's who manages it; anything else about one is an administrator's.
@@ -1070,4 +1077,29 @@ export async function testRule(ctx: Ctx, input: RuleInput & { issue: string }): 
   const guard = d.kind === 'guard';
   const actor = guard || !bot ? ctx : botCtx(ctx.app, bot, issue.projectId);
   return dryRunScript(actor, full, issue, d.script, testChange(ctx, full, d), { meId: ctx.actor.user.id, guard, timeMs: guard ? SCRIPT_LIMITS.guardTimeMs : undefined });
+}
+// ---------------------------------------------------------------------------
+// A project's shared code for its scripts (D40's revisit)
+// ---------------------------------------------------------------------------
+
+/** The project's script library, readable by its managers and writable by administrators (D40's revisit). */
+export async function scriptLibrary(ctx: Ctx, key: string): Promise<string> {
+  const project = await requireProject(ctx, key, 'read');
+  const view = await projectAccess(ctx);
+  if (!view.canManage(project.id) && !ctx.actor.scopes.includes('admin')) throw forbidden('Only a project’s managers and administrators read its script library', 'Ask one of them.').said('workflow.libraryAdminOnly');
+  return project.scriptLibrary ?? '';
+}
+
+/** Save the project's script library: administrators alone, its syntax checked as a script's is. */
+export async function setScriptLibrary(ctx: Ctx, key: string, source: string): Promise<string> {
+  assertCanScript(ctx, 'rule');
+  if (source.length > SCRIPT_LIMITS.librarySource) throw badRequest(`A project’s library takes ${SCRIPT_LIMITS.librarySource.toLocaleString('en')} characters at most`, 'Take out what its scripts don’t share.').said('workflow.libraryTooLong');
+  const project = await requireProject(ctx, key, 'edit');
+  if (source.trim()) {
+    const problems = await checkScript(source);
+    if (problems.length) throw badRequest(`Its library doesn’t run: ${problems[0]!.message}`, 'Fix it, then save again.').said('workflow.libraryStopped', { error: problems[0]!.message });
+  }
+  await ctx.db.update(projects).set({ scriptLibrary: source.trim() || null, updatedAt: new Date() }).where(eq(projects.id, project.id));
+  ctx.app.schema.invalidate();
+  return source.trim();
 }

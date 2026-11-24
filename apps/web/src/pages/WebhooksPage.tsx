@@ -47,6 +47,9 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'pull_request.updated': t('page.webhooks.aPullRequestIsMerged'),
   'rule.notified': t('page.webhooks.aWorkflowRuleTellsPeople'),
   'rule.called': t('page.webhooks.aWorkflowRuleCallsIt'),
+  'script.called': t('page.webhooks.aWorkflowScriptCallsIt'),
+  'timesheet.submitted': t('page.webhooks.aTimesheetIsSubmitted'),
+  'timesheet.approved': t('page.webhooks.aTimesheetIsApproved'),
   'project.group.added': t('page.webhooks.aGroupIsGivenA'),
   'project.group.changed': t('page.webhooks.aGroupSRoleIn'),
   'project.group.removed': t('page.webhooks.aGroupIsTakenOut'),
@@ -64,8 +67,8 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
 };
 
 /** What a webhook can listen for: a rule's call goes only to the webhook the rule names. */
-type Subscribable = Exclude<(typeof EVENT_TYPES)[number], 'rule.called'>;
-const SUBSCRIBABLE = EVENT_TYPES.filter((t): t is Subscribable => t !== 'rule.called');
+type Subscribable = Exclude<(typeof EVENT_TYPES)[number], 'rule.called' | 'script.called'>;
+const SUBSCRIBABLE = EVENT_TYPES.filter((t): t is Subscribable => t !== 'rule.called' && t !== 'script.called');
 
 /** What the form's checkboxes say, each a label of its own: EVENT_WORDS' are clauses that follow "When" in a sentence. */
 const EVENT_LABELS: Record<Subscribable, string> = {
@@ -114,6 +117,8 @@ const EVENT_LABELS: Record<Subscribable, string> = {
   'whiteboard.converted': t('page.webhooks.label.whiteboardConverted'),
   'project.portal_sign_in.changed': t('page.webhooks.label.projectPortalSignInChanged'),
   'project.request_ccs.changed': t('page.webhooks.label.projectRequestCcsChanged'),
+  'timesheet.submitted': t('page.webhooks.label.timesheetSubmitted'),
+  'timesheet.approved': t('page.webhooks.label.timesheetApproved'),
 };
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';

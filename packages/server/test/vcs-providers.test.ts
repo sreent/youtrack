@@ -263,13 +263,19 @@ describe('Bitbucket Data Center', () => {
     fake.answer('/rest/api/1.0/projects/PROJ/repos/backend/commits', () => json('bitbucket-dc-commits'));
   });
 
-  it('needs an https address, and takes a token only for Bitbucket and GitHub', async () => {
+  it('needs an https address, and takes a token for Bitbucket, GitHub, GitLab and Gitea', async () => {
     const none = await failure(createIntegration(w.adminCtx, { provider: 'bitbucket-dc', name: 'PROJ/x' }));
     expect([none.status, none.message]).toEqual([400, 'Give Bitbucket Data Center’s address']);
     const plain = await failure(createIntegration(w.adminCtx, { provider: 'bitbucket-dc', name: 'PROJ/x', baseUrl: 'http://bitbucket.acme.example' }));
     expect([plain.status, plain.message]).toEqual([400, 'Bitbucket’s address must be https']);
-    const gitlab = await failure(createIntegration(w.adminCtx, { provider: 'gitlab', name: 'acme/x', accessToken: 'glpat_x' }));
-    expect([gitlab.status, gitlab.message]).toEqual([400, 'GitLab integrations take no address or access token']);
+    const glPlain = await failure(createIntegration(w.adminCtx, { provider: 'gitlab', name: 'acme/x', baseUrl: 'http://gitlab.acme.example', accessToken: 'glpat_x' }));
+    expect([glPlain.status, glPlain.message]).toEqual([400, 'GitLab’s API’s address must be https']);
+    // GitLab and Gitea take one too, since D70, to write commit statuses on their pull requests; the
+    // token is sealed as GitHub's is, and GitLab's address is gitlab.com unless another is given.
+    const gitlab = await createIntegration(w.adminCtx, { provider: 'gitlab', name: 'acme/code', accessToken: 'glpat_x' });
+    expect(gitlab).toMatchObject({ hasAccessToken: true, baseUrl: null });
+    const gitea = await createIntegration(w.adminCtx, { provider: 'gitea', name: 'acme/forge', baseUrl: 'https://git.acme.example/api/v1', accessToken: 'd3v_x' });
+    expect(gitea).toMatchObject({ hasAccessToken: true, baseUrl: 'https://git.acme.example/api/v1' });
     // GitHub takes one since D46, to ask which commits a build holds, and keeps it sealed.
     const github = await createIntegration(w.adminCtx, { provider: 'github', name: 'acme/x', accessToken: 'ghp_x' });
     expect(github).toMatchObject({ hasAccessToken: true });
@@ -278,6 +284,7 @@ describe('Bitbucket Data Center', () => {
     // Kept without its trailing slash; the token is never shown.
     expect(dc).toMatchObject({ baseUrl: fake.url, hasAccessToken: true });
     expect(JSON.stringify(dc)).not.toContain(fake.token);
+    expect(JSON.stringify(gitlab)).not.toContain('glpat_x');
   });
 
   it("answers Test connection's unsigned ping, and refuses anything else unsigned", async () => {

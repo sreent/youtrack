@@ -21,7 +21,7 @@ import { createIssue, findVisibleIssue, updateIssue } from '../src/services/issu
 import { addMember } from '../src/services/members';
 import { getResourceLoad, getSchedule } from '../src/services/planning';
 import { createProject, updateProject } from '../src/services/projects';
-import { discardTimer, getTimesheet, listTimers, pauseTimer, setTimesheetCell, startTimer, stopTimer } from '../src/services/time';
+import { approveTimesheet, discardTimer, getTimesheet, listTimers, pauseTimer, reopenTimesheet, setPersonalCell, setTimesheetCell, startTimer, stopTimer, submitTimesheet } from '../src/services/time';
 import { updateUser } from '../src/services/users';
 import { listWorkItems, logWork } from '../src/services/workitems';
 import { createWorkType, deleteWorkType, listWorkTypes, updateWorkType } from '../src/services/work-types';
@@ -351,5 +351,83 @@ describe('over REST', () => {
     expect((await call('PATCH', `/work-items/${item.id}`, { duration: '1h' })).body.minutes).toBe(60);
     expect((await call('PATCH', '/me', { workWeek: [0, 6, 6, 6, 6, 6, 0] })).body.workWeek).toEqual([0, 6, 6, 6, 6, 6, 0]);
     expect((await call('PATCH', '/me', { workWeek: [8, 8] })).status).toBe(400);
+  });
+});
+describe("a week submitted and approved (D43's revisit)", () => {
+  it('submits, locks its cells, is approved by a manager of its projects, and comes back open', async () => {
+    const anna = w.as(w.anna);
+    const issue = await createIssue(anna, { project: 'AGL', summary: 'Timesheet me', fields: { Type: 'Task' } });
+    await setTimesheetCell(anna, { issue: issue.id, date: day(0), minutes: 60 });
+    const open = await getTimesheet(anna, { week: mon });
+    expect(open.status).toBe('open');
+    const submitted = await submitTimesheet(anna, { week: mon });
+    expect(submitted.status).toBe('submitted');
+    expect(submitted.submittedAt).not.toBeNull();
+    // Its cells are locked: submitted, the cell refuses.
+    const locked = await refused(() => setTimesheetCell(anna, { issue: issue.id, date: day(0), minutes: 90 }));
+    expect(locked.status).toBe(409);
+    // Ben, AGL's lead, approves it; Anna can't.
+    const notAnna = await refused(() => approveTimesheet(anna, { week: mon, user: 'anna' }));
+    expect(notAnna.status).toBe(403);
+    const approved = await approveTimesheet(w.as(w.ben), { week: mon, user: 'anna' });
+    expect(approved.status).toBe('approved');
+    expect(approved.approvedBy).toMatchObject({ login: 'ben' });
+    // Sent back, its cells change again.
+    const again = await reopenTimesheet(w.as(w.ben), { week: mon, user: 'anna' });
+    expect(again.status).toBe('open');
+    await setTimesheetCell(anna, { issue: issue.id, date: day(0), minutes: 90 });
+  });
+});
+describe("the approval rule is the projects' to set (D43's revisit)", () => {
+  it("every project's 'any' lets one of the week's managers approve the whole week; the strict rule needs them all", async () => {
+    const anna = w.as(w.anna);
+    const ben = w.as(w.ben);
+    const agl = await createIssue(anna, { project: 'AGL', summary: 'AGL time', fields: { Type: 'Task' } });
+    const back = await createIssue(anna, { project: 'BACK', summary: 'BACK time', fields: { Type: 'Task' } });
+    await logWork(anna, agl.id, { duration: 30, date: day(0) });
+    await logWork(anna, back.id, { duration: 30, date: day(1) });
+    await submitTimesheet(anna, { week: mon });
+    // Ben manages AGL but not BACK: with the strict rule (the default) he can't approve the week.
+    const strict = await refused(() => approveTimesheet(ben, { week: mon, user: 'anna' }));
+    expect(strict.status).toBe(403);
+    // Both projects say 'any': one of the week's managers approves the whole week.
+    await updateProject(w.adminCtx, 'AGL', { settings: { time: { timesheetApproval: 'any' } } });
+    await updateProject(w.adminCtx, 'BACK', { settings: { time: { timesheetApproval: 'any' } } });
+    const approved = await approveTimesheet(ben, { week: mon, user: 'anna' });
+    expect(approved.status).toBe('approved');
+    expect(approved.approvedBy).toMatchObject({ login: 'ben' });
+  });
+});
+describe("the timesheet itself is each project's to turn off (D43's revisit)", () => {
+  it("a project's work leaves the sheet, and its cells refuse, until it is on again", async () => {
+    const anna = w.as(w.anna);
+    // A week of its own, so the other test's submitted week doesn't lock these cells.
+    const next = addDays(mon, 7);
+    const back = await createIssue(anna, { project: 'BACK', summary: 'Off the sheet', fields: { Type: 'Task' } });
+    await logWork(anna, back.id, { duration: 30, date: next });
+    await updateProject(w.adminCtx, 'BACK', { settings: { time: { timesheetEnabled: false } } });
+    const sheet = await getTimesheet(anna, { week: next });
+    expect(sheet.rows.some((r) => r.issue.id === back.id)).toBe(false);
+    const refusedCell = await refused(() => setTimesheetCell(anna, { issue: back.id, date: next, minutes: 60 }));
+    expect(refusedCell.status).toBe(400);
+    await updateProject(w.adminCtx, 'BACK', { settings: { time: { timesheetEnabled: true } } });
+    const again = await getTimesheet(anna, { week: next });
+    expect(again.rows.some((r) => r.issue.id === back.id)).toBe(true);
+  });
+});
+describe("the personal view (D43's revisit)", () => {
+  it('fills one of their own rows, no issue under it, and empties it away', async () => {
+    const anna = w.as(w.anna);
+    const next = addDays(mon, 14);
+    const filled = await setPersonalCell(anna, { activity: 'BAU', date: next, minutes: 90 });
+    expect(filled.personal).toContainEqual(expect.objectContaining({ activity: 'BAU', minutes: expect.arrayContaining([90]) }));
+    // Their own row, beside the issues', still there after another day joins it.
+    await setPersonalCell(anna, { activity: 'Training', date: addDays(next, 1), minutes: 60 });
+    const both = await getTimesheet(anna, { week: next });
+    expect(both.personal.map((p) => p.activity).sort()).toEqual(['BAU', 'Training']);
+    // Emptied, the row goes.
+    await setPersonalCell(anna, { activity: 'Training', date: addDays(next, 1), minutes: 0 });
+    const after = await getTimesheet(anna, { week: next });
+    expect(after.personal.map((p) => p.activity)).toEqual(['BAU']);
   });
 });

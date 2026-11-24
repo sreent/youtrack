@@ -1,10 +1,10 @@
-import type { Board, BoardView, Comment, GuestInfo, IssueDetail, IssueField, IssueList, Schedule, Whiteboard, WhiteboardDetail } from '@a4a/shared';
+import type { ArticleDetail, Board, BoardView, Comment, GuestInfo, IssueDetail, IssueField, IssueList, Schedule, Whiteboard, WhiteboardDetail } from '@a4a/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ApiError, get, qs } from '../api/client';
 import { Lone } from '../app/Auth';
-import { GUEST_PLACES, PlacesProvider } from '../app/places';
+import { GUEST_PLACES, IssueLink, PlacesProvider } from '../app/places';
 import { ago, agoSaid, StateBadge } from '../components/Badges';
 import { Markdown } from '../components/Markdown';
 import { ErrorNote, Loading, PageHead } from '../components/States';
@@ -53,11 +53,18 @@ export function GuestHome() {
   const [params, setParams] = useSearchParams();
   const projects = info.data?.projects ?? [];
   const key = params.get('project') ?? projects[0]?.key ?? '';
+  // A report's count opens its issues here, as its query (D64): the list is that query's, then.
+  const asked = params.get('q');
   const [page, setPage] = useState(0);
   const issues = useQuery({
-    queryKey: ['guest', 'issues', key, page],
-    queryFn: () => get<IssueList>(`/issues?query=${encodeURIComponent(`project: ${key} sort by: updated desc`)}&offset=${page * 25}&limit=25`),
-    enabled: Boolean(key),
+    queryKey: ['guest', 'issues', key, page, asked],
+    queryFn: () =>
+      get<IssueList>(
+        asked === null
+          ? `/issues?query=${encodeURIComponent(`project: ${key} sort by: updated desc`)}&offset=${page * 25}&limit=25`
+          : `/issues?query=${encodeURIComponent(asked)}&offset=${page * 25}&limit=25`,
+      ),
+    enabled: Boolean(key) || asked !== null,
   });
   return (
     <Lone wide>
@@ -90,9 +97,13 @@ export function GuestHome() {
         </nav>
       ) : null}
       {key && projects.some((p) => p.key === key) ? <MoreToRead project={projects.find((p) => p.key === key)!} /> : null}
-      {key ? (
+      {key || asked !== null ? (
         <section className="stack" aria-labelledby="guest-issues">
-          <h2 id="guest-issues">{tr('page.guestPages.itsIssues', { v: projects.find((p) => p.key === key)?.name ?? key })}</h2>
+          <h2 id="guest-issues">
+            {asked === null
+              ? tr('page.guestPages.itsIssues', { v: projects.find((p) => p.key === key)?.name ?? key })
+              : tr('page.guestPages.issuesMatching', { query: asked })}
+          </h2>
           {issues.isLoading ? <Loading what="loadingLine.issues" /> : null}
           {issues.error ? <ErrorNote error={issues.error} /> : null}
           {issues.data && !issues.data.items.length ? <p className="note">{t('page.guestPages.noIssuesYet')}</p> : null}
@@ -131,6 +142,8 @@ export function GuestIssue() {
   const missing = issue.error instanceof ApiError && (issue.error.status === 404 || issue.error.status === 401);
   const d = issue.data;
   return (
+    // Its words' ids lead to a guest's pages too, as a card's or a count's do (D64).
+    <PlacesProvider value={GUEST_PLACES}>
     <Lone wide>
       <div className="cluster spread">
         <Link to="/public">{t('page.guestPages.openToAnyone')}</Link>
@@ -178,6 +191,79 @@ export function GuestIssue() {
         </article>
       ) : null}
     </Lone>
+    </PlacesProvider>
+  );
+}
+
+
+/** An article, to read (D64): a guest's whiteboard card or link opens it here. */
+export function GuestArticle() {
+  const { id = '' } = useParams();
+  const article = useQuery({ queryKey: ['guest', 'article', id], queryFn: () => get<ArticleDetail>(`/articles/${id}`), retry: false });
+  const missing = notOpen(article.error);
+  const a = article.data;
+  return (
+    <PlacesProvider value={GUEST_PLACES}>
+    <Lone wide>
+      <div className="cluster spread">
+        <Link to="/public">{t('page.guestPages.openToAnyone')}</Link>
+        <SignIn next={`/articles/${id}`} />
+      </div>
+      {article.isLoading ? <Loading named={id} /> : null}
+      {missing ? (
+        <>
+          <h1>{id}</h1>
+          <p className="note">{t('page.guestPages.noSuchArticle')}</p>
+        </>
+      ) : article.error ? (
+        <ErrorNote error={article.error} />
+      ) : null}
+      {a ? (
+        <article className="stack">
+          <p className="note">
+            {a.path.length ? (
+              <>
+                {a.path.map((p, i) => (
+                  <span key={p.id}>
+                    {i > 0 ? ' › ' : ''}
+                    <Link to={`/public/articles/${p.id}`}>{p.title}</Link>
+                  </span>
+                ))}
+                {' › '}
+              </>
+            ) : null}
+            {a.project.name} · {tr('page.guestPages.updated', { when: agoSaid(a.updatedAt) })}
+          </p>
+          <h1>{a.title}</h1>
+          {a.body ? <Markdown text={a.body} className="article-body" headingsFrom={2} /> : <p className="note">{t('page.guestPages.noArticleWords')}</p>}
+          {a.children.length ? (
+            <section className="stack" aria-labelledby="guest-articles-under">
+              <h2 id="guest-articles-under">{t('page.articles.underIt')}</h2>
+              <ul className="plain stack tight">
+                {a.children.map((c) => (
+                  <li key={c.id}>
+                    <Link to={`/public/articles/${c.id}`}>{c.title}</Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {a.mentionedIn.issues.length ? (
+            <section className="stack" aria-labelledby="guest-articles-mentioned">
+              <h2 id="guest-articles-mentioned">{t('page.articles.mentionedIn')}</h2>
+              <ul className="plain stack tight">
+                {a.mentionedIn.issues.map((i) => (
+                  <li key={i.id}>
+                    <IssueLink id={i.id}>{i.id} {i.summary}</IssueLink>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </article>
+      ) : null}
+    </Lone>
+    </PlacesProvider>
   );
 }
 
