@@ -262,8 +262,10 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 
 - **The polite form (です・ます) in sentences**: 「保存しました。」, 「先に保存してください。」. Buttons and labels are short nouns or verb phrases, never sentences: 「保存」, 「変更を保存」, 「フィールドを削除」.
 - **No honorific after a name**: a name takes its particle directly (「Adaがあなたに割り当てました」), since many names are agents' and bots'. The help desk's emails are the one exception: they go to people outside the team, so they address a requester as 「{name}様」, as Japanese customer mail does.
-- **Full-width punctuation**: 、。：（）, and 「」 for quotes. The ellipsis is one character (…), as in English. No space between Japanese and a Latin word or a value: 「BACK-12を開く」.
-- **Plurals**: Japanese has none, so each plural keeps `other` alone, with a counter word: `{n, plural, other {#件の課題}}`. 件 counts issues and things, 人 people, 個 fields, values, files and tokens, 回 times.
+- **Full-width punctuation**: 、。：（）, and 「」 for quotes. The ellipsis is one character (…), as in English. No space between Japanese and a Latin word or a value: 「BACK-12を開く」, 「{home}に接続しました。」, 「1週間」. Two Latin words keep the space between them (「SSO URL」), and the colon is always full-width, even before an explanation: 「キューから実行：…」.
+- **A name people gave is quoted** after the noun that says what it is, as rules, customer groups and whiteboards are: 「ダッシュボード「週報」を削除しますか？」, 「トークン「CI」」, 「フィールド「Priority」が見つかりません。」. Without the quotes a Japanese name runs into its noun. Keys, logins, ids, versions and addresses stay bare (「プロジェクトBACK」, 「{login}のトークン」), and a name standing alone, set off by its particle, needs none: 「{name}を削除」.
+- **Plurals**: Japanese has none, so each plural keeps `other` alone, with a counter word: `{n, plural, other {#件の課題}}`. 件 counts issues and things (records, links, tasks, grants), 人 people, 個 fields, values, files, tokens, groups, roles and passkeys, 回 times. Never つ, which stops at nine (「10つ」 isn't Japanese): what has no counter of its own, such as desks and accounts, takes its number after a colon or in brackets: 「提供中のデスク：2」, 「アプリがインストールされているアカウント（2件）：」.
+- **The issue list's count line** puts what the query asks in brackets, since the query's own reading holds colons: 「4件の課題（プロジェクト：SPR、未解決）」, and the query field's reading 「課題（…）」.
 - **Pieces a page joins**:
   - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase in the polite past, with no subject: 「{issue}を変更しました」, 「報告しました」. A badge is a noun: 「課題の削除」.
   - A webhook's events are joined into 「{join}とき」 by Intl's "or" list (「AまたはB」, 「A、B、またはC」), so each is a clause in the plain past: 「課題が作成された」. The same clauses label the form's checkboxes (`page.webhooks.label.*`).
@@ -273,9 +275,10 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 - **Dates and numbers** come from Intl: 「2026年11月16日」, 「1,234.5」, 「3 分前」.
 - **Field names, states and values** are data, as in every language: the field panel says STATE and PRIORITY as they were named.
 - **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded in Japanese and every case stays: `{state, select, merged {マージ} closed {クローズ} other {再オープン}}`. A field's `{type}` in a problem is such a code too (`enum` 選択リスト, `owned` 担当者付きリスト), with `other` keeping the code.
-- **Problems**: what a page shows when something fails says the problem, then its fix, in です・ます. Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Japanese message, after 「エラー：」, 「理由：」 or 「応答：」, and brings its own punctuation, so no 。 follows it: 「…もう一度お試しください。エラー：{error}」. A problem held in another's values (`{problems}`, `{reasons}`, a parser's `{problem}`) is said whole in Japanese, each sentence with its 。, and Japanese joins them with no gap, so it stays where English puts it: 「…のクエリに問題があります：{problems}クエリを修正するか…」. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`), and a rule's choices are said as the rule form names them (「親課題」, 「1時間ごと」).
+- **Problems**: what a page shows when something fails says the problem, then its fix, in です・ます. Free text from elsewhere (a parser's message, another tracker's own words, a script's or a rule's own refusal) ends the Japanese message, after 「エラー：」, 「理由：」 or 「応答：」, and brings its own punctuation, so no 。 follows it: 「…もう一度お試しください。エラー：{error}」. A problem held in another's values (`{problems}`, `{reasons}`, a parser's `{problem}`) is said whole in Japanese, each sentence with its 。, and Japanese joins them with no gap, so it stays where English puts it: 「…のクエリに問題があります：{problems}クエリを修正するか…」. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`), and a rule's choices are said as the rule form names them (「親課題」, 「1時間ごと」).
 - **You and your**: a label that names the reader's own things says 自分の (「自分のトークン」, 「自分のダッシュボード」, 「自分のリクエスト」), or nothing where the owner is plain (「プロフィール」, 「タイマー」). あなた stays where the reader must be told from someone else: 「あなたとして動作します」, 「あなたではなく{login}として」.
-- **The help desk** says 問い合わせ for asking for help: 「問い合わせました」 in an issue's history and notifications, 「お問い合わせ」 on the form and the portal. Its emails to requesters are a company's to a customer: 「{desk}にお問い合わせいただいたため、このメールをお送りしています。」
+- **The help desk** says 問い合わせ for asking for help: 「問い合わせました」 in an issue's history and notifications, 「お問い合わせ」 on the form and the portal. Its emails to requesters are a company's to a customer: 「{desk}にお問い合わせいただいたため、このメールをお送りしています。」 The people they mention are 方 (「ほかの方」, 「この方々」, 「CCに追加された方」) and what a4a does for them お送りします; the portal's pages, which are a page's words, keep 人. Every message on a request, the team's or a requester's or someone copied, is a 返信: 「{name}様がリクエストに返信しました。」
+- **The chat bot's lines** name the bot a4a, never 私 (「a4aは{channel}に参加していません。」). A command in them stands on its own, set off by a space where Japanese meets it, and one that ends a line takes no 。, so it copies cleanly: 「/invite @a4a で招待して」, 「/a4a help と送ると」, 「…指定してください：subscribe BACK」. A page that tells someone what to send the bot quotes it: 「ボットに「link」と送って」.
 
 | English | Japanese |
 |---|---|
@@ -293,12 +296,16 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | request (help desk) | リクエスト |
 | requester | 依頼者 |
 | copied on a request (CC), copy, stop copying | CC, CCに追加, CCから外す |
-| customer group | 顧客グループ |
+| an email's Cc; whom the requester put there; someone copied (a history badge) | メールのCC; CCに入れた人; CC先 |
+| what people write on a request (the relay's emails, the CC settings) | 返信, as the portal and the team's emails call every message |
+| customer group, kept from the group | 顧客グループ, {group}と共有しない (the portal's button: {group}との共有をやめる), pairing with 共有する |
+| an SLA counted in business hours, its clock | 営業時間で計算, 時間の計測 (computing a target against the time that runs) |
 | reporter | 報告者 |
 | assignee | 担当者 |
 | agent | エージェント |
 | workflow | ワークフロー |
 | rule | ルール |
+| set off (a rule), run from the queue, script library | 起動する, キューから実行, スクリプトライブラリ (発火 is jargon) |
 | state machine | ステートマシン |
 | transition | 遷移 |
 | state | 状態 |
@@ -307,31 +314,44 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | inbox | 受信トレイ |
 | notification | 通知 |
 | digest | ダイジェスト |
-| subscription, subscribe | 購読, 購読する |
+| subscription, subscribe, a search you follow | 購読, 購読する, 購読中の検索 |
 | watch, watcher | ウォッチ, ウォッチャー |
-| timesheet | タイムシート |
-| work logged, log time | 作業記録, 作業時間を記録 |
+| timesheet; submit, approve, send back the week | タイムシート; この週を提出, この週を承認, 差し戻す |
+| a timesheet row of one's own; BAU | 課題以外の作業 (自分の時間 reads as free time); 定常業務 (BAU isn't said in Japanese) |
+| who approves a week: a manager of every project in it, of any | その週に作業記録があるすべてのプロジェクトでマネージャーである人, いずれかのプロジェクトのマネージャー |
+| work logged (a work item), log time | 作業記録, 作業時間を記録 |
+| another tracker's work: YouTrack's work items, worklogs, Redmine's time entries | 作業項目, 作業ログ, 作業時間, each tracker's own Japanese; what an import brings in is 作業記録 |
 | estimate | 見積もり |
-| days away | 不在日 |
+| days away, the HR calendar | 不在日, 人事カレンダー |
+| nothing yet (a person's badge in a plan or a sprint) | 割り当てなし |
 | levelling | 平準化 |
 | slack (in a plan) | 余裕 |
 | what-if (in a plan) | シミュレーション (仮定 is "things a4a assumed") |
 | baseline | ベースライン |
-| earned value | アーンドバリュー（EV） |
+| earned value; earned (an amount) | アーンドバリュー（EV）in headings; 出来高, as Japanese EVM writes the amount |
+| cost and schedule performance (CPI, SPI) | コスト効率指数, スケジュール効率指数 (PMBOK's Japanese) |
 | triage | トリアージ |
 | suggestion | 提案 |
 | token, revoke | トークン, 無効化 |
 | fingerprint (of a token) | フィンガープリント |
-| two-factor sign-in | 2段階認証 |
-| passkey | パスキー |
-| sign in, sign out | ログイン, ログアウト |
+| two-factor sign-in, a second factor | 2段階認証, both |
+| passkey; a synced passkey; one stopped for good | パスキー; 同期パスキー (FIDO's Japanese); 使用停止 |
+| let off (passkeys), ask for a passkey again | 免除する, 免除を取り消す |
+| authenticator, attestation | 認証器 (FIDO's Japanese; an authenticator app is 認証アプリ), メーカーによる証明（アテステーション） |
+| vouch for (an address) | 保証する |
+| sign in, sign out | ログイン, ログアウト (never サインイン) |
+| sign out everywhere | すべてのセッションからログアウト (a4a ends sessions, not devices) |
 | login (a person's handle) | ログインID |
 | identity provider | IDプロバイダー |
 | single sign-on | シングルサインオン |
-| webhook, delivery | Webhook, 配信 |
-| secret | シークレット |
+| webhook, delivery, a webhook's origin | Webhook (never ウェブフック), 配信, オリジン (a URL's, not 起点) |
+| secret; kept sealed | シークレット; 暗号化して保存 |
 | commit, pull request, branch | コミット, プルリクエスト, ブランチ |
+| check run, commit status | チェック実行, コミットステータス (GitHub's Japanese); a check run's titles are noun phrases: 「3件の課題に言及」 |
+| read as a GitHub App | GitHub Appとしてアクセス (the app writes check runs too) |
+| homeserver (Matrix) | ホームサーバー (Element's Japanese) |
 | field, value | フィールド, 値 |
+| field types, as problems name them: enum, string, text, integer, float, owned | 選択リスト, 1行テキスト, テキスト, 整数, 数値, 担当者付きリスト (the field form's words) |
 | link (between issues) | リンク |
 | resolve, resolved | 解決, 解決済み |
 | dashboard, widget | ダッシュボード, ウィジェット |
@@ -339,10 +359,15 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | person, people | ユーザー |
 | role, permission | ロール, 権限 |
 | member, viewer, manager, administrator | メンバー, 閲覧者, マネージャー, 管理者 |
+| who sees it, limit who sees it, those who always see it | 閲覧できる人, 閲覧できる人を限定, 常に閲覧できる人 (the history's badge: 関係者のみ); never 閲覧者, the Viewer role |
+| limited to some (an article's badge) | 閲覧制限 (限定公開 is YouTube's "unlisted") |
+| the navigation's groups: work, decide, build, oversee | 作業, 判断, 構築, 運用 (監督 reads as a director or a coach) |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | ホワイトボード・付箋・カード・セクション・矢印・ラベル・アウトライン |
+| a whiteboard's tools: draw, a drawing, add a picture; a person's own whiteboard | 手書き, 手書きの線, 画像を追加; 自分専用のホワイトボード |
 | connect (draw an arrow), make issues (of notes) | 矢印でつなぐ; 課題にする |
+| just now | 数秒前, worded as a relative time so it takes に: 「数秒前に追加」 |
 | a note's tones: plain, idea, agreed, question, problem, parked | 標準・アイデア・合意済み・質問・問題・保留 |
-| writing help; where an issue came from (a chat message) | 文章作成サポート; 作成元 |
+| writing help; where an issue came from (a chat message) | 文章作成サポート (Google's Japanese calls its own 文書作成サポート; 執筆 reads as a manuscript); 作成元 |
 
 **Why 課題 for issue**: it's what Jira's and Backlog's Japanese say, so Japanese teams already read trackers in it. チケット (Redmine's) reads as a support ticket, and イシュー, GitHub's loanword, is stiff in a sentence.
 

@@ -81,7 +81,7 @@ describe('a4a in each person’s language (D49)', () => {
       es: 'Incidencias del proyecto SPR y sin resolver: 4',
       fr: 'Tickets dans le projet SPR, non résolus : 4',
       id: '4 isu di proyek SPR, belum selesai',
-      ja: '4件の課題：プロジェクト：SPR、未解決',
+      ja: '4件の課題（プロジェクト：SPR、未解決）',
       zh: '4 个问题：项目 SPR、未解决',
       ko: '이슈 4개: 프로젝트 SPR 및 미해결',
       pt: 'Itens no projeto SPR, não resolvidos: 4',
