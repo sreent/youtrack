@@ -4512,7 +4512,7 @@
   "problem.command.unknownValue": "Valor desconhecido «{value}» para {field}. {hasGuess, select, yes {Quis dizer «{guess}»?} other {{n, plural, =0 {Ainda não há valores.} other {Valores: {allowed}.}}}}",
   "problem.command.userAfterFor": "Era esperado um utilizador depois de «for».",
   "problem.command.valueFor": "Era esperado um valor para {field}.",
-  "problem.command.valueOfFields": "«{value}» é um valor de {n, plural, =2 {{first} e {last}} other {# campos, entre eles {first} e {last}}}. Indique qual, por exemplo, «{first} {value}».",
+  "problem.command.valueOfFields": "«{value}» é um valor de {n, plural, =2 {{fields}} other {# campos, entre eles {fields}}}. Indique qual, por exemplo, «{first} {value}».",
   "problem.comments.changedBySomeoneElse": "O comentário foi alterado por outra pessoa (versão {version}; enviou {expectedVersion}). Recarregue o comentário e faça a alteração novamente.",
   "problem.comments.notFromHelpdesk": "{id} não chegou por um centro de apoio, por isso um comentário nele não pode ser público. Deixe «visibility» de fora, ou envie «internal».",
   "problem.comments.onlyOwn": "Só pode alterar os seus próprios comentários. Os gestores do projeto podem alterar os de qualquer pessoa.",

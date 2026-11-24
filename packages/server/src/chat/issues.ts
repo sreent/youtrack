@@ -176,7 +176,7 @@ export async function checkIssueForm(ctx: Ctx, input: { project: string; summary
   if (!mine) {
     // One they can't see, or may not create in, is missing: as the API says it.
     const open = projects.map((p) => p.key);
-    return refusal('project', tr.t('problem.issues.projectNotFound', { project: named.slice(0, 50), n: open.length, projects: open.join(', ') }));
+    return refusal('project', tr.t('problem.issues.projectNotFound', { project: named.slice(0, 50), n: open.length, projects: open }));
   }
   if (!input.summary.trim()) return refusal('summary', tr.t('server.chat.issue.summaryNeeded'));
   if ((await madeLately(ctx.db, ctx.actor.user.id)) >= ctx.app.config.chatIssueLimit) return tooFast(ctx, tr);

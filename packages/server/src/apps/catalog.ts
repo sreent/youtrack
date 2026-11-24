@@ -69,7 +69,7 @@ function words(e: unknown): string {
 export async function readCatalog(config: Config, url: string): Promise<Catalog> {
   if (!config.appCatalogs.includes(url)) {
     throw config.appCatalogs.length
-      ? badRequest(`${url} isn't one of the catalogs this a4a reads`, `The catalogs are set in APP_CATALOGS: ${config.appCatalogs.join(', ')}.`).said('apps.catalogUnknown', { url, catalogs: config.appCatalogs.join(', ') })
+      ? badRequest(`${url} isn't one of the catalogs this a4a reads`, `The catalogs are set in APP_CATALOGS: ${config.appCatalogs.join(', ')}.`).said('apps.catalogUnknown', { url, catalogs: [...config.appCatalogs] })
       : badRequest(`${url} isn't one of the catalogs this a4a reads`, 'The catalogs are set in APP_CATALOGS, and none is.').said('apps.catalogUnknownNone', { url });
   }
   const hit = cache.get(url);

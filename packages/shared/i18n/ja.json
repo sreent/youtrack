@@ -4512,7 +4512,7 @@
   "problem.command.unknownValue": "{field}に値「{value}」はありません。{hasGuess, select, yes {「{guess}」のことですか？} other {{n, plural, =0 {値はまだありません。} other {値：{allowed}。}}}}",
   "problem.command.userAfterFor": "「for」の後にユーザーが必要です。",
   "problem.command.valueFor": "{field}の値が必要です。",
-  "problem.command.valueOfFields": "「{value}」は{n, plural, =2 {{first}と{last}} other {{first}や{last}など#個のフィールド}}の値です。どのフィールドかを指定してください（例：「{first} {value}」）。",
+  "problem.command.valueOfFields": "「{value}」は{n, plural, =2 {{fields}} other {{fields}など#個のフィールド}}の値です。どのフィールドかを指定してください（例：「{first} {value}」）。",
   "problem.comments.changedBySomeoneElse": "コメントはほかの人によって変更されています（バージョン{version}、送信されたバージョンは{expectedVersion}）。コメントを再読み込みしてから、もう一度変更してください。",
   "problem.comments.notFromHelpdesk": "{id}はヘルプデスク経由で届いた課題ではないため、コメントを公開にできません。「visibility」を省くか、「internal」を送信してください。",
   "problem.comments.onlyOwn": "変更できるのは自分のコメントだけです。プロジェクトのマネージャーは、誰のコメントでも変更できます。",

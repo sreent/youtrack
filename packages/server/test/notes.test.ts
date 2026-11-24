@@ -239,7 +239,7 @@ describe("a rule run's kept notes", () => {
     expect(notesIn(translatorFor('en'), said, english)).toBe('Told Anna Schmidt, Ben Okafor and 3 others.');
     expect(notesIn(translatorFor('de'), said, english)).toBe('Benachrichtigt: Anna Schmidt, Ben Okafor und 3 weitere.');
     expect(notesIn(translatorFor('ja'), said, english)).toBe('Anna Schmidt、Ben Okafor、ほか3人に通知しました。');
-    expect(notesIn(translatorFor('zh'), said, english)).toBe('通知了 Anna Schmidt、Ben Okafor和另外 3 人。');
+    expect(notesIn(translatorFor('zh'), said, english)).toBe('通知了 Anna Schmidt、Ben Okafor 和另外 3 人。');
     expect(notesIn(translatorFor('ko'), said, english)).toBe('Anna Schmidt, Ben Okafor 및 다른 3명에게 알렸습니다.');
     expect(notesIn(translatorFor('pt'), said, english)).toBe('Avisou Anna Schmidt, Ben Okafor e mais 3 pessoas.');
     // Thai's list glues และ to the next item; beside a name, which Thai sets off, it takes a space, and a bare space a comma.
@@ -270,7 +270,7 @@ describe("a rule run's kept notes", () => {
     expect(notesIn(translatorFor('de'), said, english)).toBe('State: Open → Fixed und Priority: — → High. Außerdem geändert: BACK-12 (State → Fixed und Priority → High) und BACK-13 (State → Fixed).');
     expect(notesIn(translatorFor('fr'), said, english)).toBe('State\u00a0: Open → Fixed et Priority\u00a0: — → High. Elle a aussi modifié BACK-12 (State → Fixed et Priority → High) et BACK-13 (State → Fixed).');
     expect(notesIn(translatorFor('ja'), said, english)).toBe('State：Open → Fixed、Priority：— → High。ほかにBACK-12（State → Fixed、Priority → High）、BACK-13（State → Fixed）を変更しました。');
-    expect(notesIn(translatorFor('zh'), said, english)).toBe('State：Open → Fixed和Priority：— → High。还更改了 BACK-12（State → Fixed和Priority → High）和BACK-13（State → Fixed）。');
+    expect(notesIn(translatorFor('zh'), said, english)).toBe('State：Open → Fixed 和 Priority：— → High。还更改了 BACK-12（State → Fixed 和 Priority → High）和 BACK-13（State → Fixed）。');
     // A run kept before its changes were a list keeps the English it joined them with.
     expect(notesIn(translatorFor('de'), [{ key: 'rules.run.alsoChanged', values: { others: 'BACK-12: State → Fixed' } }], '')).toBe('Außerdem geändert: BACK-12: State → Fixed.');
   });

@@ -90,7 +90,7 @@ sprint Sprint 4                 # into a sprint of a board of the issue's projec
 
 **Conventions**
 
-- **Errors:** `{ "error": { "code", "message", "hint?", "details?", "key?", "values?" } }`. `message` and `hint` are English, for programs and agents; `key` and `values`, where a problem has them, say the same problem for a page in another language: `problem.<key>` in the catalogs (D49).
+- **Errors:** `{ "error": { "code", "message", "hint?", "details?", "key?", "values?" } }`. `message` and `hint` are English, for programs and agents; `key` and `values`, where a problem has them, say the same problem for a page in another language: `problem.<key>` in the catalogs (D49). A list among the values comes as a list, for the page to join in its own language: an array of words, which `message` and `hint` join with ", " (`"names": ["Priority", "State"]`), or `{ "and": [...] }` and `{ "or": [...] }`, which they join with "and" or "or".
 - **Language:** the API and MCP speak English. A page says its language in `x-a4a-locale`, which the server uses for the inbox's titles it answers and the problems' keys; emails and push are in each recipient's language (their profile's, else `DEFAULT_LOCALE`).
 - **Lists:** paginated as `?offset=&limit=` → `{ total, items }`.
 - **IDs:** readable issue IDs are accepted everywhere.
@@ -398,6 +398,8 @@ Every consumer sees only the events of projects it can see: `GET /events` and `G
   "project": "BACK", "issue": { "id": "BACK-12", "summary": "…", "resolved": false, "state": "In Progress" },
   "changes": [ { "field": "State", "from": "Open", "to": "In Progress" } ], "data": {} }
 ```
+
+A change to a multi-value field or to the tags joins its values in `from` and `to` with ", ", and lists each in `fromList` and `toList` where a side holds several (`{ "field": "Tags", "from": "ui", "to": "ui, perf", "toList": ["ui", "perf"] }`), for a page to join in its reader's language (D49).
 
 **Delivery**
 

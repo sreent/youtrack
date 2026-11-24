@@ -8,7 +8,7 @@
  * Which language: the one the person chose on their profile (kept here once the server says it), else
  * the browser's, else the server's default, else English.
  */
-import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, joinList, joinSentences, langTag, listParts, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, joinItems, joinList, joinSentences, langTag, listParts, matchLocale, sayProblem, type ListSaid, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import { noteIn } from '@a4a/shared/notes';
 import { createElement, Fragment, type ReactNode } from 'react';
 
@@ -109,7 +109,7 @@ export function problemWords(e: unknown): string | null {
  * catalog has, where the page shows the server's English. With `guessShown`, it leaves out its own
  * "Did you mean …?", for a page that offers the guess as a button of its own.
  */
-export function problemSaid(p: { key?: string; values?: Record<string, string | number> }, guessShown = false): string | null {
+export function problemSaid(p: { key?: string; values?: Record<string, string | number | ListSaid> }, guessShown = false): string | null {
   if (!p.key) return null;
   return problemWords(guessShown && p.values?.hasGuess === 'yes' ? { key: p.key, values: { ...p.values, hasGuess: 'no' } } : p);
 }
@@ -206,16 +206,10 @@ export const formatList = (items: string[], type: Intl.ListFormatType = 'conjunc
 /**
  * Things said one after another with no "and" (a card's summary, its state, its assignee), with the
  * comma the page's language puts between a list's first items: ", ", Japanese's and Chinese's "、",
- * Thai's space or comma as `listParts` sets it beside a name.
+ * Thai's space or comma as `listParts` sets it beside a name: `joinItems`, as a problem's list is joined.
  */
-export function formatItems(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? '';
-  // A list one longer has every one of these before its "and": keep it up to the last of them.
-  const parts = listParts(translator.locale, items.length + 1, (i) => items[Math.min(i, items.length - 1)]!);
-  return parts
-    .slice(0, parts.indexOf(items.length - 1) + 1)
-    .map((p) => (typeof p === 'number' ? items[p] : p))
-    .join('');
+export function formatItems(items: readonly string[]): string {
+  return joinItems(translator.locale, items);
 }
 const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const EN_DAYS = { short: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], long: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };

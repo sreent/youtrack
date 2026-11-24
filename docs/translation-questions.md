@@ -44,7 +44,6 @@ Its open questions were settled by a model editor's pass on 24 November 2026: 91
 
 Five wait on the code or the product, not on a native speaker's ear:
 
-- `helpdesk.portalSignIn.throughSome`: "que des adresses de {list}", where {list} is bare domains ("de acme.com et acme.fr"). "de" before a value that begins with a vowel is the elision the translator is being taught (below, under What a catalog can't say yet); the message keeps "de" for it.
 - **Posts that change in place** (no words of their own): should a channel see that a post was edited, or is its content replaced silently enough?
 - **The requester's own language** (no words of their own): emails follow the browser's language, kept on the requester. Should the portal offer a choice of language, or is the browser's enough?
 - **A group's members hearing of its requests** (no words of their own): should the copy say "de votre groupe" in its subject or its text? That would take a message of its own.
@@ -91,8 +90,6 @@ Its open questions were settled by a model editor's pass on 24 November 2026: 10
 
 Phrasing:
 
-- **Spaces around values**: the catalog spaces a placeholder as the Latin name, id or number it usually holds (「由 {name} 添加」), so a person named in Chinese reads 「以 王芳 身份」. See below.
-- **Intl's lists beside a Latin word**: Intl joins a list with 和, 或 and 、 and no space, 「通知了 Anna Schmidt和Vera Viewer。」, 「邮件链接登录、密码登录和Okta 登录」, where the catalog spaces a Latin word everywhere else. Chinese spaces 和 and 或 beside one, so `listParts` would need to do for Chinese what it does for Thai: a code change. Meanwhile the lists read as Intl writes them. Intl's dates, durations and relative times keep their own spacing, as Chinese software prints them.
 - **Traditional Chinese readers**: a browser asking for zh-TW, zh-HK or zh-Hant gets this catalog, since a4a matches a language by its first part, and Chrome lists a bare zh after zh-TW. Readers in Taiwan and Hong Kong read software in Traditional characters or in English, and many take Simplified for the wrong language, so until a4a has a Traditional catalog, `matchLocale` should pass them to their next language, the bare zh after a Traditional tag included: a code change. Meanwhile they get Simplified.
 
 ## Vietnamese
@@ -127,11 +124,8 @@ Typography and phrasing:
 
 These need the code to change, not a catalog:
 
-- **French can't elide before a name**: "de {name}" prints "de Ada", not "d’Ada", since the name is a value.
-- **Spanish's "y" before an "i" sound**: `problem.command.valueOfFields` joins two field names with "y", which should be "e" when the second starts with an "i" sound. Field names are data. Intl's lists already say "e" there ("Priority e Importancia"); this message writes its "y" itself.
 - **A field's or state's gender**: a message that agrees with `{field}`, `{state}` or `{close}` assumes one.
 - **Notes kept before a4a kept their words**: a commit's command note, a rule's run, a build's note and why a chat subscription, channel or workspace stopped, written before migrations `0028_build_notes` and `0029_kept_notes`, stay in the English they were kept in. New ones are said in each reader's language.
-- **Lists inside the server's problems**: the server joins what a problem lists with ", ": fields, values, roles, boards, sprints, projects, logins, a GitHub App's installations (`problem.issues.noSuchField`, `problem.values.unknownValue`, `problem.access.unknownRole`, `problem.vcs.githubApp.whichInstallation` and their like). Japanese and Chinese read 「acme (123), anna (456)」 where they would write 「、」. An issue's history shows a change to a multi-value field or to its tags joined the same way, as the server keeps the change (`packages/server/src/services/issues.ts`, and `presentValues` in `packages/server/src/services/values.ts`).
-- **Whether a value is Chinese**: Chinese spaces a value written in Latin letters or digits and not one written in Chinese, and a catalog can't tell which a value is, so it spaces names, ids and numbers. A person or a project named in Chinese gets spaces it doesn't need: 「以 王芳 身份」.
+- **Whether a name is Thai**: Thai sets a Latin value off with a space and joins a Thai one, but its space is also its pause, and a name often ends a clause or a sentence: 165 messages put a sentence's pause beside a value (“ยังไม่ได้ตั้งงบประมาณให้ {name} ตั้งได้ใน…”). So a4a joins only a value that is one of the catalog's own one-word messages (“คัดลอกโทเค็นแล้ว”, “ทีมงานตอบกลับ…”, D49), and a person or a project named in Thai keeps the spaces the catalog gives a name: “คุณ สมชาย”, `server.helpdesk.received`. A catalog that marked its pauses beside a value apart from its other spaces would let a4a join a Thai name too.
 - **Korean's particles after a Latin word**: a4a chooses a particle after Hangul and digits (`koreanParticles` in `packages/shared/src/i18n.ts`), but can't hear how a Latin name, state or key ends, so there Korean keeps both ways (을(를), 이(가)). A value passed with whether it ends in a consonant would let Korean choose the one it needs.
 - **Portuguese's contractions with a value**: a product's or a desk's name takes an article in Portuguese ("do GitHub", "no centro de apoio de X"). The catalog writes the article into the message, so it assumes a masculine product (identity providers, trackers, chat platforms) and leaves the desk's name without one, so each message says "ao", "no" or "do" before it (`server.helpdesk.deskOf`, `server.portal.deskOf`).

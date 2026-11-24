@@ -4512,7 +4512,7 @@
   "problem.command.unknownValue": "ไม่รู้จักค่า “{value}” สำหรับ {field} {hasGuess, select, yes {หมายถึง “{guess}” ใช่ไหม?} other {{n, plural, =0 {ยังไม่มีค่า} other {ค่าที่มี: {allowed}}}}}",
   "problem.command.userAfterFor": "ต้องมีผู้ใช้หลัง “for”",
   "problem.command.valueFor": "ต้องมีค่าสำหรับ {field}",
-  "problem.command.valueOfFields": "“{value}” เป็นค่าของ {n, plural, =2 {{first} และ {last}} other {# ฟิลด์ เช่น {first} และ {last}}} ระบุว่าเป็นของฟิลด์ใด เช่น “{first} {value}”",
+  "problem.command.valueOfFields": "“{value}” เป็นค่าของ {n, plural, =2 {{fields}} other {# ฟิลด์ เช่น {fields}}} ระบุว่าเป็นของฟิลด์ใด เช่น “{first} {value}”",
   "problem.comments.changedBySomeoneElse": "มีคนอื่นเปลี่ยนความคิดเห็นนี้แล้ว (เวอร์ชัน {version} คุณส่ง {expectedVersion}) โหลดความคิดเห็นใหม่ แล้วแก้ไขอีกครั้ง",
   "problem.comments.notFromHelpdesk": "{id} ไม่ได้เข้ามาทางเฮลป์เดสก์ ความคิดเห็นในอิชชูนี้จึงเป็นสาธารณะไม่ได้ ไม่ต้องใส่ “visibility” หรือส่ง “internal”",
   "problem.comments.onlyOwn": "คุณเปลี่ยนได้เฉพาะความคิดเห็นของตัวเอง ผู้จัดการโปรเจกต์เปลี่ยนของทุกคนได้",

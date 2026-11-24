@@ -4512,7 +4512,7 @@
   "problem.command.unknownValue": "Nilai “{value}” untuk {field} tidak dikenal. {hasGuess, select, yes {Maksud Anda “{guess}”?} other {{n, plural, =0 {Belum ada nilai.} other {Nilai: {allowed}.}}}}",
   "problem.command.userAfterFor": "Setelah “for” harus ada pengguna.",
   "problem.command.valueFor": "Harus ada nilai untuk {field}.",
-  "problem.command.valueOfFields": "“{value}” bisa jadi nilai {n, plural, =2 {{first} atau {last}} other {salah satu dari # bidang, di antaranya {first} dan {last}}}. Sebutkan bidangnya, misalnya “{first} {value}”.",
+  "problem.command.valueOfFields": "“{value}” adalah nilai {n, plural, =2 {{fields}} other {# bidang, di antaranya {fields}}}. Sebutkan bidangnya, misalnya “{first} {value}”.",
   "problem.comments.changedBySomeoneElse": "Komentar diubah oleh orang lain (versi {version}, Anda mengirim {expectedVersion}). Muat ulang komentar, lalu buat perubahan Anda lagi.",
   "problem.comments.notFromHelpdesk": "{id} tidak masuk lewat layanan bantuan, jadi komentar padanya tidak dapat bersifat publik. Jangan sertakan “visibility”, atau kirim “internal”.",
   "problem.comments.onlyOwn": "Anda hanya dapat mengubah komentar Anda sendiri. Manajer proyek dapat mengubah komentar siapa pun.",

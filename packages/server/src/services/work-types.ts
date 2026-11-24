@@ -101,12 +101,12 @@ export async function resolveWorkType(
   const choose = offered.length ? `Choose one of: ${offered.join(', ')}.` : 'A manager of the project can add work types.';
   const named = input?.trim();
   if (!named) {
-    if (required) throw badRequest(`Work logged in ${project.key} needs a work type`, choose).said('workTypes.needed', { project: project.key, n: offered.length, types: offered.join(', ') });
+    if (required) throw badRequest(`Work logged in ${project.key} needs a work type`, choose).said('workTypes.needed', { project: project.key, n: offered.length, types: offered });
     return null;
   }
   const found = rows.find((r) => r.id === named) ?? rows.find((r) => r.name.toLowerCase() === named.toLowerCase());
-  if (!found) throw badRequest(`${project.key} has no work type "${named}"`, choose).said('workTypes.unknown', { project: project.key, name: named, n: offered.length, types: offered.join(', ') });
-  if (found.archived) throw badRequest(`The work type ${found.name} is archived`, choose).said('workTypes.archived', { name: found.name, n: offered.length, types: offered.join(', ') });
+  if (!found) throw badRequest(`${project.key} has no work type "${named}"`, choose).said('workTypes.unknown', { project: project.key, name: named, n: offered.length, types: offered });
+  if (found.archived) throw badRequest(`The work type ${found.name} is archived`, choose).said('workTypes.archived', { name: found.name, n: offered.length, types: offered });
   return found;
 }
 

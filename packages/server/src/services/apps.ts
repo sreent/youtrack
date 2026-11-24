@@ -600,7 +600,7 @@ export async function setAppSettings(ctx: Ctx, name: string, input: { project?: 
   const values = { ...((existing?.values ?? {}) as Record<string, unknown>) };
   for (const [k, v] of Object.entries(input.values)) {
     const d = defs.find((x) => x.name === k);
-    if (!d) throw badRequest(`${row.title} has no ${projectId ? "project's " : ''}setting called ${k}`, `Its settings here: ${defs.map((x) => x.name).join(', ') || 'none'}.`).said('apps.noSuchSetting', { title: row.title, scope: projectId ? 'project' : 'app', k, count: defs.length, names: defs.map((x) => x.name).join(', ') });
+    if (!d) throw badRequest(`${row.title} has no ${projectId ? "project's " : ''}setting called ${k}`, `Its settings here: ${defs.map((x) => x.name).join(', ') || 'none'}.`).said('apps.noSuchSetting', { title: row.title, scope: projectId ? 'project' : 'app', k, count: defs.length, names: defs.map((x) => x.name) });
     if (v === null || v === '') {
       delete values[k];
       continue;
@@ -608,7 +608,7 @@ export async function setAppSettings(ctx: Ctx, name: string, input: { project?: 
     if (d.type === 'number' && typeof v !== 'number') throw badRequest(`${d.title} is a number`, 'Give it as a number.').said('apps.settingIsNumber', { title: d.title });
     if (d.type === 'boolean' && typeof v !== 'boolean') throw badRequest(`${d.title} is yes or no`, 'Give it as true or false.').said('apps.settingIsYesNo', { title: d.title });
     if ((d.type === 'text' || d.type === 'secret' || d.type === 'choice') && typeof v !== 'string') throw badRequest(`${d.title} is text`, 'Give it as text.').said('apps.settingIsText', { title: d.title });
-    if (d.type === 'choice' && !d.choices?.includes(v as string)) throw badRequest(`${d.title} is one of ${d.choices?.join(', ')}`, 'Pick one of them.').said('apps.settingIsChoice', { title: d.title, choices: String(d.choices?.join(', ')) });
+    if (d.type === 'choice' && !d.choices?.includes(v as string)) throw badRequest(`${d.title} is one of ${d.choices?.join(', ')}`, 'Pick one of them.').said('apps.settingIsChoice', { title: d.title, choices: d.choices ?? [] });
     if (typeof v === 'string' && v.length > 2000) throw badRequest(`${d.title} is too long`, 'Keep it to 2000 characters.').said('apps.settingTooLong', { title: d.title });
     // A secret is kept sealed, and never sent back (D38's secret box).
     values[k] = d.type === 'secret' ? seal(keySource(ctx.app), v as string) : v;

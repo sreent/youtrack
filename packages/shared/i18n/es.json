@@ -4512,7 +4512,7 @@
   "problem.command.unknownValue": "El valor “{value}” no existe para {field}. {hasGuess, select, yes {¿Querías decir “{guess}”?} other {{n, plural, =0 {Todavía no hay valores.} other {Valores: {allowed}.}}}}",
   "problem.command.userAfterFor": "Falta un usuario después de “for”.",
   "problem.command.valueFor": "Falta un valor para {field}.",
-  "problem.command.valueOfFields": "“{value}” es un valor de {n, plural, =2 {{first} y {last}} other {# campos, entre ellos {first} y {last}}}. Indica de cuál, p. ej., “{first} {value}”.",
+  "problem.command.valueOfFields": "“{value}” es un valor de {n, plural, =2 {{fields}} other {# campos, entre ellos {fields}}}. Indica de cuál, p. ej., “{first} {value}”.",
   "problem.comments.changedBySomeoneElse": "Otra persona ha cambiado el comentario (versión {version}; tú enviaste la {expectedVersion}). Vuelve a cargar el comentario y repite tu cambio.",
   "problem.comments.notFromHelpdesk": "{id} no entró por un servicio de asistencia, así que un comentario en ella no puede ser público. Quita “visibility”, o envía “internal”.",
   "problem.comments.onlyOwn": "Solo puedes cambiar tus propios comentarios. Los gestores del proyecto pueden cambiar los de cualquiera.",

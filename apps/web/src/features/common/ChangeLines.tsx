@@ -1,6 +1,6 @@
 import type { Change } from '@a4a/shared';
 import { excerpt } from './format';
-import { t } from '../../i18n';
+import { formatItems, t } from '../../i18n';
 
 /** Fields whose change is something added or taken away, rather than one value for another. */
 const ADDS = new Set(['links', 'comment', 'tags']);
@@ -12,8 +12,9 @@ export function ChangeLines({ changes }: { changes: Change[] }) {
     <ul className="change-lines">
       {changes.map((c, i) => {
         const adds = ADDS.has(c.field.toLowerCase());
-        const from = c.from ? excerpt(c.from, 160) : null;
-        const to = c.to ? excerpt(c.to, 160) : null;
+        // Several values on a side (a multi-value field's, the tags) listed as the page's language lists them (D49).
+        const from = c.from ? excerpt(c.fromList ? formatItems(c.fromList) : c.from, 160) : null;
+        const to = c.to ? excerpt(c.toList ? formatItems(c.toList) : c.to, 160) : null;
         return (
           <li key={`${c.field}-${i}`}>
             <span className="change-field">{t('ui.changes.fieldLabel', { field: c.field })}</span>{' '}

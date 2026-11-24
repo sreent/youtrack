@@ -99,7 +99,8 @@ function ruleName(tr: Translator, e: TrackerEvent): string {
 export function eventDetail(tr: Translator, e: TrackerEvent): string[] {
   const data = e.data as Record<string, unknown>;
   if (e.type === 'rule.notified') return typeof data.message === 'string' && data.message.trim() ? [data.message] : [];
-  if (e.type === 'issue.updated') return e.changes.map((c) => tr.t('server.notify.change', { field: c.field, from: c.from ?? tr.t('server.notify.none'), to: c.to ?? tr.t('server.notify.none') }));
+  // A multi-value field's values, and the tags, each as the reader's language lists them (D49).
+  if (e.type === 'issue.updated') return e.changes.map((c) => tr.t('server.notify.change', { field: c.field, from: c.fromList ?? c.from ?? tr.t('server.notify.none'), to: c.toList ?? c.to ?? tr.t('server.notify.none') }));
   if (e.type === 'comment.created' || e.type === 'comment.updated') return String(data.text ?? '').trim() ? [String(data.text)] : [];
   if (e.type === 'issue.created' && typeof data.description === 'string' && data.description.trim()) return [data.description];
   return [];

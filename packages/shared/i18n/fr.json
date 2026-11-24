@@ -4512,7 +4512,7 @@
   "problem.command.unknownValue": "Valeur inconnue « {value} » pour {field}. {hasGuess, select, yes {Vouliez-vous dire « {guess} » ?} other {{n, plural, =0 {Il n’y a pas encore de valeur.} other {Valeurs : {allowed}.}}}}",
   "problem.command.userAfterFor": "Il manque une personne après « for ».",
   "problem.command.valueFor": "Il manque une valeur pour {field}.",
-  "problem.command.valueOfFields": "« {value} » est une valeur de {n, plural, =2 {{first} et {last}} other {# champs, dont {first} et {last}}}. Précisez le champ, par exemple « {first} {value} ».",
+  "problem.command.valueOfFields": "« {value} » est une valeur de {n, plural, =2 {{fields}} other {# champs, dont {fields}}}. Précisez le champ, par exemple « {first} {value} ».",
   "problem.comments.changedBySomeoneElse": "Le commentaire a été modifié par quelqu’un d’autre (version {version}, vous avez envoyé {expectedVersion}). Rechargez le commentaire, puis refaites votre modification.",
   "problem.comments.notFromHelpdesk": "{id} n’est pas arrivé par un centre d’assistance : un commentaire sur ce ticket ne peut donc pas être public. Retirez « visibility », ou envoyez « internal ».",
   "problem.comments.onlyOwn": "Vous ne pouvez modifier que vos propres commentaires. Les gestionnaires du projet peuvent modifier ceux de tout le monde.",

@@ -92,7 +92,7 @@ function resolveOne(
         // Builds can run to hundreds: the latest few say enough.
         const shown = field.type === 'build' ? [...names].reverse().slice(0, 10) : names;
         const allowed = `${field.type === 'build' ? 'Latest builds' : 'Allowed'}: ${shown.join(', ')}`;
-        throw badRequest(`Unknown value "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"? ${allowed}` : allowed).said('values.unknownValue', { text, field: field.name, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', list: field.type === 'build' ? 'builds' : 'values', values: shown.join(', ') });
+        throw badRequest(`Unknown value "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"? ${allowed}` : allowed).said('values.unknownValue', { text, field: field.name, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', list: field.type === 'build' ? 'builds' : 'values', values: shown });
       }
       return { valueId: v.id };
     }
@@ -112,7 +112,7 @@ function resolveOne(
       if (!g) {
         const names = [...s.groups.values()].map((x) => x.name);
         const guess = didYouMean(text, names);
-        throw badRequest(`Unknown group "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"?` : names.length ? `Groups: ${names.join(', ')}` : 'An administrator makes groups under Administration.').said('values.unknownGroup', { text, field: field.name, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', n: names.length, groups: names.join(', ') });
+        throw badRequest(`Unknown group "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"?` : names.length ? `Groups: ${names.join(', ')}` : 'An administrator makes groups under Administration.').said('values.unknownGroup', { text, field: field.name, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', n: names.length, groups: names });
       }
       return { groupId: g.id };
     }
@@ -149,9 +149,21 @@ function resolveOne(
 
 /** Human-readable presentation of stored values, used in history and changes. */
 export function presentValues(s: SchemaSnapshot, field: FieldRow, rows: ResolvedValue[]): string | null {
-  if (!rows.length) return null;
-  const parts = rows.map((r) => presentOne(s, field, r)).filter((x): x is string => x !== null);
+  const parts = presentEach(s, field, rows);
   return parts.length ? parts.join(', ') : null;
+}
+
+/** Each stored value as presentValues says it, for a list a page joins in its own language (D49). */
+export function presentEach(s: SchemaSnapshot, field: FieldRow, rows: ResolvedValue[]): string[] {
+  return rows.map((r) => presentOne(s, field, r)).filter((x): x is string => x !== null);
+}
+
+/**
+ * A change's values each, on a side that holds several (a multi-value field's, the tags), beside the
+ * `from` and `to` that join them with ", ": a page joins them as its language does, 「Bug、UI」 (D49).
+ */
+export function changeLists(before: readonly string[], after: readonly string[]): { fromList?: string[]; toList?: string[] } {
+  return { ...(before.length > 1 ? { fromList: [...before] } : {}), ...(after.length > 1 ? { toList: [...after] } : {}) };
 }
 
 function presentOne(s: SchemaSnapshot, field: FieldRow, r: ResolvedValue): string | null {

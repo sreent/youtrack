@@ -323,7 +323,7 @@ function linkProblems(s: SchemaSnapshot, of: RuleRelated['of'] | RuleTarget['to'
     const inward = sub.direction === 'inward';
     return [keyedProblem({ message: `“${text}” is a subtask link`, hint: inward ? 'Say “its parent” instead.' : 'Say “its subtasks” instead.', ...whole(text) }, inward ? 'rule.subtaskLinkParent' : 'rule.subtaskLinkSubtasks', { phrase: text })];
   }
-  return [keyedProblem({ message: `There is no link “${text}” here`, hint: `Say one of: ${rulePhrases(s).join(', ')}.`, ...whole(text) }, 'rule.noLink', { phrase: text, phrases: rulePhrases(s).join(', ') })];
+  return [keyedProblem({ message: `There is no link “${text}” here`, hint: `Say one of: ${rulePhrases(s).join(', ')}.`, ...whole(text) }, 'rule.noLink', { phrase: text, phrases: rulePhrases(s) })];
 }
 
 function relatedProblems(s: SchemaSnapshot, d: Draft, r: RuleRelated): QueryProblem[] {
