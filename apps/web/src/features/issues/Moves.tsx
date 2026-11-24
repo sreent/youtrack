@@ -228,7 +228,7 @@ export function MoveIssue({ issue, onClose }: { issue: IssueDetail; onClose: () 
             <ul className="plain">
               {plan.carried.map((c) => (
                 <li key={c.field}>
-                  {t('issues.moves.carried', { field: c.field, same: c.from === c.to ? 'yes' : 'no', from: c.from ?? t('common.changeLines.none'), to: c.to ?? t('common.changeLines.none') })}
+                  {t('issues.moves.carried', { field: c.field, same: c.from === c.to ? 'yes' : 'no', from: c.fromList ?? c.from ?? t('common.changeLines.none'), to: c.toList ?? c.to ?? t('common.changeLines.none') })}
                 </li>
               ))}
             </ul>

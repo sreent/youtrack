@@ -3071,7 +3071,7 @@ export const MovePlanSchema = z
     to: z.string().describe('Its id once moved'),
     project: z.object({ key: z.string(), name: z.string() }),
     problems: z.array(MoveProblemSchema).describe("What doesn't carry over: each needs a value in `fields` (or null), and nothing moves until none is left"),
-    carried: z.array(z.object({ field: z.string(), from: z.string().nullable(), to: z.string().nullable() })).describe('What each field will hold there'),
+    carried: z.array(ChangeSchema).describe('What each field will hold there; a multi-value field’s values each in fromList and toList'),
     dropped: z.array(z.string()).describe("Fields the project it moves to doesn't have: their values are left behind"),
     leftSprints: z.array(z.string()).describe('Sprints it leaves, on boards that show none of that project'),
     moved: z.boolean().describe('Whether it moved (false for a dry run, or while problems remain)'),

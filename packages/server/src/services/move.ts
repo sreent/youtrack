@@ -26,7 +26,7 @@ import { issueRef, issueRefsById, readableId, stateNames, type IssueRow } from '
 import { createIssue, fieldValuesOf, resolveIssue } from './issues';
 import { allowedValues, projectByKey, type FieldRow, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { zoneOf } from './time-zones';
-import { presentValues, resolveFieldInput, valueRow, type ResolvedValue } from './values';
+import { changeLists, presentEach, presentValues, resolveFieldInput, valueRow, type ResolvedValue } from './values';
 import { whoSees } from './watchers';
 
 type Carried = { values: ResolvedValue[]; problem?: undefined } | { values?: undefined; problem: Omit<MoveProblem, 'field' | 'choices'> };
@@ -158,7 +158,7 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
       continue;
     }
     if (after.length) values.set(f.id, after);
-    if (before.length || after.length) carried.push({ field: f.name, from: presentValues(s, f, before), to: presentValues(s, f, after) });
+    if (before.length || after.length) carried.push({ field: f.name, from: presentValues(s, f, before), to: presentValues(s, f, after), ...changeLists(presentEach(s, f, before), presentEach(s, f, after)) });
   }
   for (const k of given.keys()) {
     if (!pfs.some((pf) => sees(pf.fieldId) && s.fields.get(pf.fieldId)?.name.toLowerCase() === k)) problems.push(keyedProblem({ field: k, message: `${target.key} has no field "${k}"` }, 'move.noField', { project: target.key, field: k }));
