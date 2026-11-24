@@ -745,7 +745,7 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | work logged, log time | 已记录工时, 记录工时 |
 | estimate | 预估 |
 | rate (per hour) | 小时费率 |
-| days away, away | 休假 for both: 「添加休假」, 「下午休假」; sick days too, as Microsoft Teams' Shifts files them under 休假 |
+| days away, away | 休假 for both: 「添加休假」, 「下午休假」, whatever the reason, as Microsoft Teams' Shifts calls all time off 休假, with a 休假原因 |
 | levelling | 资源平衡, as PMP courses teach it, like the plan's other words (浮动时间, 基线, 关键路径, 挣值) |
 | slack (in a plan) | 浮动时间 |
 | booked (hours in a plan) | 已安排: 「已安排工时」 |
