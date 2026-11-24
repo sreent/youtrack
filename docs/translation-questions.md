@@ -728,156 +728,16 @@ Messages added with the several groups:
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
 
-Terms:
+Its open questions were settled by a model editor's pass on 18 November 2026: 73 settled, 1 left for a native speaker.
 
-- **Issue is still *item***, as Portuguese teams read it in Jira (Brazil's Portuguese, the only one Jira ships) and in Azure DevOps ("itens de trabalho"). Do teams in Portugal say *item*, or *issue*, *pedido* or *tarefa*?
-- **A sprint is masculine** ("o sprint", "um sprint", "Nenhum sprint terminou ainda": `board.*`, `page.sprintPlanning.*`, `server.notify.verb.addedToSprint`, `problem.reports.*Sprint*`), where Brazil's Scrum Guide says "a Sprint". Is masculine what Portugal's teams say?
-- **The help desk is a *centro de apoio*** (`page.help.*`, `page.portal.*`, `server.helpdesk.*`, `helpdesk.*`), its requests *pedidos* and whoever asks the *requerente*. *Apoio ao cliente*, *serviço de apoio* and *helpdesk* are the alternatives; *pedido* is also an HTTP request (`api.client.requestFailed`, `problem.tooLarge`).
-- **Reporting an issue is *reportar*** ("Reportado por", "quem reportou", `page.issue.reportedBy`, `page.newIssue.reportIt`), as developers in Portugal say it; Microsoft's Portuguese says *comunicar* ("Comunicar um problema").
-- **A link between issues is a *ligação*** (`issues.issueLinks.*`, "Ligação adicionada:"), as Azure DevOps' Portuguese has it, and linking a chat account *associar*; a URL stays a *link*. *Ligação* is also a connection to a server (`board.board.checkTheConnectionAndTry`).
-- **Merged is *integrado*** (`issues.issueHistory.linkedPullRequestState`, `vcs.*`); Microsoft's Portuguese says *intercalar*, and developers often say *fazer merge*.
-- **A branch is masculine, a build stays *build*** ("o branch", "o build": `problem.ci.*`, `builds.*`). Microsoft's Portuguese says *ramo* and *compilação*; many teams in Portugal say "a build". Which?
-- **A role is a *função*** (`roles.*`, `page.profile.youRe`, `problem.access.*`), as Microsoft 365's and Google Workspace's Portuguese say it, and the manager a *gestor*. Does *função* read as "function" anywhere, and is *papel* better?
-- **An app is an *aplicação*** (feminine), as Microsoft and Google say it; Apple says "a app". A GitHub App keeps its name (`problem.vcs.githubApp.*`).
-- **A tag is an *etiqueta*** (`decide.suggestionCard.tag*`, `problem.tags.*`), while the command language keeps `tag urgent`. Do teams say *tag*?
-- **Uploading is *carregar*** ("A carregar {name}…", `editor.richField.uploading`), as Google Drive's and OneDrive's Portuguese say it, which is also "Loading" ("A carregar o plano…"). Is *enviar* clearer for an upload?
-- **The browser is the *browser***, as Microsoft's Portuguese says it (`page.profile.yourBrowsersLanguage`, `app.auth.thatSignInRanOut`); Google says *navegador*.
-- **A timer is a *temporizador*** (`issues.workLog.*`, `problem.time.timerNotFound`).
-- **A person's handle is their *nome de utilizador*** (`app.auth.login`, `problem.users.loginTaken`), which makes "Use o nome de utilizador da pessoa" long; *login* is the alternative.
-- **Single sign-on is "SSO"** where the sentence already says *iniciar sessão* (`app.auth.singleSignOn`, `page.profile.singleSignOn`), and *início de sessão único (SSO)* in the terms table.
-- **Days away**: Sick is *Baixa médica*, Training *Formação* (`away.words.*`).
-- **Earned value is *valor ganho* (VG)** (`plan.costs.earned*`, `evAc*`, `evPv*`), as Portugal's project managers say it; the other figures keep the abbreviations Brazil's PMBOK gave them (VP, CR, IDC, IDP, VC, VPR, ONT, ENT, EPT, VNT, "No término"). Do Portugal's teams read these, or EV, PV, AC, CPI and SPI?
-- **Provisioning is *aprovisionamento*, a tenant an *inquilino*** (`identity.provisioning.*`, `page.chat.tenant`, `problem.scim.tokenNotFound`), as Microsoft's Portuguese says them.
-- **A commit or a pull request is *associado* to an issue** ("associou o pull request #12", `activity.ledgerEntry.linkedPullRequestTo`, `page.integrations.linked`), apart from a link between issues, a *ligação*.
+Left for a native speaker:
 
-Phrasing:
+- **Quotation marks** are «…», with “…” inside, as Portugal's print and the EU's Portuguese style write them, while Microsoft's Portuguese style guide quotes a word on screen with “…”, as Apple's and Google's interfaces in Portugal mostly do. Both are Portugal's. Meanwhile the catalog keeps «…» (some 260 messages, `ui.quoted` among them): it is Portugal's own mark, and it keeps a quoted name apart from the straight quotes of a command someone types. Which do Portuguese readers expect on a page?
 
-- **No você**: Portugal's software leaves the reader to the verb, and the catalog does too, so "Pode", "Tem", "Recebeu este e-mail porque…", "Quis dizer…?". *Você* stays where the code hands the reader in as a name: `decide.suggestionCard.you` ("Você aplicou."), `page.portal.you`, `page.track.you`, `page.track.youAsked` ("<t0>Você</t0> escreveu"), and `server.query.you` (the query's "me", after a preposition and alone: "Assignee: você"). Would "Eu" read better in the portal's thread?
-- **Clitics where Portugal puts them**: "{who} atribuiu-lhe o item", "{who} fez-lhe uma menção", "{who} reportou o item e atribuiu-lho" (`server.notify.title.*`). Is *atribuiu-lho* too literary for a notification's title?
-- **Status lines are "a" + infinitive**: "A carregar o plano…", "A guardar…", "A iniciar sessão…" (`loadingLine.*`, every `*.saving`, `*.loading`).
-- **Quotation marks are «…»**, with “…” inside, as Portugal's print and the EU's Portuguese style write them (258 messages, among them `ui.quoted`, which quotes a command, a search, a script's comment or an app's name on a page). Microsoft's and Google's Portuguese often use "…" in their interfaces: which do Portuguese readers expect on a page?
-- **Limits** are "Demasiados pedidos em pouco tempo. Tente novamente daqui a 30 s." (`problem.rateLimited`) and "… Tente novamente daqui a 2 minutos." (`problem.helpdesk.tooMany*`, `problem.tooManySignIns`).
-- **A day in a sentence takes *a***: "Reportado por Ana a 4/12/2026" (`page.issue.reportedBy`, `ui.badges.onDate`), since Intl's `pt-PT` writes short dates as numbers.
-- **The query's count line still puts the count last** ("Itens no projeto SPR, não resolvidos: 4", `issues.queryBar.found*`): 0 is plural now, but the participles after it agree with the issues, not the count.
-- **The profile** is "Perfil" in the menu and on its page (`app.shell.yourProfile`, `page.profile.yourProfile`); "O seu perfil" is the alternative.
-- **iPhone's own words** are quoted as its Portuguese (Portugal) writes them: "toque em Partilhar, depois em Adicionar ao ecrã principal" (`notifications.pushSettings.onAnIphoneOrIpad`). An iPhone set to Brazil's Portuguese says "Compartilhar" and "Adicionar à Tela de Início".
-- **The reader among people**: a list marks the reader "(eu)" (`plan.resources.you`, `page.whiteboard.you`), the people table " · a sua conta" (`page.admin.you`), and the projects table's column of the reader's role "A sua função" (`page.projects.you`).
-- **A rule names the issue it acts on** where English says "it": "o item pai", "as subtarefas", "os itens que o item {phrase}" (`rules.words.*`, `rules.ruleForm.*`), and the rule problems quote the same words (`problem.rule.subtaskLinkParent`, `subtaskLinkSubtasks`). Is "o item pai" heavy beside "o pai"?
-- **Gender left unguessed** costs length, as it did for Brazil: "quem fez o pedido", "a pessoa responsável", "Este pedido só é visível para si e para a equipa". Check the badges and narrow columns at 390px.
+Needs the code to change:
 
-Messages added in wave 5 (passkeys, the portal's sign-in, guests):
+- **The reader handed in as a name** still says *Você* in the portal's thread and in a query's "me" (`page.portal.you` in `page.portal.asked` and `page.portal.messageHead`, `page.track.you`, `page.track.youAsked`, `server.query.you`): one value stands as a verb's subject ("<t0>Você</t0> escreveu"), after a preposition ("atribuídos a você, anna") and alone ("Reporter: você"), where Portugal's Portuguese says no pronoun, *si* and *eu*. "Eu" can't stand in for it ("Eu escreveu"), so *Você*, the one form that fits every place, stays until the code says whether a value is the reader (a select, `{who, select, you {…} other {…}}`) and each place takes its own form. The suggestion card, whose sentences the catalog could turn, says "Aplicada por si." already.
 
-- **A passkey is a *chave de acesso*** (`identity.passkeys.*`, `app.auth.signInWithAPasskey`, `server.passkeys.*`), as Microsoft's and Google's Portuguese say it; Apple's says *chave-passe*. Does it stay apart from a *token de acesso* and the portal's *link de acesso*?
-- **Through a provider**: buttons say "Iniciar sessão com {name}" (`page.portal.signInThrough`), as the team's sign-in does, and the desk's settings, its history and sentences "através de {name}" (`helpdesk.portalSignIn.through`, `helpdesk.groups.throughAlone`, `activity.ledgerEntry.signInThrough`). One throughout?
-- **Vouching**: a requesters' provider *confirma* an email (`helpdesk.portalSignIn.throughAny`, `throughSome`, `domainsHelp`), and a requester is told the provider "não é aceite para endereços como o seu" (`page.portal.ssoDomain`). *Garantir* or *responder por* are nearer "vouch for".
-- **OpenID Connect's words**: "Emissor", "ID do cliente", "Segredo do cliente", "URI de redirecionamento" and "documento de descoberta" (`helpdesk.portalSignIn.*`, `problem.portalSignIn.issuer*`, `providerUnreachable`). Would administrators rather read "issuer", or *deteção* for discovery?
-- `identity.passkeys.stopped`, the red badge on a passkey that may have been copied, is "Bloqueada"; "Parada" and "Suspensa" are the alternatives.
-- `page.guestPages.alsoOpenIn`, the heading over a project's plan, reports, boards and whiteboards on a guest's page, is "Também aberto em {name}". "Também em {name}" is shorter.
-- **The passkey emails' time** is in brackets, "… da sua conta do a4a, ana (quarta, 18/11, 14:03 WET)." (`server.passkeys.added`, `removed`, `removedByAdmin`, `copied`): it begins with a weekday, which *a* reads wrong before ("a sábado").
-- **Signing out everywhere** is "Terminar todas as sessões" (`page.notMe.signMeOut`, `server.passkeys.signOutEverywhere`); "Terminar sessão em todo o lado" is the alternative.
-
-Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth, the portal's passkeys):
-
-- **Names a screen reader hears now keep the words their control shows**, whole and in order (WCAG 2.5.3, which `check:words` now checks): `notifications.pushSettings.stopPushNotificationsTo` “Remover {label}{v} das notificações push”; `page.admin.askForAPasskeyOf` “Pedir chave de acesso a {name} de novo”; `page.admin.removePasskeysOf` “Remover chaves de acesso de {name}”; `page.admin.resetTwoFactorFor` “Repor dois passos de {name}”; `page.admin.sendALinkTo` “Enviar link a {name} para adicionar uma chave de acesso”. Do they read naturally?
-- **A lane's own order** is "Cada raia tem a sua própria ordem" (`page.board.laneOrder*`), keeping the board's *raia*, and a card's moves in its issue's history are "colocou o item acima de BACK-31 no quadro Platform board" (`boards.history.moved`). Would "moveu o item para cima de" read better?
-- **A check run stays *check run*** ("o check run": `page.integrations.checks*`, `server.checks.*`, `problem.vcs.checks.needsApp`), as GitHub's pages name it and as the catalog keeps commit, branch and pull request; GitHub's Portuguese documentation, Brazil's, says *execução de verificação*. A pull request *cita* the issues it names ("Cita 3 itens"), as a commit does.
-- **A held Cc**: the desk's switch is "Reter as pessoas em Cc de um pedido novo até quem fez o pedido as confirmar" (`helpdesk.ccSettings.confirm`), the headings "À espera da confirmação de {requester}" and "À espera da sua confirmação" (`helpdesk.requestCcs.held`, `page.portal.heldTitle`), and dropping someone "Descartar", who then "ficou de fora" (`page.portal.dropHeld`, `heldDropped`, `confirm.dropped`). The email's field stays "Cc" ("as pessoas em Cc"), as Outlook names it. Is *reter* right, or *pôr em espera*?
-- **Relaying** is *transmitir*, "o centro de apoio transmite o que cada pessoa escreve" (`helpdesk.ccSettings.relay`, `server.helpdesk.relay.*`, the `relay` case of `page.unsubscribe.what`). *Reencaminhar* is the alternative, but the emails aren't forwards.
-- **An authenticator** is an *autenticador*, which its maker *atesta*: "O fabricante desta chave de acesso não a atestou" (`page.admin.attestationPrivacy`, `problem.passkeys.unattested`, `unknownMaker`); *garantir* or *certificar* are the alternatives. The allowlist is "Só alguns autenticadores", "Aceitar novas chaves de acesso só dos autenticadores selecionados" (`page.admin.onlySomeAuthenticators`, `takeOnlySome`), and FIDO is feminine, as its alliance is: "os metadados da FIDO" (`page.admin.metadata*`).
-- **Letting someone off** passkeys is *dispensar*: the button "Dispensar", and "com dispensa de chave de acesso" in the people table (`page.admin.letOff*`, `problem.passkeys.lastAdmin`, `wouldLockOut`); *isentar* is the alternative. Requiring them is "Pedir chave de acesso ao iniciar sessão", "Aos administradores", "A todos os que iniciam sessão com palavra-passe" (`page.admin.requireAPasskey`, `requireOf*`), as two-factor's "Pedir também…" says it, and in a sentence they're *obrigatórias* (`app.auth.passkeysAreRequiredOfYou`, `identity.passkeys.requiredOfYou`).
-- **An account with no password** is "Só chaves de acesso" in the people table and "Iniciar sessão só com chaves de acesso" on the profile (`page.admin.passkeysAlone`, `identity.passkeys.passkeysAlone`), and its setup link "um link para adicionar uma chave de acesso" (`page.admin.sendALink*`, `page.passkeySetup.*`, `server.passkeySetup.*`), apart from the portal's *link de acesso*.
-- **A passkey provider** is a *gestor de chaves de acesso* (`identity.passkeys.keepASpare`, `problem.passkeys.spareFirst`, `server.passkeySetup.leadFirst`), as a password manager is a *gestor de palavras-passe*. Do Portugal's phones say *fornecedor de chaves de acesso*?
-- **Forgejo's and Gitea's settings** are named as their Portuguese pages name them, "em Aplicações" (`builds.builds.forgeKeepsToken`, `tokenTooWide`); an instance in English says "Applications".
-- **The emails' time** is in brackets again, "… foi removida (quarta, 18/11, 14:03 WET)" (`server.passkeys.passwordRemoved`, `server.portalPasskeys.lead`, `removedByTeam`), since it begins with a weekday.
-
-Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
-
-- **Um estado de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): o catálogo escreve "commits" sem traduzir; a documentação do GitLab em português também diz "estado do commit". Fica "estado de commit"?
-- `page.group.requirePasskeys` é "Exigir uma chave de acesso às pessoas do grupo" e `page.project.requirePasskeys` "…a toda a gente que possa ver este projeto". "Exigir a alguém" está correto; "a toda a gente que possa" é subjuntivo natural num rótulo?
-- `page.project.requirePasskeysHelp` começa "A partir do próximo início de sessão, para quem entra com a palavra-passe do próprio a4a." O "para quem" em cadeia com a frase nominal: natural?
-- `builds.builds.reportCheck` é "Comunicar ao GitHub o resultado de cada execução". "Comunicar" num interruptor: natural, ou "reportar"?
-- `page.integrations.statusesTurnedOn` segue os check runs: "Estados de commit ativados: cada pull request recebe um na próxima vez que mudar." O plural "Estados de commit ativados" está claro (ativados é o interruptor, não os estados)?
-
-
-Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
-
-- `server.notify.title.cameIn` é “Entrou numa pesquisa que segue”. É a ordem natural em português, ou diria “passou a constar numa pesquisa que segue”?
-
-Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
-
-- `page.guestPages.noSuchArticle` segue as irmãs (“aberto a convidados”). `issuesMatching` é “Itens que correspondem a”: natural, ou “que cumprem”?
-
-Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
-
-- `editor.visualEditor.link` e `linkTo` seguem as ferramentas existentes. `writing.draftedWithTheAssistant` é “O assistente redigiu estas palavras.” — ou “escreveu”?
-
-Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
-
-- Wave 11 (`page.whiteboard.draw` = “Desenhar”, `page.whiteboard.picture` = “Imagem”, `whiteboards.kind.ink` = “um desenho”): natural, ou “Traçar” e “Foto”?
-
-Messages added in wave 13 (Matrix chat):
-
-- Wave 13 (Matrix): `page.chat.matrixHomeserver` = “Homeserver” — mantém-se o termo, ou “servidor Matrix”?
-
-Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
-
-- Wave 14 (folha de horas): `page.timesheet.submit` = “Enviar a semana” e `page.timesheet.sendBack` = “Devolvê-la” — naturais?
-
-Messages added in wave 16 (the script library's page):
-
-- Wave 16 (biblioteca de scripts): `page.rules.library` = “Biblioteca de scripts” e `page.rules.libraryCode` = “O código partilhado” — naturais?
-
-Messages added with the configurable approval rule:
-
-- A aprovação configurável: `projects.workTypes.approvalEvery` = “Os seus gestores, entre os gestores de cada projeto onde a semana tem trabalho” — natural, apesar de longo?
-
-Messages added in wave 18 (the HR calendar):
-
-- Wave 18 (calendário de RH): `page.admin.hrCalendar` = “Calendário de RH” e a recusa “Estes dias vêm do calendário de RH...” — naturais?
-
-Messages added with the timesheet's personal view:
-
-- A vista pessoal: `page.timesheet.bauOrAnythingYouKeep` = “BAU, ou o que registar” e a recusa “...Mude-as uma a uma.” — naturais?
-
-Messages added with the queued scripts:
-
-- A fila: `rules.ruleForm.runFromTheQueue` = “Executar a partir da fila: pode levar o seu tempo e age sobre o que viu quando a regra disparou” — natural, apesar de longo?
-
-With the posts that change in place:
-
-- As publicações mudam no sítio – sem palavras novas; uma pergunta: deve ver-se no canal que foi editada, ou basta o conteúdo trocado em silêncio?
-
-Messages added with the load grid's team:
-
-- A carga: `plan.resources.nothingYet` = “Nada ainda” ao lado de quem não tem trabalho planeado — a palavra breve serve?
-
-Messages added with Teams' link unfurling:
-
-- O desdobrar: `server.chat.issue.isShared` = “partilhou a tarefa” — o verbo assenta na carta?
-
-With the requester's own language:
-
-- A língua do requerente: os emails seguem agora a do navegador (guardada no requerente). Sem palavras novas; uma pergunta: a página do portal deve mostrar um seletor de língua, ou o navegador basta?
-
-Messages added with SAML for requesters:
-
-- SAML para requerentes: `problem.portal.providers.samlNeedsBoth` = “Um fornecedor SAML precisa do seu URL de SSO e do seu certificado de assinatura.” — natural?
-
-Messages added with a desk's own provider:
-
-- O fornecedor próprio de um desk: `problem.portal.providers.onlyAdmins` = “Só os administradores gerem os fornecedores do servidor. Os seus, o gestor de um desk.” — a separação é natural?
-
-With the group's members hearing of its requests:
-
-- Os membros ouvem falar dos pedidos do seu grupo (sem palavras novas); uma pergunta: a cópia deve dizer «do seu grupo» no assunto ou no texto?
-
-With the customers' directory:
-
-- O diretório de clientes (sem palavras novas); uma pergunta: a lista do formulário deve mostrar só os nomes, ou também os domínios como pista ao lado?
-
-Messages added with the several groups:
-
-- Vários grupos por requerente: `problem.helpdesk.severalGroups` = “O requerente está em vários grupos de clientes aqui. Diga para qual é este pedido.” — natural?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
