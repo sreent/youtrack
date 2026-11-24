@@ -724,9 +724,9 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 
 `zh.json` is Simplified Chinese as mainland China writes it, in the words Chinese teams read a tracker in. Where Jira's Simplified Chinese has a word for a tracker's thing, a4a takes it (问题, 经办人, 报告人, 冲刺, 看板, 待办事项, 仪表板, 转换), since most teams there met a tracker through it.
 
-- **你, not 您.** Chinese software for teams says 你 today: Feishu, DingTalk and WeCom, Notion's and Slack's Chinese, Microsoft's and Apple's. 您 is a bank's or a form letter's, and a4a speaks to a team plainly: 「你已离线」, 「你没有权限执行此操作。」. The help desk's words to requesters are the one exception: its emails, the portal and the public form speak to customers outside the team, so they say 您, as Chinese customer service does: 「您收到这封邮件，是因为您向“{desk}”提交了请求。」
-- **请 where a sentence asks the reader to act**, as Chinese software asks: a problem's fix and a notice's request (「请稍后重试。」, 「请联系管理员。」, 「请先保存，之后才能插入图片和文件。」). A bare imperative after what went wrong reads as an order in Chinese, though English's has no "please". A sentence that only says how something works needs none (「保存前，系统按计划的工作日和你的可用工时计算。」), and one sentence asks with 请 once. Buttons and labels are short verb phrases or nouns, never sentences, and never 请: 「保存」, 「保存更改」, 「删除字段」, 「确认新密码」. A status line is short: 「已保存。」, 「正在保存……」, 「已创建 {name}。」
-- **Name the thing; don't point back with 它, and say who did it rather than 被.** Where English says "it" or "this", Chinese names it again or leaves it out: 「把此问题指派给了你」, 「此文章位于 … 之下」, 「按钮会显示在适用的问题上」, not 「它的按钮…」. Where English uses the passive, Chinese says who acted: 「其他人已更改了 BACK-1」, 「有人刚刚删除了它」, 「可能刚刚有人把它从白板上移除了」. Passives Chinese itself says stay: 已被占用, 已被封禁, 被提及. 进行 goes where the verb says it: 「执行管理操作」, not 「进行管理」.
+- **你, not 您.** Chinese software for teams says 你 today: Feishu, DingTalk and WeCom, Notion's and Slack's Chinese, Microsoft's and Apple's. 您 is a bank's or a form letter's, and a4a speaks to a team plainly: 「你已离线」, 「你没有权限执行此操作。」. The help desk's words to requesters are the one exception: its emails, the portal and the public form speak to customers outside the team, so they say 您, as Chinese customer service does: 「您收到这封邮件，是因为您向“{desk}”提交了请求。」 So does the unsubscribe page, which anyone reaches signed out from an email, customers and team members alike, as Chinese mail's unsubscribe pages say 「您已退订」.
+- **请 where a sentence asks the reader to act**, as Chinese software asks: a problem's fix and a notice's request (「请稍后重试。」, 「请联系管理员。」, 「请先保存，之后才能插入图片和文件。」), and a form's own hint, as Chinese forms ask (「请至少选择一个项目。」). A bare imperative after what went wrong reads as an order in Chinese, though English's has no "please". A sentence that only says how something works needs none (「保存前，系统按计划的工作日和你的可用工时计算。」), and one sentence asks with 请 once. Buttons and labels are short verb phrases or nouns, never sentences, and never 请: 「保存」, 「保存更改」, 「删除字段」, 「确认新密码」. A status line is short: 「已保存。」, 「正在保存……」, 「已创建 {name}。」
+- **Name the thing; don't point back with 它, and say who did it rather than 被.** Where English says "it" or "this", Chinese names it again or leaves it out: 「把此问题指派给了你」, 「此文章位于 … 之下」, 「按钮会显示在适用的问题上」, not 「它的按钮…」. A sentence that has named its thing leaves it out after: 「放下即可将 BACK-1 移到 Done（设为 Fixed），并指派给 anna」. Where English uses the passive, Chinese says who acted: 「其他人已更改了 BACK-1」, 「有人刚刚删除了它」, 「可能刚刚有人把它从白板上移除了」. Passives Chinese itself says stay: 已被占用, 已被封禁, 被提及. 进行 goes where the verb says it: 「执行管理操作」, not 「进行管理」.
 - **The owner goes where Chinese leaves it out**: 「使用 a4a 账号登录。」, 「主邮箱，a4a 会把邮件发到这里。」, 「代表 Ada 处理问题、看板和计划」. A person's is 其 or 此人, never 他们 for one person: 「其 GitHub 用户名。」
 - **Typography, as mainland China sets it**:
   - full-width punctuation: ，。、：；？！（）;
@@ -735,15 +735,16 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
   - no space between Chinese characters;
   - **one half-width space where Chinese meets a Latin word or a digit**, on either side: 「在 GitHub 上」, 「3 个问题」, 「打开 {id}」, 「最近 {d} 天」. A placeholder is spaced as the name, id, number or date it holds: 「由 {name} 创建」, 「{n} 天」. One that holds a4a's own Chinese words (a built-in role's name, a piece of another message) joins without one. Never a space beside full-width punctuation: 「（{id}）」, 「：{name}」, 「“{name}”」;
   - a placeholder that holds a name or a4a's own words by turns (a tracker's name or 「文件」) goes after full-width punctuation where the sentence allows, so neither gets a stray space: 「来源：{from}」, 「{name} 将接收：{what}。」. Where the code says which a value is, the message selects on it and words each case whole: 「在所有项目中运行。」 and 「运行范围：BACK和WEB。」 (`apps.appsSection.runsIn`);
-  - what Intl writes keeps its own spacing: 「2026年11月16日」, 「2.5小时」, 「3分钟前」;
+  - what Intl writes keeps its own spacing: 「2026年11月16日」, 「2.5小时」, 「3分钟前」, as Chinese software prints them (its lists are another matter: [translation-questions.md](translation-questions.md));
+  - **a name people gave a whole thing is quoted inside a sentence**: a whiteboard's, a dashboard's, a rule's, an action's, a saved search's, a baseline's (「删除仪表板“{name}”？」, 「与基线“{baselineName}”对比的挣值」), so a name in Chinese doesn't run into the words around it. A field's, a value's, a state's, a tag's, a group's or a role's name stays bare, as the query language writes it. The desk is quoted in its emails, 「您向“BACK 的服务台”提交了请求」, as Chinese service mail quotes a shop's or a service's name, and bare on the portal's pages, which name it by its project;
   - " · " between the parts of a line, and code, ids, queries and keyboard keys stay as English writes them.
-- **Plurals**: Chinese has none, so each plural keeps `other` alone, and counts with a measure word: `{n, plural, other {# 个问题}}`. 个 counts issues, projects, fields, values, files, tokens and most things; 人 people (「3 人」), and 位 before a noun (「2 位抄送人」); 项 items, changes and tasks; 条 comments, notifications, rules and messages; 篇 articles; 次 times, builds and deliveries; 天, 小时 and 分钟 are their own words. A plural English words differently for one keeps `=1` where Chinese does too: `{n, plural, =1 {该问题} other {# 个问题}}`.
+- **Plurals**: Chinese has none, so each plural keeps `other` alone, and counts with a measure word: `{n, plural, other {# 个问题}}`. 个 counts issues, projects, fields, values, files, tokens and most things; 人 people (「3 人」), and 位 before a noun (「2 位抄送人」); 项 items, changes and tasks; 条 comments, notifications, rules and messages; 篇 articles; 次 times, builds and deliveries; 天, 小时 and 分钟 are their own words. A plural English words differently for one keeps `=1` where Chinese does too: `{n, plural, =1 {该问题} other {# 个问题}}`. Zero is a count, as Chinese software tallies it (「已导入 0 条记录」): 「创建了 0 个问题和 2 个链接」, where English says "no issues".
 - **Selects and plurals the English doesn't need**: a message keeps every placeholder English has. Where Chinese says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`.
 - **Pieces a page joins**:
-  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase with 了 and no subject: 「创建了 {issue}」, 「评论了 {issue}」, 「在分支 main 上提交了 abc1234」; a notification's names the issue, 「把此问题指派给了你」, 「删除了此问题」. A badge is a noun or a short verb phrase: 「新问题」, 「删除问题」.
-  - A webhook's events are each an active clause, joined into 「{join}时」 by Intl's "or" list (或, with 、 before it in a longer list): 「创建问题或有人发表评论时」, 「从项目中移除成员时」. The same clauses label the form's checkboxes (`page.webhooks.label.*`).
+  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase with 了 and no subject: 「创建了 {issue}」, 「评论了 {issue}」, 「在分支 main 上提交了 abc1234」; a notification's names the issue, 「把此问题指派给了你」, 「删除了此问题」, and so does an issue's history where leaving it out would misread: 「将此问题加入了 Sprint 3」, since 「加入了 Sprint 3」 says the person joined it. A badge is a noun or a short verb phrase: 「新问题」, 「删除问题」.
+  - A webhook's events are each an active clause, with no subject and no 被, joined into 「{join}时」 by Intl's "or" list (或, with 、 before it in a longer list): 「创建问题或有人发表评论时」, 「从项目中移除成员时」, 「提交工时表或批准工时表时」. The same clauses label the form's checkboxes (`page.webhooks.label.*`).
   - A rule is one sentence, in Chinese order: 「<t0>当</t0>{trigger}<t0>时</t0>，<t0>如果</t0>问题匹配 {query}，<t0>则</t0>{actions}。」 Its trigger is a clause (「创建问题」, 「问题的 {field} 发生变更」), its conditions say 如果, and its actions are verb phrases (「应用 Assignee anna」, 「通知经办人“{short}”」). Issues it reaches by a link are 「通过“{phrase}”链接的问题」. The rule's words in `<t0>` are 当…时, 如果 and 则.
-  - A time in a sentence goes before its verb, as Chinese says it: 「3分钟前更新」, 「11月16日报告」, 「3 个元素，3分钟前更改」, not 更新于 {when}. A clock time or a date from `whenRead` (「14:05」) keeps 更新于, so no digit touches a Chinese character.
+  - A time in a sentence goes before its verb, as Chinese says it: 「3分钟前更新」, 「11月16日报告」, 「3 个元素，3分钟前更改」, not 更新于 {when}. A clock time or a date from `whenRead` (「14:05」) keeps 更新于, so no digit touches a Chinese character. A part of a card's line that says when something last happened is a label and its time, as Chinese consoles show it beside the line's other labels (「来源：GitHub」): 「上次登录：3分钟前」, 「上次投递：3分钟前」, 「上次构建：…」, 「上次使用：…」.
 - **A loading line is a whole message**, one per thing (`loadingLine.*`): 「正在加载计划……」. It names the thing with no owner (「正在加载收件箱……」 for "Loading your inbox…"); a thing's own name or id reads 「正在加载 {name}……」, and nothing, 「正在加载……」.
 - **Dates and numbers** come from Intl, `zh`, which writes them as `zh-CN` does: 「2026年11月16日」, 「1,234.5」, 「3分钟前」, lists as 「A、B和C」.
 - **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded in Chinese and every case stays: `{state, select, merged {已合并} closed {已关闭} other {已重新打开}}`. A field's `{type}` in a problem is such a code too (`enum` 选项列表, `owned` 带负责人的列表), with `other` keeping the code.
@@ -763,7 +764,7 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | project | 项目 |
 | lead (of a project) | 负责人 |
 | board | 看板 |
-| sprint | 冲刺 |
+| sprint | 冲刺, as Jira's, Azure DevOps' and the Scrum Guide's Chinese say it (迭代 is domestic tools' word) |
 | committed (a sprint's commitment) | 承诺 |
 | blocker | 阻碍; to block is 阻塞: 「是什么阻塞了 {issue}？」 |
 | backlog | 待办事项 |
@@ -776,7 +777,7 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | reporter | 报告人 |
 | report (an issue), reported | 报告, 「{v} 于 {date} 报告」 |
 | assignee | 经办人 |
-| agent | 智能体 |
+| agent | 智能体, as GitHub's Chinese and Chinese AI products say it; 代理 reads as a proxy |
 | assistant (its name), the assistant | 助手 |
 | conversation (with the assistant) | 对话 |
 | workflow | 工作流 |
@@ -796,17 +797,17 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | work logged, log time | 已记录工时, 记录工时 |
 | estimate | 预估 |
 | rate (per hour) | 小时费率 |
-| days away, away | 休假 for both: 「添加休假」, 「下午休假」 |
-| levelling | 资源平衡 |
+| days away, away | 休假 for both: 「添加休假」, 「下午休假」, whatever the reason, as Microsoft Teams' Shifts calls all time off 休假, with a 休假原因 |
+| levelling | 资源平衡, as PMP courses teach it, like the plan's other words (浮动时间, 基线, 关键路径, 挣值) |
 | slack (in a plan) | 浮动时间 |
 | booked (hours in a plan) | 已安排: 「已安排工时」 |
 | critical path | 关键路径 |
-| what-if (in a plan) | 模拟 |
+| what-if (in a plan) | 模拟; its button and panel 「模拟分析」, Excel's word for What-If Analysis |
 | milestone | 里程碑 |
 | baseline | 基线 |
 | earned value, earned | 挣值 |
 | cost and schedule performance (CPI, SPI) | 成本绩效指数, 进度绩效指数 |
-| triage | 分诊 |
+| triage, and how far it goes | 分诊: it reads and sorts new issues, as a hospital's 分诊台 does (GitHub's 分类 names a role, and 会审 a meeting); 「关闭」, 「仅建议」, 「自动执行」 |
 | suggestion | 建议 |
 | tag | 标签 |
 | token, revoke | 令牌, 撤销 |
@@ -814,16 +815,16 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | scope (of a token) | 权限范围: 「admin 权限范围」 |
 | allow (an app), apps you allowed | 授权, 「你授权的应用」 |
 | not found | 找不到: 「找不到问题 {id}。」 |
-| two-factor sign-in | 两步验证 |
-| sign in, sign out | 登录, 退出登录 |
+| two-factor sign-in | 两步验证, as Google and Microsoft accounts say it |
+| sign in, sign out; everywhere | 登录, 退出登录; 在所有设备上退出登录, and the portal's 退出门户登录 |
 | login (a person's handle) | 登录名 |
-| identity provider | 身份提供商 |
+| identity provider | 身份提供商, never 提供者; the requesters' 供请求人使用的身份提供商, which vouch for an email by 确认 |
 | single sign-on | 单点登录 |
-| webhook, delivery | Webhook, 投递 |
-| post (a4a or a provider sending to an address) | 发送; 发布 is for chat messages and comments |
-| secret | 密钥 |
+| webhook, delivery | Webhook, 投递; how deliveries work 投递说明: 签名, 至少送达一次, 重试, 其他请求头 |
+| post (a4a or a provider sending to an address) | 发送; 发布 is for chat messages and comments: a chat post is a 消息, 「发布消息」, never 帖子 |
+| secret; kept sealed | 密钥; 加密保存 |
 | commit, pull request, branch | 提交, 拉取请求, 分支 |
-| merge, merged | 合并, 已合并 |
+| merge; a pull request open, merged, closed | 合并; 开放中 (GitLab's Chinese), 已合并, 已关闭 |
 | build (CI) | 构建 |
 | CI | CI |
 | field, value | 字段, 值 |
@@ -835,18 +836,53 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | report | 报告 |
 | settings | 设置 |
 | app, handler (of an app) | 应用, 处理程序 |
-| key (a project's) | 项目键: 「重命名项目键」; an issue's key in another tracker is its 编号 |
+| key (a project's) | 项目键, as Chinese writing on Jira says it: 「重命名项目键」; an issue's key in another tracker is its 编号 |
 | attach a file, attaching | 添加附件; a file being sent is 上传: 「正在上传 {name}」, 「{name} 上传失败」 |
 | unsubscribe (from an email's link) | 退订 |
 | person, people | 用户; 人 in a count |
 | role, permission | 角色, 权限 |
-| administrator, manager, member, viewer, guest | 管理员, 经理, 成员, 查看者, 访客 |
+| administrator, manager, member, viewer, guest | 管理员, 经理, 成员, 查看者, 访客; a project's or a desk's managers are its 经理, 「项目经理」 where the sentence names no project, never 管理者, which sits beside 管理员 |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | 白板、便签、卡片、分区、箭头、标注、大纲 |
-| connect (draw an arrow), make issues (of notes) | 连接; 转为问题 |
+| connect (draw an arrow), make issues (of notes) | 连接; 转为问题, as the notes become issues; an issue made from a chat message is 从消息创建问题 |
 | a note's tones: plain, idea, agreed, question, problem, parked | 普通、想法、已商定、疑问、痛点、暂缓 |
 | writing help; where an issue came from (a chat message) | 写作辅助; 来源 |
 | another tracker (where an import comes from) | 其他工具 |
-| provisioning (SCIM) | 预配: 「用户预配」 |
+| provisioning (SCIM) | 预配, Microsoft's word: 「用户预配」, 「已预配」; a provisioned account is 预配的账号 |
+| action (a workflow's), run it | 操作, 执行操作, as Microsoft's (Power Automate's), GitHub's and Atlassian's Chinese say it; 动作 reads as a motion or a recorded macro |
+| the navigation's groups: work, decide, build, oversee | 工作, 决策, 配置, 系统, as an admin console groups such pages |
+| age, velocity (in reports) | 时长, whose report says it counts from creation; 速度, Jira's velocity chart's |
+| thread (of a chat message) | 话题, as Feishu says it |
+| someone (an author whose name is gone; a notification's actor) | 未知用户; 有人 |
+| the editor's modes | 富文本 and Markdown |
+| newer, older (pages of issues, newest first) | 上一页, 下一页 |
+| an account's state: allowed, banned | 「账号状态」: 正常, 已封禁 |
+| who vouches for a chat subscription | 订阅人 |
+| a field's types: a line of text, text | 单行文本, 多行文本, in the field form and in problems |
+| group, account | 组 (a customer group is a 客户组), never 群组; 账号, never 账户 |
+| read (what a role or a sharing lets someone do) | 查看: 「谁能查看」, 「仅可查看」 |
+| passkey | 通行密钥, counted with 个, as Apple's, Google's and Microsoft's Chinese say it |
+| ways to sign in | 「…登录」: 密码登录, 邮件链接登录, 「通过 {name} 登录」 |
+| OpenID Connect's fields | 颁发者（Issuer）, 客户端 ID, 客户端密钥 (Google Cloud's), 重定向 URI, 发现文档 |
+| a copied passkey | 已停用, and 「可能已被复制」 |
+| face (a device's check) | 人脸, as Android and Windows say it |
+| portal | 门户; 服务台门户 where requesters read it |
+| lane, a lane's own order | 泳道, 「每个泳道单独排序」 |
+| check run, check; commit status | 检查运行, 检查, as GitHub's Chinese docs say them; 提交状态, Gitea's and GitLab's |
+| held (a Cc), drop it; the acknowledgement | 「等待 {requester} 确认」, 不抄送; 自动回复邮件, since 回执 reads as a read receipt |
+| relay; what anyone writes on a request | 转发; 回复 |
+| authenticator; attestation, maker; revoked | 认证器 (身份验证器应用 is the app that shows codes); 证明, 厂商; 已撤销 |
+| let off (passkeys), ask again | 豁免, 取消豁免 |
+| passkeys alone; a passkey provider; the setup link | 仅限通行密钥; 通行密钥管理器; 添加通行密钥的链接 |
+| homeserver (Matrix), room, access token | 家服务器, as Element's Chinese says it (「家服务器（Homeserver）」 on the form), 房间, 访问令牌 |
+| a week of time: submit, approve, send back; a row of your own | 工时表: 「提交工时表」, 「批准工时表」, 退回; 个人事项, and BAU is 「日常工作（BAU）」 |
+| who approves a project's weeks | 「须是该周工时涉及的每个项目的经理」, 「该周工时涉及的任一项目的经理即可」 |
+| script library, its shared code | 脚本库, 共享代码 |
+| HR calendar | 人事日历 |
+| draw, a drawing, a picture (on a whiteboard) | 手绘, 手绘线条, 图片 |
+| a person's own whiteboard; yours, shared with you | 个人白板; 我的, 与我共享 |
+| nothing yet (in a table's cell) | 暂无 |
+| streamed (a draft); drafted (by the assistant) | 流式输出; 起草 |
+| report (a run's result to GitHub) | 上报, as 「CI 上报构建」 |
 
 **Why 问题 for issue**: it's what Jira's Simplified Chinese says, so teams who have used a tracker read it already. 议题 (GitHub's and GitLab's) reads as a topic for discussion, 事项 and 工作项 (Feishu's, PingCode's) are less known to them, and 工单 is a help desk's ticket. 问题 also means "problem", so a4a's problems never use it for what went wrong.
 
