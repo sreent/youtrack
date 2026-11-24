@@ -1083,6 +1083,7 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 - **Polite and plain, with no speaker in it.** Sentences are whole and polite, as Thai software for teams writes them, and carry no particle: never ครับ or ค่ะ, which say the speaker's gender, nor นะ, which is talk. คุณ is the reader, where a sentence must address them: “คุณเข้าสู่ระบบด้วย {login}”. Thai leaves out whom it has already named, so a sentence never says เขา or เธอ (either can read as one gender): it leaves the person out, or names them again. Nor does it call a thing, a bot or a script มัน, which reads as rude in writing: “สคริปต์เรียก {name}”, “สคริปต์ของเวิร์กโฟลว์เรียกเว็บฮุกนี้”.
 - **Buttons and labels are short verb phrases or nouns**, never sentences: “บันทึก”, “บันทึกการเปลี่ยนแปลง”, “ลบฟิลด์”. A status line says what's done with แล้ว and what's going on with กำลัง: “บันทึกแล้ว”, “กำลังบันทึก…”, “เพิ่ม {name} แล้ว”.
   - A label or a column's head is the noun a Thai form uses, never English's question or bare word: “ใช้สำหรับ” for "What it's for", “ผู้ใช้” for "Whose" and "Person", “ขอบเขต” over a token's scopes, “เวลา” or “ช่วงเวลา” for "When", “ผู้ที่อ่านได้” for a whiteboard's "Who reads it", “ผู้อนุมัติใบลงเวลา” for "Who approves its weeks of time", and a "From" says what it chooses (“นำเข้าจาก”, “ผู้ให้บริการ”). "{v} only" is “เฉพาะ {v}”.
+  - A radio button or a select's option is a whole choice, even under a legend it goes on from, as English's "Of administrators" does: “ไม่ขอจากใคร”, “ขอจากผู้ดูแลระบบ” under “ขอพาสคีย์เมื่อเข้าสู่ระบบ”.
   - A confirm button names what it removes: “ลบไวต์บอร์ด”, a field's “ลบฟิลด์” and a value's “ลบค่า” (`page.fields.deleteIt`, `page.fields.deleteTheValue`), an integration's “นำการเชื่อมต่อออก” and its token's “นำโทเค็นออก” (`page.integrations.removeIt`, `page.integrations.removeTheToken`). "Nobody can bring it back" is “กู้คืนไม่ได้”.
 - **The chat bot names itself a4a**, as its handle reads in Slack and Teams (“a4a ไม่ได้อยู่ใน {channel} เชิญด้วย /invite @a4a”), or leaves itself out (“ยังไม่รู้ว่าคุณเป็นใครใน a4a”); never บอต for itself, nor ผม or ฉัน. Its help lists “คำสั่งที่ใช้ได้”.
 - **Instructions are bare verbs**, as Thai apps give them: “เลือกโปรเจกต์”, “ลองอีกครั้ง”. โปรด only where English says please, where something is asked of someone; never กรุณา, which reads as a notice.
@@ -1093,7 +1094,7 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
   - **A colon introduces** a list, a value, code, or a help text's “ว่างไว้: …”; it never joins a statement to its reason or its consequence, as English's does. Thai says the link, or pauses: “ปิดอยู่ จึงไม่มีใครเห็นปุ่มนี้”, “{name} เป็นฟิลด์ส่วนตัวไม่ได้ เพราะ…”, not “ปิดอยู่: ไม่มีใครเห็นปุ่มนี้”.
 - **Line breaks and badges.** A Thai line breaks only at a space or where the browser's dictionary finds a word's end, and a transliterated word it doesn't know can't break at all. So badges and buttons are a word or two (“ปิดแล้ว”, “เกินกำหนด”), and the pages the browser spec shoots were looked at at 390px, where none spills.
 - **Font.** Ocean sets Thai in IBM Plex Sans Thai, which it bundles for Thai's letters alone (`unicode-range`), after IBM Plex Sans for Latin (`--font-sans`): the two share their weights and x-height, so a Latin id inside a Thai sentence sits level with it. Plex Sans Thai is loopless, the modern style of Thai screens. `e2e/thai.spec.ts` asks the browser which font drew the Thai on each page (Chromium's `CSS.getPlatformFontsForNode`), and fails unless it's Plex Sans Thai; the container's shots show Plex Sans Thai, served from Ocean's own files, not a system font.
-- **Plurals**: Thai has none, so each plural keeps `other` alone and counts as Thai counts: the noun, the number, then its classifier: `{n, plural, other {อิชชู # รายการ}}`. รายการ counts issues, requests, comments, changes and things; คน people; ครั้ง times; ข้อ rules and points; ตัว agents and bots; ไฟล์, วัน, ชั่วโมง, โปรเจกต์, บอร์ด, กลุ่ม, แอป count themselves (“3 ไฟล์”). A plural English words otherwise for none or one keeps `=0` or `=1` where Thai does too: `{n, plural, =0 {ไม่มีเวลาเหลือ} other {มีเวลาเหลือ # วัน}}`. A plain count of none stays a count: “อิชชู 0 รายการ”.
+- **Plurals**: Thai has none, so each plural keeps `other` alone and counts as Thai counts: the noun, the number, then its classifier: `{n, plural, other {อิชชู # รายการ}}`. รายการ counts issues, requests, comments, changes and things; คน people; ครั้ง times; ข้อ rules and points; ตัว agents and bots; ราย providers (“ผู้ให้บริการ 3 ราย”); รุ่น an authenticator's models; แห่ง help desks, as Thai counts offices and service points (“เฮลป์เดสก์ 2 แห่ง”); ไฟล์, วัน, ชั่วโมง, โปรเจกต์, บอร์ด, กลุ่ม, แอป count themselves (“3 ไฟล์”). Passkeys and a whiteboard's elements are รายการ, as items in a list are. A plural English words otherwise for none or one keeps `=0` or `=1` where Thai does too: `{n, plural, =0 {ไม่มีเวลาเหลือ} other {มีเวลาเหลือ # วัน}}`; two counts in one sentence nest, so a none is said, not counted: “ไม่ได้สร้างอิชชู แต่สร้างลิงก์ 2 รายการแล้ว”. A plain count of none stays a count: “อิชชู 0 รายการ”.
 - **Selects and plurals the English doesn't need**: a message keeps every placeholder English has. Where Thai says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`.
 - **Pieces a page joins.** Thai's order is English's, subject, verb, object, so the pieces join as English's do:
   - The activity ledger, an issue's history and notifications show who in bold, then what they did: a verb phrase with no subject, and no tense, since its time is shown beside it: “สร้าง {issue}”, “แสดงความคิดเห็นใน {issue}”, “มอบหมายอิชชูนี้ให้คุณ”. A badge is a short verb phrase, as a Thai label is: “ลบอิชชู”. Who acted for someone is “ในนาม {name}”, never สำหรับ.
@@ -1121,12 +1122,14 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | committed (a sprint's commitment) | ที่ตกลงไว้ |
 | blocker | อุปสรรค |
 | backlog | แบ็กล็อก |
-| help desk | เฮลป์เดสก์, never เดสก์ alone |
+| help desk | เฮลป์เดสก์, never เดสก์ alone; counted แห่ง (“เฮลป์เดสก์ 2 แห่ง”) |
 | SLA at risk, breached | เสี่ยง, เกินกำหนด |
 | request (help desk) | คำขอ |
 | requester | ผู้ร้องขอ, never ผู้ร้อง |
 | an HTTP request (in the API's problems) | คำขอ too, as Microsoft's and Google's Thai say it: “คำขอใหญ่เกินไป” |
 | copied on a request (CC), copy, stop copying | สำเนา, ส่งสำเนาถึง, เลิกส่งสำเนา |
+| an email's Cc; held (a CC), drop it | Cc, in Latin letters, apart from a4a's copy (สำเนา); รอการยืนยัน, ไม่ส่งสำเนา |
+| relay (a desk passing its people's words on) | ส่งต่อ, Gmail's word for forwarding |
 | customer group, kept from the group | กลุ่มลูกค้า, ซ่อนจากกลุ่ม |
 | reporter; report (an issue), reported | ผู้รายงาน; รายงาน, รายงานโดย |
 | assignee; assign | ผู้รับผิดชอบ; มอบหมาย |
@@ -1134,6 +1137,9 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | assistant (its name), the assistant | assistant, ผู้ช่วย |
 | conversation (with the assistant) | บทสนทนา |
 | comment, mention | ความคิดเห็น, กล่าวถึง |
+| someone a4a can't name | ผู้ใช้ไม่ทราบชื่อ, as Thai says ชายไม่ทราบชื่อ |
+| on its own (an automation, an app; the assistant) | โดยอัตโนมัติ; ลงมือเอง, as its Acts mode is ลงมือ |
+| in words (plain language for the assistant); asked in words | เป็นประโยค: “ถามเป็นประโยค”; “สั่งเป็นประโยค” in the history |
 | attachment | ไฟล์แนบ |
 | workflow | เวิร์กโฟลว์ |
 | rule | กฎ |
@@ -1153,14 +1159,16 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | work logged, log time | เวลาที่บันทึก, บันทึกเวลา |
 | estimate | ประมาณการ |
 | rate (per hour) | อัตราต่อชั่วโมง |
-| days away, away | วันที่ไม่อยู่, ไม่อยู่ |
+| days away, away | วันที่ไม่อยู่ (an absence may be a conference, so not วันลา), ไม่อยู่ |
+| holiday, sick, training (days away) | ลาพักร้อน, ลาป่วย, ฝึกอบรม |
+| a remark (an absence's, an internal one, a dashboard's) | หมายเหตุ, where a whiteboard's sticky note is โน้ต |
 | levelling | การปรับระดับทรัพยากร |
 | slack (in a plan) | เวลาลอยตัว |
 | booked (hours in a plan) | ที่ลงแผนไว้: “ชั่วโมงที่ลงแผนไว้”, never จอง |
 | critical path | เส้นทางวิกฤต |
 | milestone | ไมล์สโตน |
 | what-if | จำลองสถานการณ์ |
-| baseline | แผนฐาน |
+| baseline; its default name | แผนฐาน; “แผน ณ {when}” |
 | earned value, earned | มูลค่าที่ได้รับ (EV), ได้รับ |
 | cost and schedule performance (CPI, SPI) | ดัชนีต้นทุน (CPI), ดัชนีกำหนดการ (SPI) |
 | triage | คัดกรอง |
@@ -1174,45 +1182,64 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | allow (an app) | อนุญาต: “แอปที่คุณอนุญาต” |
 | not found | ไม่พบ, before the thing: “ไม่พบอิชชู {id}” |
 | two-factor sign-in | การยืนยันแบบ 2 ขั้นตอน |
+| passkey; a security key; a passkey provider; the setup link | พาสคีย์ (counted รายการ); คีย์ความปลอดภัย, Google's Thai; ผู้ให้บริการพาสคีย์; ลิงก์เพิ่มพาสคีย์ |
+| a passkey's badges: stopped, synced; a requester's passkey | ระงับแล้ว, ซิงค์แล้ว; พาสคีย์เฮลป์เดสก์ |
+| authenticator, vouch, metadata | ตัวยืนยันตัวตน, counted by model (รุ่น); รับรอง; ข้อมูลเมตา |
+| passkeys alone; require a passkey; let someone off, ask for a passkey again | พาสคีย์เท่านั้น; กำหนดให้ต้องใช้พาสคีย์; ยกเว้น, ขอพาสคีย์ |
+| sign out everywhere | ออกจากระบบทุกเซสชัน, as the profile says it |
 | sign in, sign out | เข้าสู่ระบบ, ออกจากระบบ; never ลงชื่อเข้าใช้ |
 | login (a person's handle) | ชื่อผู้ใช้ |
-| identity provider | ผู้ให้บริการข้อมูลประจำตัว |
+| identity provider; its fields Issuer, Client ID, Client secret, Redirect URI | ผู้ให้บริการข้อมูลประจำตัว, counted ราย; the fields in Latin letters, as a provider's console names them (issuer in Thai letters would read as อิชชู) |
+| offer (a way to sign in, a provider) | เปิดให้ใช้ |
 | single sign-on | การเข้าสู่ระบบครั้งเดียว (SSO), never Latin “single sign-on” in a sentence |
 | directory account | บัญชีจากไดเรกทอรี, as Thai IT says of Active Directory and LDAP |
-| webhook, delivery | เว็บฮุก, การส่ง |
+| webhook, delivery; on, paused (what takes deliveries); send a test | เว็บฮุก, การส่ง; ใช้งานอยู่, หยุดชั่วคราว; ส่งทดสอบ |
 | post (a4a or a provider sending to an address) | ส่ง; โพสต์ is for chat messages |
 | secret | รหัสลับ |
 | commit, pull request, branch | คอมมิต, พูลรีเควสต์, แบรนช์ |
 | merge, merged | เมิร์จ, เมิร์จแล้ว |
 | build (CI), CI, a run (of a CI workflow) | บิลด์, CI, การรัน |
 | commit status | สถานะคอมมิต: a plain description, where GitHub's check run keeps its name |
+| check run (GitHub's); it fails | check run; ไม่ผ่าน, as Thai developers say a check does |
+| a GitHub App's installation: gone, suspended | ไม่มีแล้ว (gone may not be uninstalled), ถูกระงับ |
 | field, value | ฟิลด์, ค่า |
 | link (between issues), unlink | ลิงก์, ยกเลิกลิงก์ |
 | link, unlink (a chat account) | เชื่อมบัญชี, ยกเลิกการเชื่อมบัญชี |
+| a Slack thread | เธรด |
 | connect, disconnect (a chat, a provider) | เชื่อมต่อ, ยกเลิกการเชื่อมต่อ |
 | homeserver, room (Matrix) | โฮมเซิร์ฟเวอร์, ห้อง |
 | share (an issue, in chat) | แชร์: “แชร์อิชชูนี้” |
 | duplicate | ซ้ำ |
+| unknown (a field, a value, a command) | ไม่รู้จัก, as Thai tools say a word isn't recognised; an unknown issue, project, user, tag, group or build is ไม่พบ |
 | resolve, resolved, resolution | ปิด, ปิดแล้ว, การปิด (an SLA's: เป้าหมายการปิด) |
-| dashboard, widget | แดชบอร์ด, วิดเจ็ต |
+| dashboard, widget; a copy of one, make a copy | แดชบอร์ด, วิดเจ็ต; “สำเนาของ {name}”, ทำสำเนา, as Google Drive names copies |
 | report | รายงาน |
 | settings | การตั้งค่า |
 | the navigation's groups: Work, Decide, Build, Oversee | งาน, ตัดสินใจ, สร้าง, กำกับดูแล |
 | app, handler (of an app) | แอป, ตัวจัดการ |
 | person, people | ผู้ใช้; คน counts them |
+| the team (where customers read it; on its own pages) | ทีมงาน; ทีม |
+| waiting on someone | รอผู้อื่น |
 | role, permission | บทบาท, สิทธิ์ |
 | member, viewer, manager, administrator, guest | สมาชิก, ผู้ดู, ผู้จัดการ, ผู้ดูแลระบบ (never ผู้ดูแล alone), ผู้เยี่ยมชม |
+| canvas, an element, a text block | แคนวาส, องค์ประกอบ (counted รายการ), ข้อความ |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | ไวต์บอร์ด (the Royal Institute's spelling, as คอมมิต and เว็บไซต์ are; not ไวท์บอร์ด), โน้ต, การ์ด, ส่วน, ลูกศร, ป้ายกำกับ, เค้าร่าง |
 | draw, a drawing, a picture (on a whiteboard) | วาด, เส้นที่วาด, รูปภาพ |
 | a whiteboard of one's own; who reads it; shared with you | ไวต์บอร์ดส่วนตัว; ผู้ที่อ่านได้; แชร์กับคุณ |
-| connect (draw an arrow), make issues (of notes) | เชื่อม; สร้างอิชชู |
+| connect (draw an arrow), make issues (of notes), check first (a dry run) | เชื่อม; สร้างอิชชู; ตรวจสอบ, as the import's |
 | a note's tones: plain, idea, agreed, question, problem, parked | ธรรมดา, ไอเดีย, ตกลงแล้ว, คำถาม, ปัญหา, พักไว้ |
-| writing help; where an issue came from (a chat message) | ช่วยเขียน; ที่มา |
+| writing help; where an issue came from (a chat message), wrote the message it came from | ช่วยเขียน; ที่มา, “เขียนข้อความที่เป็นที่มาของอิชชู” |
+| friendlier, more formal (writing help) | เป็นมิตรขึ้น (friendly, not casual เป็นกันเอง), เป็นทางการขึ้น |
+| summary (what the assistant writes of a thread) | สรุป, beside an issue's หัวเรื่อง |
+| Visual (the editor's mode, beside Markdown) | จัดรูปแบบ |
+| just now | ไม่กี่วินาทีที่แล้ว, worded as a relative time so it follows เมื่อ |
+| a lane (a board's swimlane), its own order | แถว, as the board says; ลำดับของตัวเอง |
+| ClickUp's List | List, in Latin letters, as ClickUp shows it; a list of tasks is รายการงาน |
 | drafted by the assistant | ร่างโดยผู้ช่วย: “ข้อความนี้ร่างโดยผู้ช่วย” |
 | script library, its shared code; run from the queue | ไลบรารีสคริปต์, โค้ดที่ใช้ร่วมกัน; รันจากคิว |
 | HR calendar | ปฏิทิน HR |
 
-**Where the words come from.** Jira and YouTrack have no Thai interface, so Thai teams read both in English and say their words as Thai loanwords: อิชชู, สปรินต์, แบ็กล็อก, บอร์ด, คอมมิต, เมิร์จ. The catalog writes those in Thai script, spelled by the Royal Institute's rules for loanwords, and takes Thai's own word where teams use one: ผู้รับผิดชอบ for the assignee, คำขอ for a request, ความคิดเห็น and กล่าวถึง as Facebook's and YouTube's Thai say them, เข้าสู่ระบบ as every Thai sign-in page does. Thai developers often type commit, merge or pull request in Latin letters, but a Thai interface writes a term in daily use in Thai letters, as Microsoft's Thai style guide does by the Royal Institute's rules; Latin stays for what a product names itself (GitHub, a check run, an identity provider's Issuer and Client ID).
+**Where the words come from.** Jira and YouTrack have no Thai interface, so Thai teams read both in English and say their words as Thai loanwords: อิชชู, สปรินต์, แบ็กล็อก, บอร์ด, คอมมิต, เมิร์จ. The catalog writes those in Thai script, spelled by the Royal Institute's rules for loanwords, and takes Thai's own word where teams use one: ผู้รับผิดชอบ for the assignee, คำขอ for a request, ความคิดเห็น and กล่าวถึง as Facebook's and YouTube's Thai say them, เข้าสู่ระบบ as every Thai sign-in page does. Thai developers often type commit, merge or pull request in Latin letters, but a Thai interface writes a term in daily use in Thai letters, as Microsoft's Thai style guide does by the Royal Institute's rules; Latin stays for what a product names itself, as its screens show it: a check run and an App ID on GitHub, an identity provider's Issuer, Client ID and Redirect URI, ClickUp's List, Forgejo's and Gitea's Applications. A thing every tracker has is Thai's: โปรเจกต์ for Asana's project, สถานะคอมมิต for a commit status.
 
 **Why อิชชู for issue.** It's what Thai teams say for what Jira and YouTrack call an issue. ปัญหา, Redmine's and Mantis's Thai, makes "create issue" สร้างปัญหา, Thai for making trouble, and "this issue has a problem" ปัญหานี้มีปัญหา, while a4a's problems are its own word; and a feature isn't one. ทิกเก็ต reads as a support ticket, the help desk's, and งาน is taken by work: work logged, working hours, a plan's booked work.
 
