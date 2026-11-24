@@ -2,19 +2,21 @@
 
 German, Spanish, French and Japanese were each translated, then read again whole by a reviewer who hadn't written it, working from English, the code and [translating.md](translating.md). That reviewer was a model, not a native speaker. The second reads changed 1,371 messages: 502 in German, 316 in Spanish, 299 in French and 254 in Japanese. The same reviewers then translated the 909 messages added since (the server's problems, `problem.*`, and the messages that replaced English the catalogs couldn't say), and those have had no second read. Then 103 more (what the server words for a page: a rule's preview and runs, a commit's note, why a chat subscription stopped) were written in every language by the developers who added them, then read by the reviewers. Each language that came later says at the head of its section how it was written.
 
-What follows is what the reviewers couldn't settle, by language. Each item names its key, says what the catalog says now, and asks the question.
+On 24 November 2026 a model editor for each language settled the questions this page then held, about a thousand across the ten languages. Each decided from how the interfaces its readers use every day say a thing (Microsoft's, Apple's and Google's, GitHub's, GitLab's and Atlassian's documentation, the language's style guides), applied each decision across its catalog, and put each term it settled in its language's table in [translating.md](translating.md). None of those editors is a native speaker either.
+
+What follows is what's left, by language: what needs a native speaker's ear, or the code to change. Each item names its key, says what the catalog says now, and asks the question.
 
 To settle one, change the message in its catalog and take the item off this page. If it's a term, change it everywhere and put it in the language's terms table in [translating.md](translating.md). `pnpm --filter @a4a/web check:words` checks that every message still parses, with English's placeholders.
 
 ## German
 
-Its open questions were settled by a model editor's pass on 18 November 2026: 91 settled, 0 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 91 settled, 0 left for a native speaker.
 
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says.
 
-Its open questions were settled by a model editor's pass on 18 November 2026: 89 settled, 5 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 89 settled, 5 left for a native speaker.
 
 Phrasing:
 
@@ -38,7 +40,7 @@ With the customers' directory:
 
 ## French
 
-Its open questions were settled by a model editor's pass on 18 November 2026: 91 settled, 0 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 91 settled, 0 left for a native speaker.
 
 Five wait on the code or the product, not on a native speaker's ear:
 
@@ -50,7 +52,7 @@ Five wait on the code or the product, not on a native speaker's ear:
 
 ## Japanese
 
-Its open questions were settled by a model editor's pass on 18 November 2026: 87 settled, 2 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 87 settled, 2 left for a native speaker.
 
 Both wait on the code as much as on an ear:
 
@@ -61,7 +63,7 @@ Both wait on the code as much as on an ear:
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
 
-Its open questions were settled by a model editor's pass on 18 November 2026: 73 settled, 1 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 73 settled, 1 left for a native speaker.
 
 Left for a native speaker:
 
@@ -75,7 +77,7 @@ Needs the code to change:
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
 
-Its open questions were settled by a model editor's pass on 18 November 2026: 105 settled, 3 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 105 settled, 3 left for a native speaker.
 
 - **What a requester reads** (the help form, the portal, a request's page, the desk's emails) asks with “-어 주세요”, and the emails take the honorific for the reader's own acts (“본인이 요청하지 않으셨다면 이 메일은 무시하셔도 됩니다”), where the team's pages ask with “-세요”. A company whose support writes 해요체 may want that for its customers; the catalog says “-어 주세요” meanwhile, as Korean support mostly writes it.
 - **Needs code**: a rule run's whom-it-told list reads “Anna Schmidt, Ben Okafor 및 다른 3명에게 알렸습니다” (`rules.run.toldOthers`), since the server joins “3 others” into the list as its last item. Korean says “Anna Schmidt, Ben Okafor 외 3명에게”, with no 및, which needs the others said beside the list rather than in it.
@@ -85,7 +87,7 @@ Its open questions were settled by a model editor's pass on 18 November 2026: 10
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
 
-Its open questions were settled by a model editor's pass on 18 November 2026: 103 settled, 3 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 103 settled, 3 left for a native speaker.
 
 Phrasing:
 
@@ -97,7 +99,7 @@ Phrasing:
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
 
-Its open questions were settled by a model editor's pass on 18 November 2026: 113 settled, 1 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 113 settled, 1 left for a native speaker.
 
 With the requester's own language:
 
@@ -107,7 +109,7 @@ With the requester's own language:
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
 
-Its open questions were settled by a model editor's pass on 18 November 2026: 110 settled, 1 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 110 settled, 1 left for a native speaker.
 
 - **The help desk's emails** are a company's voice to its customers, which a desk may want warmer or more formal: meanwhile they greet as Indonesia's online services write, "Halo {name}, permintaan Anda sudah kami terima." (`server.helpdesk.received`), and say *Anda*, with no *Yth.* or *Bapak/Ibu* (`server.helpdesk.*`, `server.portal.*`), since a4a knows neither who reads them nor how formal the company is.
 
@@ -115,7 +117,7 @@ Its open questions were settled by a model editor's pass on 18 November 2026: 11
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
 
-Its open questions were settled by a model editor's pass on 18 November 2026: 111 settled, 1 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 111 settled, 1 left for a native speaker.
 
 Typography and phrasing:
 
