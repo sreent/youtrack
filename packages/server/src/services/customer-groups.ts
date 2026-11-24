@@ -548,11 +548,14 @@ export async function customerDirectory(ctx: Ctx): Promise<{ name: string; domai
   const readable = [...s.projects.values()].filter((p) => view.canRead(p.id)).map((p) => p.id);
   if (!readable.length) return [];
   const rows = await ctx.db.select({ name: customerGroups.name, domain: customerGroupDomains.domain }).from(customerGroups).leftJoin(customerGroupDomains, eq(customerGroupDomains.groupId, customerGroups.id)).where(inArray(customerGroups.projectId, readable));
-  const byName = new Map<string, Set<string>>();
+  // One customer per name whatever its case, named as one of its groups writes it ("Công ty ABC", not "công ty abc"):
+  // the same one every time, the first by code points, so a name's capitals win over its lower case.
+  const byName = new Map<string, { name: string; domains: Set<string> }>();
   for (const r of rows) {
-    const set = byName.get(r.name.toLowerCase()) ?? new Set<string>();
-    byName.set(r.name.toLowerCase(), set);
-    if (r.domain) set.add(r.domain.toLowerCase());
+    const one = byName.get(r.name.toLowerCase()) ?? { name: r.name, domains: new Set<string>() };
+    if (r.name < one.name) one.name = r.name;
+    byName.set(r.name.toLowerCase(), one);
+    if (r.domain) one.domains.add(r.domain.toLowerCase());
   }
-  return [...byName.entries()].map(([name, set]) => ({ name, domains: [...set].sort() })).sort((a, b) => a.name.localeCompare(b.name));
+  return [...byName.values()].map((c) => ({ name: c.name, domains: [...c.domains].sort() })).sort((a, b) => a.name.localeCompare(b.name));
 }

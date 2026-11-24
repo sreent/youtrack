@@ -226,7 +226,8 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
 
 /** The burndown with its head: the sprint, its dates, how it stands, and what changed. */
 export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean }) {
-  const kinds: Record<string, string> = { added: t('reports.burndown.added'), removed: t('reports.burndown.takenOut'), deleted: t('reports.burndown.deleted'), resolved: t('reports.burndown.resolved'), reopened: t('reports.burndown.reopened'), estimate: t('reports.burndown.estimateChanged') };
+  // A list's kind of change is a word of its own, not the column head's: Spanish agrees it with the issue ("Agregada").
+  const kinds: Record<string, string> = { added: t('reports.burndown.addedKind'), removed: t('reports.burndown.takenOut'), deleted: t('reports.burndown.deleted'), resolved: t('reports.burndown.resolved'), reopened: t('reports.burndown.reopened'), estimate: t('reports.burndown.estimateChanged') };
   return (
     <div className="report">
       {!compact ? (

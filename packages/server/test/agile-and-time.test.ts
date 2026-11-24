@@ -5,6 +5,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { LOCALES } from '@a4a/shared/i18n';
 import type { UserRow } from '../src/context';
 import { runCommand, commandSpec } from '../src/commands/executor';
 import { parseCommand } from '../src/commands/parser';
@@ -23,6 +24,9 @@ import { getResourceLoad, getSchedule } from '../src/services/planning';
 import { createProject, updateProject } from '../src/services/projects';
 import { approveTimesheet, discardTimer, getTimesheet, listTimers, pauseTimer, reopenTimesheet, setPersonalCell, setTimesheetCell, startTimer, stopTimer, submitTimesheet } from '../src/services/time';
 import { updateUser } from '../src/services/users';
+import { translatorFor } from '../src/i18n';
+import type { AppError } from '../src/lib/errors';
+import { notificationTitle } from '../src/notify/words';
 import { listWorkItems, logWork } from '../src/services/workitems';
 import { createWorkType, deleteWorkType, listWorkTypes, updateWorkType } from '../src/services/work-types';
 import { createWorld, type TestWorld } from './helpers';
@@ -363,6 +367,15 @@ describe("a week submitted and approved (D43's revisit)", () => {
     const submitted = await submitTimesheet(anna, { week: mon });
     expect(submitted.status).toBe('submitted');
     expect(submitted.submittedAt).not.toBeNull();
+    // Submitted again, it says why with its status, a code each catalog words: none falls back to English's.
+    const twice = await submitTimesheet(anna, { week: mon }).then(() => null, (e: AppError) => e);
+    expect(twice?.status).toBe(409);
+    expect(twice?.words).toEqual({ key: 'time.weekNotOpen', values: { status: 'submitted' } });
+    for (const locale of LOCALES) {
+      const said = translatorFor(locale).t('problem.time.weekNotOpen', twice!.words!.values);
+      expect(said, locale).not.toContain('{');
+      if (locale !== 'en') expect(said, locale).not.toContain('submitted');
+    }
     // Its cells are locked: submitted, the cell refuses.
     const locked = await refused(() => setTimesheetCell(anna, { issue: issue.id, date: day(0), minutes: 90 }));
     expect(locked.status).toBe(409);
@@ -393,9 +406,24 @@ describe("the approval rule is the projects' to set (D43's revisit)", () => {
     // Both projects say 'any': one of the week's managers approves the whole week.
     await updateProject(w.adminCtx, 'AGL', { settings: { time: { timesheetApproval: 'any' } } });
     await updateProject(w.adminCtx, 'BACK', { settings: { time: { timesheetApproval: 'any' } } });
+    // Someone who manages none of them is refused in this rule's own words, not the strict rule's.
+    const notAManager = await approveTimesheet(anna, { week: mon, user: 'anna' }).then(() => null, (e: AppError) => e);
+    expect(notAManager?.status).toBe(403);
+    expect(notAManager?.words?.key).toBe('time.oneManagerApproves');
     const approved = await approveTimesheet(ben, { week: mon, user: 'anna' });
     expect(approved.status).toBe('approved');
     expect(approved.approvedBy).toMatchObject({ login: 'ben' });
+  });
+});
+describe("a week's notification names its owner once (D43's revisit)", () => {
+  it('says their own week when they sent it, and whose week it is when someone else did', () => {
+    const tr = translatorFor('en');
+    const event = (type: string, actor: UserRow, owner: UserRow) =>
+      ({ id: 1, type, actor: { id: actor.id, login: actor.login, name: actor.name, channel: 'web', token: null, isBot: false }, data: { user: { id: owner.id, login: owner.login, name: owner.name }, week: mon } }) as never;
+    const title = (type: string, actor: UserRow, owner: UserRow) => notificationTitle(tr, 'watching', [event(type, actor, owner)], new Map());
+    expect(title('timesheet.submitted', w.anna, w.anna)).toBe(`${w.anna.name} submitted their week of time`);
+    expect(title('timesheet.submitted', w.ben, w.anna)).toBe(`${w.ben.name} submitted ${w.anna.name}’s week of time`);
+    expect(title('timesheet.approved', w.ben, w.anna)).toBe(`${w.ben.name} approved ${w.anna.name}’s week of time`);
   });
 });
 describe("the timesheet itself is each project's to turn off (D43's revisit)", () => {

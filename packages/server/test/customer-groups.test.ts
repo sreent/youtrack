@@ -357,6 +357,8 @@ describe("the customers' directory (D56's revisit)", () => {
     const list = await customerDirectory(w.adminCtx);
     const acme = list.find((c) => c.name.toLowerCase() === 'acme');
     expect(acme).toBeDefined();
+    // Named as its groups write it, not lower-cased.
+    expect(acme!.name).toBe('Acme');
     expect(acme!.domains).toContain('acme.com');
     expect(list.filter((c) => c.name.toLowerCase() === 'acme')).toHaveLength(1);
   });

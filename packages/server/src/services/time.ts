@@ -327,7 +327,11 @@ async function mayApprove(ctx: Ctx, personId: string, monday: string): Promise<v
   const settings = await ctx.db.select({ id: projects.id, settings: projects.settings }).from(projects).where(inArray(projects.id, projectIds));
   const lenient = settings.every((p) => (p.settings as { time?: { timesheetApproval?: string } } | null)?.time?.timesheetApproval === 'any');
   const may = lenient ? projectIds.some((id) => view.canManage(id)) : projectIds.every((id) => view.canManage(id));
-  if (!may) throw forbidden(lenient ? 'Only an administrator, or a manager of one of the week\'s projects, approves a timesheet' : 'Only an administrator, or a manager of every project the week holds work in, approves a timesheet').said('time.onlyManagersApprove');
+  if (!may) {
+    // Each rule refuses in its own words: a page shows the one this week's projects chose.
+    if (lenient) throw forbidden('Only an administrator, or a manager of one of the week\'s projects, approves a timesheet').said('time.oneManagerApproves');
+    throw forbidden('Only an administrator, or a manager of every project the week holds work in, approves a timesheet').said('time.onlyManagersApprove');
+  }
 }
 
 /** Submit the week: yours, or anyone's as an administrator. Its cells lock until it comes back. */
@@ -337,7 +341,7 @@ export async function submitTimesheet(ctx: Ctx, input: { week?: string; user?: s
   const person = whose(ctx, s, input.user);
   const monday = startOfWeek(input.week ?? todayIn(zoneOf(ctx)));
   const before = await weekOf(ctx.db, person.id, monday);
-  if (before.status !== 'open') throw conflict(`The week is already ${before.status}`).said('time.weekNotOpen');
+  if (before.status !== 'open') throw conflict(`The week is already ${before.status}`, 'Send it back first to change it.').said('time.weekNotOpen', { status: before.status });
   const activity = await ctx.db.transaction(async (tx) => {
     const db = tx as unknown as Db;
     await db.insert(timesheetWeeks).values({ id: newId(), userId: person.id, week: monday, status: 'submitted', submittedAt: new Date() }).onConflictDoUpdate({ target: [timesheetWeeks.userId, timesheetWeeks.week], set: { status: 'submitted', submittedAt: new Date(), approvedAt: null, approvedById: null, updatedAt: new Date() } });
