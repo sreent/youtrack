@@ -17,7 +17,7 @@ import { activities, agentChanges, apiTokens, issueLinks, issueTags, issues, tag
 import { publishActivities, toEventDto, type ActivityPayload, type ActivityRow } from '../events/activity';
 import { listIn } from '../i18n';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
-import type { ProblemSaid } from '@a4a/shared/i18n';
+import type { ListSaid, ProblemSaid } from '@a4a/shared/i18n';
 import { canUserReadProject, eventFor, eventSeen, projectAccess, requireProject } from './access';
 import { actsAsAgent, textHash, type AgentUndo, type LinkUndo } from './agent-changes';
 import { issueTokenFor, keysFor, tokenDto, tokenScopes } from './auth';
@@ -179,7 +179,7 @@ async function linkExists(db: Db, s: SchemaSnapshot, undo: LinkUndo): Promise<bo
  */
 /** Why a change can't be undone: in the API's English, and as a page says it (D49). */
 type Stop = { words: string; said: ProblemSaid };
-const stop = (words: string, key: string, values?: Record<string, string | number>): Stop => ({ words, said: values ? { key, values } : { key } });
+const stop = (words: string, key: string, values?: Record<string, string | number | ListSaid>): Stop => ({ words, said: values ? { key, values } : { key } });
 const ISSUE_GONE = stop('the issue is gone', 'agents.stop.issueGone');
 
 async function whatStops(db: Db, s: SchemaSnapshot, rec: ChangeRow, now: Now): Promise<Stop[]> {
@@ -237,8 +237,8 @@ async function whatStops(db: Db, s: SchemaSnapshot, rec: ChangeRow, now: Now): P
   if (undo.tags) {
     const off = undo.tags.added.filter((t) => !now.tags.has(t.toLowerCase()));
     const on = undo.tags.removed.filter((t) => now.tags.has(t.toLowerCase()));
-    if (off.length) out.push(stop(`${off.length === 1 ? 'the tag' : 'the tags'} ${off.join(', ')} ${off.length === 1 ? 'was' : 'were'} taken off since`, 'agents.stop.tagsOff', { n: off.length, tags: off.join(', ') }));
-    if (on.length) out.push(stop(`${on.length === 1 ? 'the tag' : 'the tags'} ${on.join(', ')} ${on.length === 1 ? 'is' : 'are'} on again`, 'agents.stop.tagsOn', { n: on.length, tags: on.join(', ') }));
+    if (off.length) out.push(stop(`${off.length === 1 ? 'the tag' : 'the tags'} ${off.join(', ')} ${off.length === 1 ? 'was' : 'were'} taken off since`, 'agents.stop.tagsOff', { n: off.length, tags: off }));
+    if (on.length) out.push(stop(`${on.length === 1 ? 'the tag' : 'the tags'} ${on.join(', ')} ${on.length === 1 ? 'is' : 'are'} on again`, 'agents.stop.tagsOn', { n: on.length, tags: on }));
   }
   return out;
 }

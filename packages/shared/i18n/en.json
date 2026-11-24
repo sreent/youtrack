@@ -4511,7 +4511,7 @@
   "problem.command.unknownValue": "Unknown value \"{value}\" for {field}. {hasGuess, select, yes {Did you mean \"{guess}\"?} other {{n, plural, =0 {There are no values yet.} other {Values: {allowed}.}}}}",
   "problem.command.userAfterFor": "Expected a user after \"for\".",
   "problem.command.valueFor": "Expected a value for {field}.",
-  "problem.command.valueOfFields": "\"{value}\" is a value of {n, plural, =2 {{first} and {last}} other {# fields, {first} and {last} among them}}. Say which one, e.g. \"{first} {value}\".",
+  "problem.command.valueOfFields": "\"{value}\" is a value of {n, plural, =2 {{fields}} other {# fields, {fields} among them}}. Say which one, e.g. \"{first} {value}\".",
   "problem.comments.changedBySomeoneElse": "The comment was changed by someone else (version {version}, you sent {expectedVersion}). Reload the comment, then make your change again.",
   "problem.comments.notFromHelpdesk": "{id} didn't come in through a help desk, so a comment on it can't be public. Leave out \"visibility\", or send \"internal\".",
   "problem.comments.onlyOwn": "You can only change your own comments. Managers of the project can change anyone’s.",

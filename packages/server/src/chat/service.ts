@@ -333,7 +333,7 @@ async function ownSubscription(ctx: Ctx, id: string): Promise<SubscriptionRow> {
 
 function kindsFrom(input: readonly string[] | undefined): ChatChangeKind[] {
   const kinds = CHAT_CHANGE_KINDS.filter((k) => (input ?? DEFAULT_CHAT_KINDS).includes(k));
-  if (!kinds.length) throw badRequest('Choose what the channel hears of', `One or more of: ${CHAT_CHANGE_KINDS.join(', ')}.`).said('chat.kindsNeeded', { kinds: CHAT_CHANGE_KINDS.join(', ') });
+  if (!kinds.length) throw badRequest('Choose what the channel hears of', `One or more of: ${CHAT_CHANGE_KINDS.join(', ')}.`).said('chat.kindsNeeded', { kinds: [...CHAT_CHANGE_KINDS] });
   return kinds;
 }
 
@@ -651,7 +651,7 @@ async function subscribeHere(ctx: Ctx, on: boolean, rest: string, channelId: str
   if (on) {
     const named = m[4]!.split(/[\s,]+/).filter(Boolean);
     const kinds = named.map((w) => KIND_ALIASES[w.toLowerCase()]).filter((k): k is ChatChangeKind => Boolean(k));
-    if (named.length && kinds.length !== named.length) return { text: tr.t('server.chat.kinds', { kinds: Object.keys(KIND_ALIASES).join(', ') }), locale };
+    if (named.length && kinds.length !== named.length) return { text: tr.t('server.chat.kinds', { kinds: Object.keys(KIND_ALIASES) }), locale };
     const sub = await createChatSubscription(ctx, { channel: channelId, ...target, kinds: kinds.length ? kinds : [...DEFAULT_CHAT_KINDS] });
     const channel = channelTr(ctx.app);
     const about = aboutChannel(sub.kinds, { project: sub.project?.name, search: sub.search?.name }, channel);

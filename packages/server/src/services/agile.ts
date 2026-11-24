@@ -171,8 +171,8 @@ function columnNamed(board: BoardRow, name: string): StoredColumn {
   const stored = board.columns as StoredColumn[];
   const found = stored.find((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
   if (!found) {
-    const names = stored.map((c) => c.name).join(', ');
-    throw badRequest(`This board has no column "${name.trim()}"`, `Its columns: ${names}`).said('agile.noSuchColumn', { name: name.trim(), names });
+    const names = stored.map((c) => c.name);
+    throw badRequest(`This board has no column "${name.trim()}"`, `Its columns: ${names.join(', ')}`).said('agile.noSuchColumn', { name: name.trim(), names });
   }
   return found;
 }

@@ -96,7 +96,7 @@ export async function resolveRole(db: Db, ref: string): Promise<RoleDefn> {
   const all = await loadRoles(db);
   const want = ref.trim().toLowerCase();
   const found = all.get(ref.trim()) ?? [...all.values()].find((r) => r.name.toLowerCase() === want || r.id.toLowerCase() === want);
-  if (!found) throw badRequest(`Unknown role "${ref}"`, `Use one of: ${[...all.values()].map((r) => r.name).join(', ')}.`).said('access.unknownRole', { ref, roles: [...all.values()].map((r) => r.name).join(', ') });
+  if (!found) throw badRequest(`Unknown role "${ref}"`, `Use one of: ${[...all.values()].map((r) => r.name).join(', ')}.`).said('access.unknownRole', { ref, roles: [...all.values()].map((r) => r.name) });
   return found;
 }
 

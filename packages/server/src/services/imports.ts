@@ -471,10 +471,10 @@ export async function updateMapping(
     const i = Number(index);
     if (!(i >= 0 && i < header.length)) throw badRequest(`There is no column ${index}`, `Columns run from 0 to ${header.length - 1}.`).said('imports.noColumn', { index, last: header.length - 1 });
     if (target.startsWith('field:') && !fieldOf(c, target)) {
-      throw badRequest(`${project.key} has no field "${target.slice(6)}"`, `Its fields: ${c.fields.map((f) => f.name).join(', ')}`).said('imports.noSuchField', { project: project.key, field: target.slice(6), fields: c.fields.map((f) => f.name).join(', ') });
+      throw badRequest(`${project.key} has no field "${target.slice(6)}"`, `Its fields: ${c.fields.map((f) => f.name).join(', ')}`).said('imports.noSuchField', { project: project.key, field: target.slice(6), fields: c.fields.map((f) => f.name) });
     }
     if (target.startsWith('link:') && !c.phrases.includes(target.slice(5).toLowerCase())) {
-      throw badRequest(`"${target.slice(5)}" is not a link a4a knows`, `Links: ${c.phrases.join(', ')}`).said('imports.unknownLink', { phrase: target.slice(5), phrases: c.phrases.join(', ') });
+      throw badRequest(`"${target.slice(5)}" is not a link a4a knows`, `Links: ${c.phrases.join(', ')}`).said('imports.unknownLink', { phrase: target.slice(5), phrases: c.phrases });
     }
     m.targets[i] = target.startsWith('link:') ? `link:${target.slice(5).toLowerCase()}` : target;
     m.found[i] = false;
@@ -498,7 +498,7 @@ export async function updateMapping(
         continue;
       }
       const canonical = choices.get(to.toLowerCase());
-      if (!canonical) throw badRequest(`"${to}" isn't one of ${kind.label}'s values here, for "${value}"`, `Choose one of: ${[...choices.values()].slice(0, 30).join(', ')}`).said('imports.notOneOfValues', { to, kind: kind.label, value, choices: [...choices.values()].slice(0, 30).join(', ') });
+      if (!canonical) throw badRequest(`"${to}" isn't one of ${kind.label}'s values here, for "${value}"`, `Choose one of: ${[...choices.values()].slice(0, 30).join(', ')}`).said('imports.notOneOfValues', { to, kind: kind.label, value, choices: [...choices.values()].slice(0, 30) });
       out[value] = canonical;
     }
   }

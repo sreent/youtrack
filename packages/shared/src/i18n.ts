@@ -52,7 +52,7 @@ export type MessageValues = Record<string, unknown>;
  * `joinItems`), as a problem lists the fields there are; or `{ and }` and `{ or }`, Intl's list with
  * its word ("Priority and Importance", "Priority e Importancia", "A, B ou C").
  */
-export type ListSaid = readonly string[] | { readonly and: readonly string[] } | { readonly or: readonly string[] };
+export type ListSaid = string[] | { and: string[] } | { or: string[] };
 
 export function isListSaid(v: unknown): v is ListSaid {
   if (Array.isArray(v)) return v.every((x) => typeof x === 'string');
@@ -67,7 +67,7 @@ export function sayList(locale: Locale, list: ListSaid): string {
   return 'and' in list ? joinList(locale, list.and) : joinList(locale, list.or, { type: 'disjunction' });
 }
 
-const isItems = (list: ListSaid): list is readonly string[] => Array.isArray(list);
+const isItems = (list: ListSaid): list is string[] => Array.isArray(list);
 
 export interface Translator {
   readonly locale: Locale;
@@ -420,9 +420,13 @@ const THAI = /[\u0E00-\u0E7F]/;
  * item that isn't Thai a joining word gets one, and a bare space a comma, as Thai's own "or" list has.
  */
 export function listParts(locale: Locale, n: number, textOf: (i: number) => string, options: Intl.ListFormatOptions = {}): (string | number)[] {
-  const marks = Array.from({ length: n }, (_, i) => `\u0001${i}\u0001`);
-  const parts = new Intl.ListFormat(intlTag(locale), { style: 'long', type: 'conjunction', ...options }).formatToParts(marks);
-  const out: (string | number)[] = parts.map((p) => (p.type === 'element' ? Number(p.value.slice(1, -1)) : p.value));
+  // Intl hears the items themselves, as a language's joining word may depend on the next one:
+  // Spanish's "y" is "e" before an "i" sound ("Priority e Importancia"), its "o" "u" before an "o".
+  // Its elements come in the items' order; one whose words a4a can't read (a page's element) stands
+  // in as a mark, since Intl leaves an empty one out.
+  let next = 0;
+  const parts = new Intl.ListFormat(intlTag(locale), { style: 'long', type: 'conjunction', ...options }).formatToParts(Array.from({ length: n }, (_, i) => textOf(i) || `\u0001${i}\u0001`));
+  const out: (string | number)[] = parts.map((p) => (p.type === 'element' ? next++ : p.value));
   if (locale !== 'th') return out;
   const latin = (i: unknown, end: boolean) => typeof i === 'number' && !THAI.test(end ? textOf(i).slice(-1) : textOf(i).slice(0, 1));
   return out.map((p, i) => {

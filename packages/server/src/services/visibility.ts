@@ -30,7 +30,7 @@ export async function resolveVisibleTo(db: Db, s: SchemaSnapshot, input: Visible
     if (!u) unknown.push(raw);
     else if (!userIds.includes(u.id)) userIds.push(u.id);
   }
-  if (unknown.length) throw badRequest(`No one has the login ${unknown.join(', ')}`, 'Name people by their login, as in an @-mention.').said('visibility.unknownLogins', { unknown: unknown.join(', ') });
+  if (unknown.length) throw badRequest(`No one has the login ${unknown.join(', ')}`, 'Name people by their login, as in an @-mention.').said('visibility.unknownLogins', { unknown });
   const refs = [...new Set((input.groups ?? []).map((g) => g.trim()).filter(Boolean))];
   const groupIds: string[] = [];
   if (refs.length) {
@@ -39,7 +39,7 @@ export async function resolveVisibleTo(db: Db, s: SchemaSnapshot, input: Visible
       .from(groups)
       .where(or(inArray(groups.id, refs), inArray(sql`lower(${groups.name})`, refs.map((r) => r.toLowerCase()))));
     const missing = refs.filter((r) => !found.some((g) => g.id === r || g.name.toLowerCase() === r.toLowerCase()));
-    if (missing.length) throw badRequest(`No group is called ${missing.join(', ')}`, 'Name groups as Administration › Groups lists them, or by id.').said('visibility.unknownGroups', { missing: missing.join(', ') });
+    if (missing.length) throw badRequest(`No group is called ${missing.join(', ')}`, 'Name groups as Administration › Groups lists them, or by id.').said('visibility.unknownGroups', { missing });
     for (const g of found) if (!groupIds.includes(g.id)) groupIds.push(g.id);
   }
   return { limited: true, visibleUserIds: userIds, visibleGroupIds: groupIds };

@@ -54,7 +54,7 @@ async function fieldNamed(ctx: Ctx, s: SchemaSnapshot, scope: Scope, name: strin
   if (found) return found;
   const names = ['Project', ...fields.map((f) => f.name).sort((a, b) => a.localeCompare(b))];
   const guess = didYouMean(n, names);
-  throw badRequest(`No field here is called "${n}"`, `${guess ? `Did you mean "${guess}"? ` : ''}Fields: ${names.join(', ')}`).said('moreReports.noSuchField', { name: n, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', names: names.join(', ') });
+  throw badRequest(`No field here is called "${n}"`, `${guess ? `Did you mean "${guess}"? ` : ''}Fields: ${names.join(', ')}`).said('moreReports.noSuchField', { name: n, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', names });
 }
 
 function fieldDto(d: Dim): ReportField {
@@ -408,7 +408,7 @@ async function boardNamed(ctx: Ctx, name: string): Promise<{ board: BoardRow; re
   const view = await projectAccess(ctx);
   const all = (await ctx.db.select().from(boards)).filter((b) => b.projectIds.some((id) => view.canRead(id)));
   const board = all.find((b) => b.id === name) ?? all.find((b) => b.name.toLowerCase() === name.toLowerCase());
-  if (!board) throw notFound(`Board ${name}`, `Boards: ${all.map((b) => b.name).join(', ') || 'none yet'}`).said('moreReports.boardNotFound', { name, n: all.length, boards: all.map((b) => b.name).join(', ') });
+  if (!board) throw notFound(`Board ${name}`, `Boards: ${all.map((b) => b.name).join(', ') || 'none yet'}`).said('moreReports.boardNotFound', { name, n: all.length, boards: all.map((b) => b.name) });
   return { board, readable: board.projectIds.filter((id) => view.canRead(id)) };
 }
 

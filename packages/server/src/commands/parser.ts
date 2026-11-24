@@ -1,6 +1,6 @@
 import { isOwnAgent, type QueryProblem, type SuggestItem, isOptionType } from '@a4a/shared';
 import type { Translator } from '@a4a/shared/i18n';
-import { translatorFor } from '../i18n';
+import { listIn, translatorFor } from '../i18n';
 import { fixValue, lex, type Token } from '../search/lexer';
 import { guessWords, keyedProblem, type QueryProblemWords } from '../lib/errors';
 import { didYouMean, editDistance } from '../lib/text';
@@ -276,9 +276,12 @@ class CommandParser {
       this.pos += values[0]!.length;
       if (fieldsHit.length > 1) {
         const names = fieldsHit.map((f) => f.field.name);
+        // The first and the last, joined by the reader's own list (D49): Spanish's "y" is "e" before an "i" sound ("Priority e Importancia").
+        const pair = [names[0]!, names[names.length - 1]!];
+        const which = names.length === 2 ? listIn('en', pair) : `${names.length} fields, ${listIn('en', pair)} among them`;
         this.problem(
-          { key: 'command.valueOfFields', values: { value: values[0]!.item.value, n: names.length, first: names[0]!, last: names[names.length - 1]! } },
-          `"${values[0]!.item.value}" is a value of ${names.join(' and ')}`,
+          { key: 'command.valueOfFields', values: { value: values[0]!.item.value, n: names.length, fields: { and: pair }, first: names[0]! } },
+          `"${values[0]!.item.value}" is a value of ${which}`,
           tok,
           `Say which one, e.g. "${names[0]} ${values[0]!.item.value}"`,
         );
@@ -448,7 +451,7 @@ class CommandParser {
         const span = { ...t, end: last.end };
         const known = candidates.map((c) => c.item.value);
         this.problem(
-          { key: 'command.unknownValue', values: { value: typed, field: field.name, ...guessWords(guess), n: known.length, allowed: known.join(', ') } },
+          { key: 'command.unknownValue', values: { value: typed, field: field.name, ...guessWords(guess), n: known.length, allowed: known } },
           `Unknown value "${typed}" for ${field.name}`,
           span,
           guess ? `Did you mean "${guess}"?` : known.length ? `Values: ${known.join(', ')}` : 'There are no values yet.',
@@ -551,11 +554,11 @@ export function describeCommand(ops: CommandOp[], tr: Translator = translatorFor
     .map((op) => {
       switch (op.kind) {
         case 'field':
-          return tr.t('server.command.field', { mode: op.mode === 'remove' ? 'remove' : op.mode === 'add' ? 'add' : 'set', field: op.field.name, values: op.raw.join(', ') });
+          return tr.t('server.command.field', { mode: op.mode === 'remove' ? 'remove' : op.mode === 'add' ? 'add' : 'set', field: op.field.name, values: op.raw });
         case 'tag':
           return tr.t('server.command.tag', { mode: op.mode === 'add' ? 'add' : 'remove', name: op.name });
         case 'link':
-          return tr.t('server.command.link', { mode: op.mode === 'add' ? 'add' : 'remove', phrase: op.phrase.display, targets: op.targets.join(', ') });
+          return tr.t('server.command.link', { mode: op.mode === 'add' ? 'add' : 'remove', phrase: op.phrase.display, targets: op.targets });
         case 'comment':
           return tr.t('server.command.comment');
         case 'action':

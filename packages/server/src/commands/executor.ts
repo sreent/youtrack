@@ -50,7 +50,7 @@ export async function runCommand(ctx: Ctx, req: CommandRequest, words?: Translat
     if (row) rows.push(row);
     else missing.push(id);
   }
-  if (missing.length) throw badRequest(`Unknown issues: ${missing.join(', ')}`).said('command.unknownIssues', { ids: missing.join(', ') });
+  if (missing.length) throw badRequest(`Unknown issues: ${missing.join(', ')}`).said('command.unknownIssues', { ids: missing });
   const projectIds = [...new Set(rows.map((r) => r.projectId))];
   // Read in the caller's words: a private field kept from them is one that doesn't exist (D50).
   const parsed = parseCommand(req.command, await visibleSchema(ctx), projectIds);
@@ -139,7 +139,7 @@ async function sprintMoves(ctx: Ctx, issue: IssueRow, ops: CommandOp[]): Promise
         : badRequest(`No board of this issue's project has a sprint called ${op.name}`, 'Name a sprint of one of its boards.').said('command.noSuchSprint', { name: op.name });
     }
     if (open.length > 1) {
-      throw badRequest(`${open.length} sprints are called ${op.name}: on ${open.map((f) => f.board.name).join(', ')}`, 'Rename one, or use PUT /sprints/{id}/issues.').said('command.sprintAmbiguous', { count: open.length, name: op.name, boards: open.map((f) => f.board.name).join(', ') });
+      throw badRequest(`${open.length} sprints are called ${op.name}: on ${open.map((f) => f.board.name).join(', ')}`, 'Rename one, or use PUT /sprints/{id}/issues.').said('command.sprintAmbiguous', { count: open.length, name: op.name, boards: open.map((f) => f.board.name) });
     }
     out.push({ sprint: open[0]!.sprint, board: open[0]!.board, remove: op.mode === 'remove' });
   }

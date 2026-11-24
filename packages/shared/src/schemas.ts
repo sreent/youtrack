@@ -919,6 +919,11 @@ export const ChangeSchema = z
     field: z.string(),
     from: z.string().nullable(),
     to: z.string().nullable(),
+    fromList: z
+      .array(z.string())
+      .optional()
+      .describe('A multi-value field’s or the tags’ values before, each, where there were several: from joins them with ", ", and a page joins them as its language does (D49)'),
+    toList: z.array(z.string()).optional().describe('Their values after, each, where there are several: to joins them with ", "'),
   })
   .meta({ id: 'Change' });
 export type Change = z.infer<typeof ChangeSchema>;
@@ -963,6 +968,13 @@ export type TrackerEvent = z.infer<typeof EventSchema>;
 
 // Search & commands ---------------------------------------------------------
 
+/**
+ * A list among a problem's words (D49): its items, joined as the reader's language joins things one
+ * after another (", ", 「、」), as the API's English joins them; or `{ and }` and `{ or }`, joined by
+ * the language's list with its word ("Priority and Importance", "Priority e Importancia").
+ */
+export const ListSaidSchema = z.union([z.array(z.string()), z.object({ and: z.array(z.string()) }), z.object({ or: z.array(z.string()) })]).meta({ id: 'ListSaid' });
+
 export const QueryProblemSchema = z
   .object({
     message: z.string(),
@@ -971,7 +983,7 @@ export const QueryProblemSchema = z
     hint: z.string().optional(),
     fix: z.string().optional().describe('Text that fixes it, to put in place of start..end'),
     key: z.string().optional().describe('The problem in the catalogs, problem.<key>, for a page that says it in its person’s language (D49). The English in message and hint is the same problem.'),
-    values: z.record(z.string(), z.union([z.string(), z.number()])).optional().describe('What the problem’s words take, by name.'),
+    values: z.record(z.string(), z.union([z.string(), z.number(), ListSaidSchema])).optional().describe('What the problem’s words take, by name: a word, a number or a list.'),
   })
   .meta({ id: 'QueryProblem' });
 export type QueryProblem = z.infer<typeof QueryProblemSchema>;
@@ -3048,7 +3060,7 @@ export const MoveProblemSchema = z
     hint: z.string().optional(),
     choices: z.array(z.string()).optional().describe('Values the field takes in the project it moves to'),
     key: z.string().optional().describe('The problem in the catalogs, problem.<key>, for a page that says it in its person’s language (D49). The English in message and hint is the same problem.'),
-    values: z.record(z.string(), z.union([z.string(), z.number()])).optional().describe('What the problem’s words take, by name.'),
+    values: z.record(z.string(), z.union([z.string(), z.number(), ListSaidSchema])).optional().describe('What the problem’s words take, by name: a word, a number or a list.'),
   })
   .meta({ id: 'MoveProblem' });
 export type MoveProblem = z.infer<typeof MoveProblemSchema>;

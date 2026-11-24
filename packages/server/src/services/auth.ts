@@ -155,7 +155,7 @@ export function tokenScopes(ctx: Ctx, scopes: Scope[]): Scope[] {
   const unique = [...new Set(scopes)];
   if (ctx.actor.authMethod === 'token') {
     const more = unique.filter((sc) => !ctx.actor.scopes.includes(sc));
-    if (more.length) throw forbidden(`This token can’t make a token with the ${more.join(', ')} scope`, 'Create it while signed in, or from a token that has it.').said('auth.tokenCantGrantScope', { scopes: more.join(', ') });
+    if (more.length) throw forbidden(`This token can’t make a token with the ${more.join(', ')} scope`, 'Create it while signed in, or from a token that has it.').said('auth.tokenCantGrantScope', { scopes: more });
   }
   return unique;
 }

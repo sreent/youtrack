@@ -34,7 +34,7 @@ function validateEvents(events: string[]): string[] {
   const known = new Set<string>(SUBSCRIBABLE);
   for (const e of events) {
     if (e === 'rule.called') throw badRequest('A rule calls only the webhook it names, so a webhook can\'t listen for "rule.called"', 'Choose this webhook in the rule instead.').said('webhooks.ruleCalledNotListenable');
-    if (e !== '*' && !known.has(e)) throw badRequest(`Unknown event type "${e}"`, `Use "*" or one of: ${SUBSCRIBABLE.join(', ')}`).said('webhooks.unknownEvent', { event: e, events: SUBSCRIBABLE.join(', ') });
+    if (e !== '*' && !known.has(e)) throw badRequest(`Unknown event type "${e}"`, `Use "*" or one of: ${SUBSCRIBABLE.join(', ')}`).said('webhooks.unknownEvent', { event: e, events: [...SUBSCRIBABLE] });
   }
   return [...new Set(events)];
 }
@@ -106,7 +106,7 @@ export async function deleteWebhook(ctx: Ctx, id: string): Promise<void> {
     throw conflict(
       `The rule${callers.length > 1 ? 's' : ''} ${callers.map((r) => `"${r.name}"`).join(', ')} call${callers.length > 1 ? '' : 's'} this webhook`,
       'Change the rule so it calls another webhook, or none, then remove this one.',
-    ).said('webhooks.calledByRules', { count: callers.length, rules: callers.map((r) => `"${r.name}"`).join(', ') });
+    ).said('webhooks.calledByRules', { count: callers.length, rules: callers.map((r) => `"${r.name}"`) });
   }
   const res = await ctx.db.delete(webhooks).where(eq(webhooks.id, id)).returning({ id: webhooks.id });
   if (!res.length) throw notFound('Webhook').said('webhooks.notFound');

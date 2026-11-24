@@ -18,7 +18,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { checkProblemWords, keyedProblem } from '../lib/errors';
+import { checkProblemWords, keyedProblem, type QueryProblemWords } from '../lib/errors';
 
 export const SCRIPT_LIMITS = {
   /** Longest a script may be, in characters. */
@@ -98,7 +98,7 @@ export interface ScriptProblem {
   line: number | null;
   /** Its words for a page in another language (D49); none for what the JavaScript engine itself says. */
   key?: string;
-  values?: Record<string, string | number>;
+  values?: QueryProblemWords['values'];
 }
 
 const empty = (): ScriptIntents => ({ applies: [], comments: [], refusal: null, logs: [], calls: [] });

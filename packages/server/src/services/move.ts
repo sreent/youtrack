@@ -93,7 +93,7 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
   const target = projectByKey(s, asked) ?? [...s.projects.values()].find((p) => p.name.toLowerCase() === asked.toLowerCase());
   if (!target || !view.canRead(target.id)) {
     const open = [...s.projects.values()].filter((p) => view.canWrite(p.id) && !p.archived && p.id !== issue.projectId).map((p) => p.key);
-    throw notFound(`Project ${asked}`, open.length ? `Projects it can move to: ${open.join(', ')}` : 'There is no other project you can move it to.').said('move.projectNotFound', { project: asked, n: open.length, projects: open.join(', ') });
+    throw notFound(`Project ${asked}`, open.length ? `Projects it can move to: ${open.join(', ')}` : 'There is no other project you can move it to.').said('move.projectNotFound', { project: asked, n: open.length, projects: open });
   }
   const from = readableId(s, issue);
   if (target.id === issue.projectId) throw badRequest(`${from} is in ${target.key} already`).said('move.alreadyThere', { issue: from, project: target.key });
