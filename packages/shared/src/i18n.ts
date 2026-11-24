@@ -84,7 +84,7 @@ export interface Translator {
  */
 export function createTranslator(locale: Locale, messages: Messages): Translator {
   const compiled = new Map<string, IntlMessageFormat>();
-  const edges = EDGES[locale];
+  const edges = EDGES[locale]?.(messages);
   // As a page draws them: nothing for false, null and undefined; a number as written (an id, a
   // year), unless the message formats it ({n, number}, {n, plural, ...}); a list joined in the
   // language (ListSaid).
@@ -337,27 +337,50 @@ export function squareAt(text: string, end: boolean): boolean {
 }
 
 /**
- * Chinese: the space a message puts between its words and a value, which Chinese wants beside Latin
- * letters and digits, goes where the value begins or ends in Chinese and so do the words beside it
- * ("以 {name} 身份": "以 Ada 身份", "以王芳身份").
+ * The space a message puts between its words and a value, which Chinese and Thai want beside Latin
+ * letters and digits, gone on a side where the value is written in the language and so are the words
+ * beside it (`joins`): Chinese's "以 {name} 身份" says "以 Ada 身份" and "以王芳身份". `heard` says
+ * which values to hear.
  */
-function chineseSpacing(pieces: Piece[]): void {
-  for (let i = 0; i < pieces.length; i++) {
-    const before = pieces[i - 1];
-    if (squareAt(valueAt(pieces[i], false), false) && ownWords(before) && before.text.endsWith(' ')) {
-      const other = before.text.length > 1 ? before.text.slice(0, -1) : textOf(pieces[i - 2]);
-      if (squareAt(other, true)) before.text = before.text.slice(0, -1);
+function spacing(joins: (text: string, end: boolean) => boolean, heard: (value: string) => boolean = () => true) {
+  return (pieces: Piece[]): void => {
+    for (let i = 0; i < pieces.length; i++) {
+      const before = pieces[i - 1];
+      const first = valueAt(pieces[i], false);
+      if (first && heard(first) && joins(first, false) && ownWords(before) && before.text.endsWith(' ')) {
+        const other = before.text.length > 1 ? before.text.slice(0, -1) : textOf(pieces[i - 2]);
+        if (joins(other, true)) before.text = before.text.slice(0, -1);
+      }
+      const after = pieces[i + 1];
+      const last = valueAt(pieces[i], true);
+      if (last && heard(last) && joins(last, true) && ownWords(after) && after.text.startsWith(' ')) {
+        const other = after.text.length > 1 ? after.text.slice(1) : textOf(pieces[i + 2]);
+        if (joins(other, false)) after.text = after.text.slice(1);
+      }
     }
-    const after = pieces[i + 1];
-    if (squareAt(valueAt(pieces[i], true), true) && ownWords(after) && after.text.startsWith(' ')) {
-      const other = after.text.length > 1 ? after.text.slice(1) : textOf(pieces[i + 2]);
-      if (squareAt(other, false)) after.text = after.text.slice(1);
-    }
-  }
+  };
 }
 
-/** The languages whose words change at a value's edge, and how. Korean's particles hear what comes before them anywhere (koreanParticles). */
-const EDGES: Partial<Record<Locale, (pieces: Piece[]) => void>> = { fr: frenchElision, zh: chineseSpacing };
+const THAI_START = /^[฀-๿]/;
+const THAI_END = /[฀-๿]$/;
+const thaiAt = (text: string, end: boolean) => (end ? THAI_END : THAI_START).test(text);
+
+/**
+ * The languages whose words change at a value's edge, and how, made for a catalog. Korean's particles
+ * hear what comes before them anywhere (koreanParticles). Thai sets a Latin value off with a space and
+ * joins a Thai word, as Chinese does, but its space is also its pause, between clauses and sentences,
+ * and a name often ends one ("ไม่ได้ตั้งงบประมาณให้ {name} ตั้งได้ใน…"): so Thai joins only a value
+ * that is one of its catalog's own words, a message of one word ("คัดลอก{what}แล้ว", the team's
+ * "ทีมงาน"), and leaves a name's spaces as the catalog wrote them.
+ */
+const EDGES: Partial<Record<Locale, (messages: Messages) => (pieces: Piece[]) => void>> = {
+  fr: () => frenchElision,
+  zh: () => spacing(squareAt),
+  th: (messages) => {
+    const words = new Set(Object.values(messages).filter((m) => THAI_START.test(m) && !/[\s{<]/.test(m)));
+    return spacing(thaiAt, (value) => words.has(value));
+  },
+};
 
 /** The placeholders and tags a message names, for the checks: a translation must name the same. */
 export function messageArguments(source: string): string[] {
@@ -418,6 +441,9 @@ const THAI = /[\u0E00-\u0E7F]/;
  * Thai's list is made for Thai words: a bare space between two, และ and หรือ glued to the next ("Anna
  * Ben และCarl", "SPRและที่ยังไม่ปิด"). Thai sets a name, an id or a number off with a space, so beside an
  * item that isn't Thai a joining word gets one, and a bare space a comma, as Thai's own "or" list has.
+ * Chinese's 和 and 或 are glued to their items too ("Anna Schmidt和Vera Viewer"), and Chinese spaces
+ * a Latin word or a digit from its own: beside such an item they take a space, beside a Chinese one
+ * none ("Anna Schmidt 和 Vera Viewer", "Ben Okafor 和另外 3 人", "王芳和李明"); its 、 takes none.
  */
 export function listParts(locale: Locale, n: number, textOf: (i: number) => string, options: Intl.ListFormatOptions = {}): (string | number)[] {
   // Intl hears the items themselves, as a language's joining word may depend on the next one:
@@ -427,6 +453,11 @@ export function listParts(locale: Locale, n: number, textOf: (i: number) => stri
   let next = 0;
   const parts = new Intl.ListFormat(intlTag(locale), { style: 'long', type: 'conjunction', ...options }).formatToParts(Array.from({ length: n }, (_, i) => textOf(i) || `\u0001${i}\u0001`));
   const out: (string | number)[] = parts.map((p) => (p.type === 'element' ? next++ : p.value));
+  if (locale === 'zh') {
+    // An item a4a can't read (a page's element: a link, a code) is spaced, as most are names and ids.
+    const spaced = (i: unknown, end: boolean) => typeof i === 'number' && !squareAt(textOf(i), end);
+    return out.map((p, i) => (typeof p === 'number' || !/^\p{Script=Han}+$/u.test(p.trim()) ? p : `${spaced(out[i - 1], true) ? ' ' : ''}${p.trim()}${spaced(out[i + 1], false) ? ' ' : ''}`));
+  }
   if (locale !== 'th') return out;
   const latin = (i: unknown, end: boolean) => typeof i === 'number' && !THAI.test(end ? textOf(i).slice(-1) : textOf(i).slice(0, 1));
   return out.map((p, i) => {
@@ -441,7 +472,7 @@ export function listParts(locale: Locale, n: number, textOf: (i: number) => stri
   });
 }
 
-/** Items as a list in a language: Intl's, Thai's spaced off from what isn't Thai (listParts). */
+/** Items as a list in a language: Intl's, Thai's and Chinese's spaced off from what isn't theirs (listParts). */
 export function joinList(locale: Locale, items: readonly string[], options?: Intl.ListFormatOptions): string {
   return listParts(locale, items.length, (i) => items[i] ?? '', options)
     .map((p) => (typeof p === 'number' ? (items[p] ?? '') : p))

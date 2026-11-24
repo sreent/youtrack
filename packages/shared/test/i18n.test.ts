@@ -8,7 +8,8 @@ import en from '../i18n/en.json' with { type: 'json' };
 import es from '../i18n/es.json' with { type: 'json' };
 import ja from '../i18n/ja.json' with { type: 'json' };
 import zh from '../i18n/zh.json' with { type: 'json' };
-import { canSayProblem, createTranslator, frenchElides, isListSaid, joinItems, sayProblem, squareAt, type ProblemSaid } from '../src/i18n';
+import th from '../i18n/th.json' with { type: 'json' };
+import { canSayProblem, createTranslator, frenchElides, isListSaid, joinItems, joinList, sayProblem, squareAt, type ProblemSaid } from '../src/i18n';
 
 const b = (chunks: unknown[]) => ({ b: chunks });
 
@@ -135,8 +136,35 @@ describe('Chinese spaces a value in Latin letters or digits, not one in Chinese'
     expect(zhT.parts('inside', { name: '王芳', b })).toEqual([{ b: ['以王芳身份'] }, ' 登录']);
   });
 
+  it('spaces 和 and 或 from an item in Latin letters or digits, not from one in Chinese', () => {
+    expect(joinList('zh', ['Anna Schmidt', 'Vera Viewer'])).toBe('Anna Schmidt 和 Vera Viewer');
+    expect(joinList('zh', ['Anna Schmidt', 'Ben Okafor', '另外 3 人'])).toBe('Anna Schmidt、Ben Okafor 和另外 3 人');
+    expect(joinList('zh', ['王芳', '李明'])).toBe('王芳和李明');
+    expect(joinList('zh', ['王芳', 'Ada'])).toBe('王芳和 Ada');
+    expect(joinList('zh', ['BACK', 'WEB', 'API'], { type: 'disjunction' })).toBe('BACK、WEB 或 API');
+    expect(joinList('zh', ['BACK-12（State → Fixed）', 'BACK-13'])).toBe('BACK-12（State → Fixed）和 BACK-13');
+    // Things one after another keep Intl's 「、」, unspaced.
+    expect(joinItems('zh', ['Anna Schmidt', 'Vera Viewer'])).toBe('Anna Schmidt、Vera Viewer');
+  });
+
   it('leaves Japanese, which spaces nothing, alone', () => {
     expect(createTranslator('ja', { as: '以 {name} 身份' }).t('as', { name: '王芳' })).toBe('以 王芳 身份');
+  });
+});
+
+describe('Thai joins a value that is one of its catalog’s own words, and keeps a name’s spaces', () => {
+  const thT = createTranslator('th', th);
+
+  it('joins a catalog word on both sides, and spaces a Latin one', () => {
+    expect(thT.t('common.copyButton.copied', { what: thT.t('agents.agentAccounts.theToken') })).toBe('คัดลอกโทเค็นแล้ว');
+    expect(thT.t('common.copyButton.copied', { what: thT.t('helpdesk.portalSignIn.redirectUri') })).toBe('คัดลอก Redirect URI แล้ว');
+    expect(thT.t('server.helpdesk.replied', { who: thT.t('server.helpdesk.theTeam') })).toBe('ทีมงานตอบกลับคำขอของคุณแล้ว');
+    expect(thT.t('server.helpdesk.replied', { who: 'Anna Schmidt' })).toBe('Anna Schmidt ตอบกลับคำขอของคุณแล้ว');
+  });
+
+  it('keeps the space beside a name, which may be a pause before the next sentence', () => {
+    expect(thT.t('plan.costs.noBudgetIsSetFor', { name: 'การตลาด' })).toMatch(/^ยังไม่ได้ตั้งงบประมาณให้ การตลาด ตั้งได้/);
+    expect(thT.t('server.helpdesk.replied', { who: 'สมชาย' })).toBe('สมชาย ตอบกลับคำขอของคุณแล้ว');
   });
 });
 
