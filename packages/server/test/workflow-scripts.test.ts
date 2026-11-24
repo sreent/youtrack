@@ -441,6 +441,14 @@ describe("a script calls out, and a project's scripts share a library (D40's rev
     expect(called[0]!.data).toMatchObject({ webhook: hook.id });
     expect(runs[0]!.message).toContain('Called https://hooks.example');
   });
+  it('says why a call to an origin no webhook has went nowhere, in every language, naming the origin', async () => {
+    const rule = await createRule(w.adminCtx, { project: 'BACK', name: 'Ring nobody', kind: 'change', trigger: 'created', query: 'Type: Bug', script: `call('https://nobody.example', { n: 1 });` });
+    const issue = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Ring nobody', fields: { Type: 'Bug' } });
+    await settle();
+    const run = (await listRuleRuns(w.adminCtx, { project: 'BACK', rule: rule.id })).find((r) => r.issue === issue.id)!;
+    expect(run.message).toContain("It called https://nobody.example, which isn't a webhook of this project");
+    expect(notesIn(translatorFor('de'), run.said, run.message)).toContain(translatorFor('de').t('problem.rules.run.scriptCalledNobody', { name: 'https://nobody.example' }));
+  });
   it('runs its project\'s library before every script in it, as `library`', async () => {
     await setScriptLibrary(w.adminCtx, 'BACK', '({ twice: (n) => n * 2 })');
     const rule = await createRule(w.adminCtx, { project: 'BACK', name: 'Twice', kind: 'change', trigger: 'created', query: 'Type: Bug', script: `apply('tag doubled'); comment('Twice ' + library.twice(4));` });

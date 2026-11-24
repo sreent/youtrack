@@ -559,7 +559,8 @@ export class RuleEngine {
             ...(res.others.length ? [othersSaid(res.others)] : []),
             ...(told.length ? [toldSaid(told)] : d.notify ? [{ key: 'rules.run.toldNobody' }] : []),
             ...(call?.ok ? [call.origin ? { key: 'rules.run.called', values: { origin: call.origin } } : { key: 'rules.run.calledItsWebhook' }] : call ? [{ key: call.whyKey }] : []),
-            ...calls.map((x) => (x.ok ? { key: 'rules.run.called', values: { origin: x.name } } : { key: x.whyKey })),
+            // Why a script's call wasn't made names the origin it asked for, where its words do.
+            ...calls.map((x) => (x.ok ? { key: 'rules.run.called', values: { origin: x.name } } : { key: x.whyKey, values: { name: x.name } })),
           ];
           const claimed = await tx
             .insert(ruleRuns)
@@ -598,8 +599,8 @@ export class RuleEngine {
     const rows = await this.app.db.select().from(webhooks).where(or(eq(webhooks.projectId, projectId), isNull(webhooks.projectId)));
     return asked.map((x) => {
       const named = rows.filter((h) => webhookOrigin(h.url) === x.webhook);
-      if (!named.length) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `It called ${x.webhook}, which isn't a webhook of this project`, whyKey: 'rules.run.scriptCalledNobody' };
-      if (named.length > 1) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `More than one webhook has the origin ${x.webhook}, so nothing was called`, whyKey: 'rules.run.scriptCalledAmbiguous' };
+      if (!named.length) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `It called ${x.webhook}, which isn't a webhook of this project`, whyKey: 'problem.rules.run.scriptCalledNobody' };
+      if (named.length > 1) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `More than one webhook has the origin ${x.webhook}, so nothing was called`, whyKey: 'problem.rules.run.scriptCalledAmbiguous' };
       const hook = named[0]!;
       if (!callableUrl(hook.url)) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `Its webhook's address isn't https, so ${x.webhook} wasn't called`, whyKey: 'rules.run.webhookNotHttps' };
       if (!hook.active) return { name: x.webhook, body: x.body, ok: false, hook: null, why: `Its webhook is paused, so ${x.webhook} wasn't called`, whyKey: 'rules.run.webhookPaused' };
