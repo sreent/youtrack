@@ -185,175 +185,21 @@ Messages added with the several groups:
 - Mehrere Gruppen pro Requester: `problem.helpdesk.severalGroups` = „Der Requester ist hier in mehreren Kundengruppen. Nennen Sie, für welche diese Anfrage ist.“ — klingt die Aufforderung natürlich?
 ## Spanish
 
-One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
+One Spanish for Spain and Latin America, as [translating.md](translating.md) says.
 
-- "Pulsa" for press leans to Spain.
-- `away.words.training` is "Formación". Latin America says "Capacitación".
-- `page.agents.runThisInATerminal` says "en un terminal". Latin America says "la terminal".
-
-Terms:
-
-- **The navigation's Build group** (`app.shell.build`), which holds Projects, Rules, Fields and Import, is "Configurar". "Crear" and "Construir" are the alternatives.
-- **A project's lead** (`page.project.lead`, `page.projects.lead`) is "Responsable", which is also the word for an assignee. "Responsable del proyecto" or "Líder" may be clearer.
-- **A token's scope** is "ámbito" (`problem.access.tokenScope` and its siblings). "permiso" is the alternative.
-- **An owned field** is a "campo con dueño".
-- **A transition** is "un paso de un estado a otro" (`problem.rule.addTransition`, `twoFromAny`, `twoTransitions`). Its ends (`workflow.machines.from`, `to`) are "Desde" and "Hasta"; "De" and "A" may suit better.
+Its open questions were settled by a model editor's pass on 18 November 2026: 89 settled, 5 left for a native speaker.
 
 Phrasing:
 
-- `decide.suggestionCard.sure`, `fairlySure` and `unsure` are "seguro", "bastante seguro" and "poco seguro", masculine. What they agree with isn't clear from the page.
-- `reports.burndown.added`, `removed`, `takenOut` and `resolved` are masculine, though they describe issues ("incidencias"). Some of these keys are also column headers.
-- `chat.chat.subscribedIt`: "lo suscribió {when}" takes "it" for the channel.
-- `helpdesk.sla.waitingForReporter` stays "Waiting for reporter". It's an example of a state's name, and states are data, but a Spanish example may serve Spanish teams better.
-- `page.issues.forget`: "Olvidar “{name}”", for a saved search.
-- **The parser's "Expected …"** is "Falta …", and "Unknown X" is "X no existe".
-- `problem.query.missingClosing`: "Falta el {close} de cierre." "el" assumes a paréntesis or a carácter.
-- `away.daysAway.addedAway` and `changedAway`: "Added:" and "Changed:" are "Ausencia agregada:" and "Ausencia cambiada:", naming what was added.
-- **Worded so as not to guess a gender**: `problem.portal.colleaguesRequest` ("otra persona de tu organización"), `problem.users.deleteYourself` ("No puedes eliminar tu propia cuenta") and `problem.members.leadIsManager` ("le da el rol de gestor").
-- **"Your address"** in the help desk's limits (`problem.helpdesk.tooManyFromAddress` and its siblings) is "tu dirección IP", since an email address sits beside it.
-- **The issue list's count line** puts the count last ("Incidencias del proyecto BACK y sin resolver: 4"), since the explanation's pieces are plural and wouldn't agree after "1 incidencia". It reads differently from English's "4 issues …".
-- `rules.run.scheduled` keeps "worker" in English ("otra instancia tomó el control del worker").
-- `rules.run.logged`: a script's log lines are "Escribió en el registro:", and "registro" is also the word for a rule's runs.
-- **The chat bot's changes** are infinitives after "Hecho:" (`server.command.*`): "Hecho: cambiar State a Fixed; agregar la etiqueta urgent".
-- `rules.run.toldOthers`: "Avisó a Anna, Ben y 3 más." "y 3 personas más" may be clearer.
-- `rules.preview.actsScheduled`: a rule reaching other issues acts "por" each of them, and one acting on them "sobre" each. Does the difference read?
-- `problem.chat.stop.disconnectedBy`: in "{name} lo desconectó.", "lo" is a connection the sentence never names.
-
-From the read of wave 4's messages (D50 to D55):
-
-- `articles.visibleTo.letEveryoneSeeIt` and its issue twin, "Que lo vea todo el mundo", aren't infinitives, as buttons are meant to be. "Mostrarlo a todo el mundo" is the alternative.
-- `page.project.keyFormer`: "Antes usaba {keys}." Is "usaba" clear under the "Clave" heading, or is "Claves anteriores: {keys}." better?
-- **The board's moves**: "la mueven un puesto" (`board.board.chooseACardSId`, `dragACardToAnother`) matches the backlog. "una posición" may be more usual.
-- `problem.vcs.githubApp.answered`, `problem.imports.source.answeredSaying` and `problem.chat.stop.teamsAnswered`: "{host} respondió {status}". "respondió con {status}" reads more naturally.
-- "leer como GitHub App", in 11 messages (`page.integrations.readAsAGithubApp` and its family): "como" in the sense of "in the capacity of".
-- `projects.projectFields.everyone` is "Todos", a short checkbox label, where the catalog says "Todo el mundo" elsewhere.
-
-From the read of D56's and D57's messages (customer groups, and CCs on requests):
-
-- `page.portal.copiedByYou` and `copiedByTheTeam`, "en copia por ti" and "en copia por el equipo", are terse; "puesto en copia" would guess the person's gender.
-- `issues.issueHistory.publicAColleagueWroteIt`, "público: lo escribió alguien del grupo de clientes", doesn't say "of the requester": the fuller form is too long for a badge.
-- `helpdesk.groups.agents` (and `noAgents`, `cantBeGiven`), "Quién recibe sus solicitudes nuevas": "recibir" is vague, and "A quién se asignan…" is longer than its badge allows.
-- `page.portal.groupSeesIt`, "{group} ve esta solicitud.": or "Los miembros de {group} ven…"?
-- **"en copia en"** in many messages ("Estás en copia en la solicitud…"): is the double "en" acceptable, or is "en copia de" better?
-- `server.helpdesk.copiedOnIt` heads a list of addresses in an email: does "Personas en copia en tu solicitud, que también recibirán las respuestas del equipo:" read well there?
-- `helpdesk.groups.byDomains`, "Por {domains}": "Por dominio: {domains}" may be clearer.
-- `activity.ledgerEntry.changesWhoIsCopied`, "cambia quién está en copia en una solicitud", is 43 characters on a badge that doesn't wrap.
-
-Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
-
-- **A note's tones** (`whiteboards.tone.*`, `whiteboards.kind.note`): plain is "Normal" and parked "Aplazada", since "Aparcada", for a topic set aside, leans to Spain. "Simple" and "En pausa" are the alternatives.
-- **The whiteboard's keys** (`page.whiteboard.keys`, `keysReading`) are "Enter", "Mayús", "Supr", "Tab" and "Espacio", and the catalog's other keys say "Enter" too. Spain's keyboards print "Intro", and Latin America often says "Shift".
-- **An arrow's label** is "Etiqueta" (`whiteboards.connectDialog.label`, `whiteboards.textDialog.label`, `labelArrow`), the catalog's word for a tag as well. "Texto" couldn't be taken for a tag.
-- `whiteboards.connectDialog.from` and `to`, an arrow's ends, are "Desde" and "Hasta", as a transition's are. "Origen" and "Destino" may suit an arrow better.
-- `page.whiteboard.said.undid`: undoing an add or a removal says "Se ha deshecho lo agregado" or "Se ha deshecho lo quitado". Natural enough when a screen reader says it?
-- **ClickUp's List** is "Lista", capitalised as English and ClickUp write it (`imports.fromApi.theListSAddressIn`, `whichTasksAList`, `problem.imports.source.clickupNoList`, `notAClickupList`, and the clickup cases of `problem.apiImports.nothingMatches` and `problem.imports.source.requestRefusedSaying`), so it isn't read as a checklist's "lista". Spanish would usually lower-case it.
-- `page.chat.issuesFromMessagesNeed` keeps "Callback ID" as Slack's app settings name the field, as the page keeps "Basic Information". "ID de callback" is the alternative.
-- `whiteboards.convertDialog.preview`, "Check first", is "Vista previa": with "Comprobar antes", the dialog's three buttons spilled past a 390px screen.
-- `writing.action` and `writing.suggestion.title`: friendlier is "Más cercano". "Más amable" is the alternative.
-- `server.chat.issue.withReplies`, the thread's checkbox in Slack's form, is "Agregar las respuestas posteriores, hasta 20", which says "up to" where English says "the first 20".
-
-Messages added in wave 5 (passkeys, the portal's sign-in, guests):
-
-- `identity.passkeys.stopped`, the badge on a passkey that may have been copied, is "Bloqueada": "Detenida" read like a person held. Does "Bloqueada" suggest an administrator locked it? "Inutilizada" is the alternative.
-- **Vouching**: an identity provider "responde por" an address (`helpdesk.portalSignIn.domainsHelp`, `throughAny`, `throughSome`, `page.portal.ssoDomain`), as `chat.chat.whoVouchesForIt` has it. "Avala" or "garantiza" are the alternatives.
-- `helpdesk.portalSignIn.passwordHelp` calls the form's proof of work "la comprobación de que no es un bot", as the help desk's problems do, where the desk's setting says "Comprobar que lo envía una persona". One name for both?
-- `helpdesk.portalSignIn.clientSecretHelp` keeps the catalog's "Se guarda sellado" for "Kept sealed". "Se guarda cifrado" is the usual Spanish.
-- `page.guestPages.alsoOpenIn`, the heading over what else a project opens to guests, is "También en {name}": "También abierto en {name}" read as if the page itself were open elsewhere. It leaves "open" out.
-- `activity.ledgerEntry.changesHowRequestersSignIn`, a ledger badge, is "cambia el inicio de sesión del portal": it names the portal, not the requesters, to stay short.
-- **A time in an email**: the passkey emails put "el {when}" before a time Intl writes as "lun, 16 nov, 15:05 CET" (`server.passkeys.added`, `removed`, `copied`, `removedByAdmin`). Does "el lun, 16 nov, 15:05 CET" read well?
-- `problem.whiteboards.guestStreams`: a whiteboard open live is "abierta en tiempo real", since "en directo" leans to Spain and "en vivo" to Latin America.
-- **OpenID's words** for requesters' providers: "Emisor" (issuer), "documento de descubrimiento" (Microsoft's Spanish says "documento de detección") and "el URI de redirección" (some write "la URI").
-
-Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth, the portal's passkeys):
-
-- **Names a screen reader hears now keep the words their control shows**, whole and in order (WCAG 2.5.3, which `check:words` now checks): `attachments.attachmentList.stopAttaching` “Detener la subida de {name}”; `notifications.pushSettings.stopPushNotificationsTo` “Quitar {label}{v} de las notificaciones push”. Do they read naturally?
-- **A check run** stays "check run", masculine ("los check runs", "un check"), as French and German keep it (`page.integrations.checksOn` and its family, `problem.vcs.checks.needsApp`). GitHub's Spanish documentation says "ejecución de comprobación", which developers rarely say.
-- **A pull request names issues** with "nombrar", as commits do (`builds.builds.aBuildThatPassesGoes`), but an id that "names no issue" is one that "no corresponde a ninguna incidencia" (`server.checks.summary.rule`, `unseen`, `unseenMore`, `server.checks.title.unseen`, `page.integrations.checksResolved`). "Mencionar" may be the more usual verb for a pull request.
-- **Hearing each other** is "leerse entre sí": "Que todas las personas de una solicitud se lean entre sí" (`helpdesk.ccSettings.relay`, `page.project.copiedOnRequestsNote`, `activity.ledgerEntry.requestCcsChanged`). "Que cada persona reciba lo que escriben las demás" is plainer, and longer.
-- `activity.ledgerEntry.changesHowRequestsCopy`, a ledger badge, is "cambia las reglas de copia", short as a badge must be. "Regla" is also a workflow's rule, though the webhook's label (`page.webhooks.label.projectRequestCcsChanged`) says "las reglas de un servicio" too.
-- **Holding a new request's Cc** is "retener" (`helpdesk.ccSettings.confirm`), and the headings over those held are "Pendientes de la confirmación de {requester}" (`helpdesk.requestCcs.held`) and "Pendientes de tu confirmación" (`page.portal.heldTitle`). Natural over a list of people?
-- **Letting someone off passkeys** is "eximir": the people table's link is "Eximir" (`page.admin.letOff`), and its note is a noun, "con exención de llave de acceso" (`page.admin.letOffPasskeys`), since "exento" would guess a gender. Too formal for a link? "Hacer una excepción" is the alternative.
-- `identity.passkeys.passkeysAloneAbout` keeps "phishing" ("ni robarlas mediante phishing"), as banks' warnings do on both sides of the Atlantic. "Suplantación" is the alternative.
-- `page.integrations.readThrough`, beside an installation's account, is "repositorios leídos a través de ella: {list}", longer than English's "read here:" to say what was read. `page.integrations.accountUser`, a badge, is "usuario"; GitHub's Spanish documentation says "cuenta personal".
-- `helpdesk.portalPasskeys.notMeAdded` and the added case of `server.portalPasskeys.subject` are one sentence, "Se agregó una llave de acceso para iniciar sesión en el servicio de asistencia", for English's "A passkey was added to your help desk sign-in" and "A passkey now signs you in to the help desk".
-- `helpdesk.portalPasskeys.stopped` is "Bloqueada", as `identity.passkeys.stopped` is: wave 5's question above settles both.
-
-Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
-
-- **Un estado de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): el catálogo escribe "commit" sin traducir en el resto de mensajes; GitLab en español dice "estado de confirmación". ¿Se prefiere "commit"?
-- `page.group.requirePasskeys` es "Exigir una llave de acceso a las personas del grupo" y `page.project.requirePasskeys` "…a todo el que pueda ver este proyecto". ¿"a todo el que" o "a todos los que puedan"? ¿"exigir a alguien" o "exigir de"?
-- `page.group.requirePasskeysHelp` dice "a partir del siguiente inicio" (sin "de sesión" la segunda vez). ¿Bastaría "desde el siguiente inicio de sesión"?
-- `builds.builds.reportCheck` es "Informar a GitHub del resultado de cada ejecución". El catálogo usa "ejecución" para los check runs; para una ejecución de CI, ¿"ejecución" o "corrida" (Latinoamérica)?
-- `page.integrations.statusesLastProblem` sigue el patrón de los check runs: "El último estado de commit, {when}, no se pudo escribir: {problem}". ¿Natural?
-
-
-Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
-
-- `server.notify.title.cameIn` es “Entró en una búsqueda que sigues”. ¿Se diría mejor “siguiendo”, o con “apareció en”?
-
-Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
-
-- `page.guestPages.noSuchArticle` sigue a sus hermanos (“abierto a invitados”). `issuesMatching` es “Incidencias que coinciden con”: ¿o “que cumplen” o “que encajan con”?
-
-Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
-
-- `editor.visualEditor.link` y `linkTo` siguen los nombres de las herramientas existentes. `writing.draftedWithTheAssistant` es “El asistente redactó estas palabras.” — ¿o “escribió”?
-
-Messages added in wave 11 (a person's own whiteboard, drawings and pictures):
-
-- Wave 11 (`page.whiteboard.draw` = “Dibujar”, `page.whiteboard.picture` = “Imagen”, `whiteboards.kind.ink` = “un dibujo”): ¿natural, o mejor “Trazar” y “Foto”?
-
-Messages added in wave 13 (Matrix chat):
-
-- Wave 13 (Matrix): `page.chat.matrixHomeserver` = “Homeserver” — ¿se deja el término tal cual, o se dice “servidor de Matrix”?
-
-Messages added in wave 14 (a sprint's team, and timesheets submitted and approved):
-
-- Wave 14 (parte de horas): `page.timesheet.submit` = “Enviar la semana” y `page.timesheet.sendBack` = “Devolverla” — ¿naturales?
-
-Messages added in wave 16 (the script library's page):
-
-- Wave 16 (biblioteca de scripts): `page.rules.library` = “Biblioteca de scripts” y `page.rules.libraryCode` = “El código compartido” — ¿naturales?
-
-Messages added with the configurable approval rule:
-
-- La aprobación configurable: `projects.workTypes.approvalEvery` = “Sus gestores, entre los gestores de cada proyecto donde la semana tiene trabajo” — ¿natural, pese a lo largo?
-
-Messages added in wave 18 (the HR calendar):
-
-- Wave 18 (calendario de RR. HH.): `page.admin.hrCalendar` = “Calendario de RR. HH.” y el rechazo “Estos días vienen del calendario de RR. HH...” — ¿naturales?
-
-Messages added with the timesheet's personal view:
-
-- La vista personal: `page.timesheet.bauOrAnythingYouKeep` = “BAU, o lo que tú lleves” y el rechazo “...Cámbialas una a una.” — ¿naturales?
-
-Messages added with the queued scripts:
-
-- La cola: `rules.ruleForm.runFromTheQueue` = “Ejecútalo desde la cola: puede tomarse su tiempo y actúa sobre lo que vio cuando su regla se disparó” — ¿natural, pese a lo largo?
+- `reports.burndown.added` is both a column of the burndown's table, an amount ("Agregado", as "Quitado" and "Terminado" are), and the kind of one issue's change in its list, where "Agregada" would agree with the issue as "Sacada", "Resuelta" and "Reabierta" now do. It needs a message for each use; meanwhile it says the column's "Agregado".
 
 With the posts that change in place:
 
 - Las publicaciones cambian en su sitio – sin palabras nuevas; una pregunta: ¿debería verse en el canal que se editó, o basta con el contenido reemplazado en silencio?
 
-Messages added with the load grid's team:
-
-- La carga: `plan.resources.nothingYet` = “Nada aún” junto a una persona sin trabajo planificado — ¿encaja la palabra breve?
-
-Messages added with Teams' link unfurling:
-
-- El despliegue: `server.chat.issue.isShared` = “compartió la incidencia” — ¿encaja el verbo en la tarjeta?
-
 With the requester's own language:
 
 - El idioma del solicitante: los correos siguen ahora el del navegador (guardado en el solicitante). Sin palabras nuevas; una pregunta: ¿la página del portal debería mostrar un selector de idioma, o basta el navegador?
-
-Messages added with SAML for requesters:
-
-- SAML para solicitantes: `problem.portal.providers.samlNeedsBoth` = “Un proveedor SAML necesita su URL de SSO y su certificado de firma.” — ¿natural?
-
-Messages added with a desk's own provider:
-
-- El proveedor propio de un desk: `problem.portal.providers.onlyAdmins` = “Solo los administradores gestionan los proveedores del servidor. Los propios los gestiona el gestor de un desk.” — ¿natural la separación?
 
 With the group's members hearing of its requests:
 
@@ -363,9 +209,6 @@ With the customers' directory:
 
 - El directorio de clientes (sin palabras nuevas); una pregunta: ¿la lista del formulario debe mostrar solo los nombres, o también los dominios como pista al lado?
 
-Messages added with the several groups:
-
-- Varios grupos por solicitante: `problem.helpdesk.severalGroups` = “El solicitante está en varios grupos de clientes aquí. Indica para cuál es esta solicitud.” — ¿natural?
 ## French
 
 Terms:

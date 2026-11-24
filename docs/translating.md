@@ -142,10 +142,12 @@ The web finds a new catalog by itself, and loads only its person's. A right-to-l
 
 ## Spanish
 
-One Spanish for Spain and Latin America: no *vosotros*, and no word only one side uses. Where the two differ, the catalog takes the form most Spanish speakers use and every reader knows: *agregar* (not *añadir*), *costo* (not *coste*), *correo* for email, *PC* where English says computer, *informe* for a report.
+One Spanish for Spain and Latin America: no *vosotros*, and no word only one side uses. Where the two differ, the catalog takes the form most Spanish speakers use and every reader knows: *agregar* (not *añadir*), *costo* (not *coste*), *presionar* (not *pulsar*), *capacitación* (not *formación*), *la terminal*, *correo* for email, *PC* where English says computer, *informe* for a report. Where Microsoft's or Google's Spanish says a thing one way on both sides, the catalog says it so too: *presionar*, *ámbito*, the keys' names.
 
 - **Tú**, always: "Elige un proyecto", "Tu perfil". Spanish software, Jira's and Slack's among them, says *tú* to its people on both sides of the Atlantic; *usted* reads as a form letter there. German's *Sie* is German's own convention.
-- **Buttons are infinitives**: "Guardar", "Guardar los cambios", "Eliminar el campo". Instructions and help are the *tú* imperative: "Elige", "Escribe", "Pulsa".
+- **Buttons are infinitives**: "Guardar", "Guardar los cambios", "Eliminar el campo", "Quitar el límite". So are a checkbox's and a switch's words: "Retener el Cc…", "Ejecutarlo desde la cola…". Instructions and help are the *tú* imperative: "Elige", "Escribe", "Presiona".
+- **Keys** are named as Spanish keyboards print them: Intro (Google's word on both sides), Mayús and Supr (Microsoft's on both sides), Tab, Espacio, Alt, Ctrl ("Ctrl+Mayús+Z"). Before Intro, "y" is "e": "…, e Intro abre la incidencia".
+- **A webhook's event** that follows "cuando" is a clause in lower case, even where English's begins with a capital: "cuando se aprueba la hoja de horas de una semana". Its checkbox's label is the same words with a capital.
 - **What just happened is the present perfect**: "Se ha guardado.", "Se ha creado {name}.". History and notifications, which carry their time, are the preterite: "la movió", "comentó", "te la asignó".
 - **An issue is *incidencia***, feminine, so what refers to one agrees with it: "la notificó", "Notificada por", "resuelta".
 - **Gender**: a4a doesn't guess a person's. It says "la persona", "quien…", "quienes la siguen", and takes nouns that don't change: *responsable* (assignee), *solicitante* (requester), *informante*, *agente*, *miembro*. Where a person's gender would show in an adjective, the sentence turns: "Ya no tienes suscripción a…", not "Ya no estás suscrito". Roles stay as their words, as German's do: *administrador*, *gestor*, *miembro*, *lector*. A role's bare name follows a singular: "{name} es ahora {role}"; after a plural it is "tienen al menos el rol {role}". A guest is "con acceso de invitado", never "como invitado".
@@ -168,11 +170,14 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | reporter | informante; "quien la notificó" in a sentence |
 | report (an issue), reported | notificar, notificada |
 | assignee | responsable |
+| lead (a project's) | responsable, as Jira's Spanish says "responsable del proyecto"; "dirige" in a sentence |
 | agent | agente |
 | workflow | flujo de trabajo |
 | rule | regla |
 | state machine | máquina de estados |
-| transition | transición |
+| transition; a move between two states; its ends | transición; movimiento, as the state machines' page says; Origen, Destino |
+| the worker (where scheduled rules run) | las tareas en segundo plano |
+| script library | biblioteca de scripts |
 | knowledge base | base de conocimientos |
 | article | artículo |
 | inbox | bandeja de entrada |
@@ -180,10 +185,13 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | digest | resumen |
 | subscription, subscribe | suscripción, suscribirse |
 | watch, watchers | seguir, quienes la siguen |
-| timesheet | hoja de horas |
+| timesheet; submit, approve, send back a week; a week of time | hoja de horas (never *parte*); enviar, aprobar, devolver la semana; la hoja de horas de una semana |
+| who approves a week: a manager of every project in it, or of any | quien gestione todos los proyectos con trabajo en la semana, o alguno de ellos |
 | work logged, log time | trabajo registrado, registrar tiempo |
 | estimate | estimación |
 | days away | ausencias |
+| training (a reason for days away) | capacitación |
+| HR calendar | calendario de recursos humanos, spelled out (*RR. HH.* and *RH* differ by country) |
 | levelling | nivelación |
 | slack (in a plan) | holgura |
 | booked (in a plan) | asignado: "Horas asignadas", "quién tiene trabajo asignado" |
@@ -192,30 +200,59 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | earned value | valor ganado |
 | triage | clasificación |
 | suggestion | sugerencia |
+| a suggestion's confidence: sure, fairly sure, unsure | confianza alta, confianza media, confianza baja: nouns, which agree with nothing (*seguro* alone also reads "safe") |
 | token | token |
+| scope (a token's, an app's) | ámbito, as GitHub's and Microsoft's Spanish documentation say |
 | allow (an app), apps you allowed | autorizar, "Aplicaciones que autorizaste" (one doesn't *permitir* an app) |
 | two-factor sign-in | verificación en dos pasos |
 | passkey | llave de acceso |
+| a passkey that may have been copied | Bloqueada, as a bank blocks a card that may have been copied |
+| let off (passkeys) | eximir; "con exención de llave de acceso", a noun, since *exento* would guess a gender |
+| phish | phishing, as banks' warnings say on both sides |
 | sign in, sign out | iniciar sesión, cerrar sesión |
 | identity provider | proveedor de identidad |
+| vouch for (a provider for an address, a person for a subscription); a maker's attestation | responder por; avalar |
+| the proof of work | on the desk's switch, "Comprobar que lo envía una persona"; to a requester, "la comprobación de que no eres un bot" |
 | single sign-on | inicio de sesión único |
 | webhook, delivery | webhook, entrega |
 | post (a4a or a provider sending to an address) | enviar; *publicar* is for chat messages and comments |
 | request (HTTP) | solicitud |
+| an HTTP status in a sentence | "respondió con el código 503" |
 | secret | secreto |
+| kept sealed | se guarda cifrado |
 | commit, pull request, branch | commit, pull request (la), rama |
+| mention (an issue, in a comment, a commit, a pull request, a check or a status) | mencionar |
+| check run; commit status | check run (el, los check runs), as GitHub's interface says it; estado de commit |
+| a GitHub account's type: user, organization | cuenta personal, organización, as GitHub's Spanish documentation says |
 | build (CI) | compilación |
 | field, value | campo, valor |
+| owner; an owned field | propietario; campo con propietario |
 | link (between issues), unlink | enlace, enlazar; quitar el enlace (not *desenlazar*) |
 | link, unlink (a chat account) | vincular, desvincular |
 | resolve, resolved | resolver, resuelta |
 | dashboard, widget | panel, widget |
 | report | informe |
 | role: administrator, manager, member, viewer | administrador, gestor, miembro, lector |
-| whiteboard; a note, card, section, arrow, an arrow's label, the outline | pizarra, nota, tarjeta, sección, flecha, etiqueta, esquema |
+| whiteboard; a note, card, section, arrow, an arrow's label, an arrow's ends, the outline | pizarra, nota, tarjeta, sección, flecha, etiqueta, Origen y Destino, esquema |
+| a drawing, a picture (on a whiteboard) | dibujo, imagen |
 | connect (draw an arrow), make issues (of notes) | conectar; crear incidencias |
-| a note's tones: plain, idea, agreed, question, problem, parked | Normal, Idea, Acordada, Pregunta, Problema, Aplazada |
+| a note's tones: plain, idea, agreed, question, problem, parked | Normal, Idea, Acordada, Pregunta, Problema, Aplazada (*aparcada* leans to Spain) |
 | writing help; where an issue came from (a chat message) | ayuda para escribir; de dónde viene |
+| friendlier (writing help); drafted by the assistant | más cercano; "Este texto lo redactó el asistente." |
+| relay (everyone on a request hearing each other) | reenviar: "Reenviar a cada persona de una solicitud lo que escriben las demás" |
+| hold a new request's Cc; held | retener; pendientes de confirmación |
+| who takes a group's new requests | a quién se asignan sus solicitudes nuevas |
+| a group's people; whoever can see a project | las personas del grupo, sus miembros; quien pueda ver el proyecto |
+| Matrix's homeserver | servidor de Matrix |
+| ClickUp's List | Lista, capitalised as ClickUp writes it |
+| press (a button, a key) | presionar, as Microsoft's Spanish says in Spain and Mexico (*pulsar* leans to Spain) |
+| keys: Enter, Shift, Delete, Tab, Space | Intro, Mayús, Supr, Tab, Espacio, as Spanish keyboards print them (not *Enter*, *Shift*) |
+| terminal | la terminal |
+| the navigation's groups: Work, Decide, Build, Oversee | Trabajo, Decidir, Configurar, Supervisar |
+| forget (a saved search) | eliminar, as a filter is deleted |
+| let everyone see it (a visibility limit's button) | Quitar el límite |
+| a place (in a column, a list or a tree) | posición: "la mueven una posición" |
+| yet | todavía: "Todavía nada", "Todavía no hay…" |
 
 To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person of its own in through a Spanish browser and shoots the issues, an issue, the inbox, the profile and the sign-in page in light, in dark and at 390px; and a read of the pages in a browser that asks for Spanish.
 
