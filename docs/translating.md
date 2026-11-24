@@ -543,13 +543,15 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 `ko.json`, Korean as South Korea writes it, as Korean teams read a tracker. Where a tracker's Korean is settled, it's Jira's, which most Korean teams have worked in: 이슈, 담당자, 보고자, 요약, 해결, 전환, 하위 작업. Where Jira's Korean and what developers say part (GitHub's Korean says 끌어오기 요청 and 웹후크), the catalog takes what developers say: 풀 리퀘스트, 웹훅.
 
 - **합니다체 in sentences**: "저장했습니다.", "이슈 {id}이(가) 없거나 볼 수 없습니다." What a sentence asks of the reader is "-세요", as Korean software asks it, beside 합니다체: "먼저 저장하세요.", "다시 시도하세요." "-십시오" reads as an official notice, and 해요체 ("저장했어요") as a chat app's.
-- **Buttons and labels** are short nouns or verb phrases, never sentences: "저장", "변경 사항 저장", "필드 삭제", "취소". A status line is a short sentence: "저장했습니다.", "저장하는 중…".
+- **Buttons and labels** are short nouns or verb phrases, never sentences: "저장", "변경 사항 저장", "필드 삭제", "취소". A checkbox is a label too ("패스키 로그인 허용"), unless English words it as sentences. A status line is a short sentence: "저장했습니다.", "저장하는 중…". What was done needs no subject; what happened to a thing with no doer named is passive ("3분 전 설치되었습니다").
+- **Choosing is 선택**, as Microsoft's, Google's and Apple's Korean say it: "프로젝트를 선택하세요", "선택한 이슈". 고르다 isn't said.
+- **Seeing is 보다**: what a person may open in a4a (a project, its issues, a whiteboard) "볼 수 있습니다", the permission is 보기, and who may see a thing is its 공개 대상, as Google's Korean gives access (보기 가능, 뷰어). 읽다 is for a4a, an app or an agent reading data (an API, a mailbox, an app's "문서 읽기"), and read-only stays 읽기 전용, as Korean software says it of a token or an account.
 - **A particle after a value** depends on how the value ends. So the catalog writes it both ways, consonant's first, as Korean software writes it: 을(를), 이(가), 은(는), 과(와), (으)로, (이)나, (이)라는. "{name}을(를) 삭제했습니다.", "{field}이(가) 필수입니다." a4a then chooses the one the value needs wherever it can hear the value's end: after Hangul, by its last syllable's final consonant, and after a digit, as Korean reads it ("BACK-12를", "민준이", "서울로", "이슈 3개를"; `koreanParticles`). After a Latin word ("Anna을(를)") both ways stay. After a4a's own words, whose end is known, write the one it needs: "로그인 ID를", "콜론(:)이", "닫는 괄호 “)”가". Where a value is itself a message of the catalog's (the sign-in form's name, "a4a 계정"), let it end in the catalog's Hangul, so a4a hears it: "a4a 계정을 사용하세요". A field set or cleared on a board is its value ("Priority 값을 지웁니다"), and a column is named with 열 ("Done 열로"), as Korean says them. This is the one way: a sentence isn't reworded to dodge one. The subject's is 이(가), not (이)가, since it's 이 or 가, never 이가. A value followed by a noun ("{key} 프로젝트") needs none, nor one that never changes (에, 에서, 의, 도, 만, 까지, 부터, 에게).
 - **No honorific after a name**: a name takes its particle directly ("{who}이(가) 나에게 할당했습니다"), since many names are agents' and bots'. The help desk's emails are the one exception: they go to people outside the team, so they address a requester as "{name}님", as Korean customer mail does.
 - **Spacing**, as Korean writes it: words apart, a particle or an ending joined to its word, a counter joined to its digits ("3개", "이슈 3개"). A particle joins a value or a Latin word directly: "{id}을(를) 다른 프로젝트로 이동".
 - **Typography**: ASCII punctuation, . , : ? !, with no space before it; “” for quotes, and straight ones only where they're code (a JSON key, a form part's name, a chat command's argument); the ellipsis is one character (…), as in English; half-width Latin letters and digits, never full-width forms. Two sentences said one after the other take a space between them.
-- **Two clauses are two sentences, or one joined by a connective**, never English's colon: "꺼져 있어 아무것도 하지 않습니다.", "삭제되었을 수 있으니 헬프데스크 설정을 다시 불러오세요.", "연결을 해제했습니다. 이제부터 그 계정의 커밋은 내 것이 아닙니다." A colon follows a label or a status ("역할: 관리자", "꺼짐:", "일시 중지됨:"), an example ("예: acme.com") or the lead of a list, and comes before free text from elsewhere ("오류:"). A menu path is written with ">": "Asana의 My settings > Apps > Manage developer apps".
-- **Plurals**: Korean has none, so each plural keeps `other` alone, with a counter where Korean uses one, after the noun: `{n, plural, other {이슈 #개}}`. 개 counts issues and things (fields, values, files, tokens), 건 cases and events (changes, requests, deliveries, notifications), 명 people, 번 times. A plural that English words differently for one keeps `=1` where Korean does too.
+- **Two clauses are two sentences, or one joined by a connective**, never English's colon: "꺼져 있어 아무것도 하지 않습니다.", "삭제되었을 수 있으니 헬프데스크 설정을 다시 불러오세요.", "연결을 해제했습니다. 이제부터 그 계정의 커밋은 내 것이 아닙니다." A colon follows a label or a status ("역할: 관리자", "꺼짐:", "일시 중지됨:"), an example ("예: acme.com") or the lead of a list, and comes before free text from elsewhere ("오류:"). When something happened goes first, with 에, not in parentheses after the verb: "{when}에 마지막 체크를 작성하지 못했습니다. 오류: {problem}". A menu path is written with ">": "Asana의 My settings > Apps > Manage developer apps".
+- **Plurals**: Korean has none, so each plural keeps `other` alone, with a counter where Korean uses one, after the noun: `{n, plural, other {이슈 #개}}`. 개 counts issues and things (fields, values, files, tokens), 건 cases and events (changes, requests, deliveries, notifications, a timesheet's entries), 명 people, 번 times. A plural that English words differently for one keeps `=1` where Korean does too, and `=0` where Korean says nothing rather than a count ("아무것도 만들지 않았습니다", "이슈 3개를 만들었습니다", never "링크 0개"); a nested plural's `#` is its own, so the outer count's `#` goes before it ("이슈 #개{links, plural, …}").
 - **Pieces a page joins**:
   - The activity ledger, an issue's history and notifications show who in bold, with their mark, then what was done. A name a page draws can't take a particle, so an action is a verb phrase in the polite past with no subject: "{issue}을(를) 변경했습니다", "보고했습니다". A badge is a noun: "이슈 삭제".
   - A webhook's events are nouns, joined into "{join} 시" by Intl's "or" list (" 또는 "): "이슈 생성 또는 댓글 작성 시". The same nouns label the form's checkboxes (`page.webhooks.label.*`).
@@ -560,7 +562,8 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Dates and numbers** come from Intl: "2026년 11월 16일", "1,234.5", "3분 전". Intl's `ko` writes them as `ko-KR` does.
 - **Problems**: what a page shows when something fails says what went wrong, then the fix, in 합니다체 with the fix in "-세요": "로그인 ID 또는 비밀번호가 올바르지 않습니다." A guess it offers is "혹시 “{guess}”인가요?". Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Korean message, after "오류:", "이유:" or "응답:", and brings its own punctuation, so no full stop follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its full stop, and stays where English puts it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`).
 - **You and your**: Korean software rarely says "you". A label that names the reader's own things says 내 ("내 토큰", "내 대시보드", "내 요청"), or nothing where the owner is plain ("프로필", "타이머"); a sentence leaves the reader out ("이슈 {id}이(가) 없거나 볼 수 없습니다."), and a query's, a list's or a notification's "you" is 나 ("나에게 할당됨", "Ada이(가) 나에게 할당했습니다"). 본인 stays where the reader must be told from someone else: "본인으로 동작합니다", "본인과 관리자, 입력한 사람만 볼 수 있습니다". 당신 is never said. Acting as the reader is "내 계정으로" ("내 계정으로 동작하는 Teams와 Slack 계정"), never "나로", which reads as the speaker, and a token acting as someone else is "내 계정이 아니라 {login} 계정으로"; an agent or a token acting as itself is "자체 계정으로", and one acting for someone "{name} 대신". The chat bot says 본인, since its "I" is a4a: "본인에게 할당했습니다". A name a4a can't show is "알 수 없는 사용자", not 누군가.
-- **The help desk** says 문의 for asking for help: "문의했습니다" in an issue's history and notifications, "문의하기" on the form and the portal. Its emails to requesters are a company's to a customer: "{desk}에 문의하셔서 이 메일을 보내 드립니다." What its form, portal and request page ask of a customer is "-어 주세요" where Korean support writes it ("한 줄로 적어 주세요", "스팸함을 확인해 주세요"), still a -세요; "What do you need?" is "어떤 도움이 필요하신가요?".
+- **The help desk** says 문의 for asking for help: "문의했습니다" in an issue's history and notifications, "문의하기" on the form and the portal. Its emails to requesters are a company's to a customer: "{desk}에 문의하셔서 이 메일을 보내 드립니다." Everything a requester or someone copied reads (the help form, the portal and its passkeys, a request's page, the portal's problems, the desk's emails) asks with "-어 주세요", as Korean customer service writes: "한 줄로 적어 주세요", "다시 로그인해 주세요", "위 링크를 이용해 주세요". A prohibition stays "-지 마세요" and leaving something "-어 두세요" ("비밀번호는 적지 마세요", "비워 두세요"). The desk's emails also take the honorific for the reader's own acts ("문의하셔서", "직접 추가하셨다면", "본인이 요청하지 않으셨다면 이 메일은 무시하셔도 됩니다"), as Korean service mail addresses its customer; the portal's pages state what happened plainly ("비밀번호로 로그인했습니다"), as a page's status lines do. The team's pages, and problems the team meets, keep "-세요". "What do you need?" is "어떤 도움이 필요하신가요?".
+- **Signing in through a provider** is "{name} 계정으로 로그인", as Google's Korean button says "Google 계정으로 로그인": the provider is named as an account (the terms table's "{name} 계정"), so a4a hears the particle after 계정 rather than leaving "Okta(으)로" both ways. Acting as an account is "{login} 계정으로" too.
 - **An email's footer** says why it came as a sentence: each reason (`server.notify.because.*`) is a clause, and the footer ends it: "이슈를 지켜보고 있어서 받는 메일입니다." A stop link is "… 수신 중지".
 
 | English | Korean |
@@ -577,7 +580,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | blocker | 블로커 |
 | backlog | 백로그 |
 | subtask, parent | 하위 작업, 상위 이슈 |
-| help desk | 헬프데스크 |
+| help desk | 헬프데스크, never 데스크 alone |
 | SLA at risk, breached | 위험, 위반 |
 | request (help desk) | 요청; asking for help is 문의 |
 | requester | 요청자 |
@@ -600,13 +603,15 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | inbox | 수신함 |
 | notification | 알림 |
 | digest | 요약 메일 |
-| subscription, subscribe | 구독, 구독하다 |
+| subscription, subscribe; follow (a saved search) | 구독, 구독하다; "구독한 검색" |
 | watch, watcher | 지켜보기, 지켜보는 사람 |
-| timesheet | 타임시트 |
+| timesheet; a week's, submit, approve, send back, its approver | 타임시트, never 근무표; 주간 타임시트, 제출, 승인, 반려, 타임시트 승인자 |
+| a row of one's own (on the timesheet) | 개인 활동 |
 | work logged, log time | 작업 기록, 시간 기록 |
 | estimate | 추정치 |
 | rate (per hour) | 시간당 단가 |
 | days away, away | 부재일, 부재 중 |
+| HR calendar, its event | HR 캘린더, 일정 (Google's and Outlook's Korean) |
 | levelling | 평준화 |
 | slack (in a plan) | 여유 시간 |
 | booked (in a plan) | 배정: "배정된 시간" |
@@ -618,23 +623,31 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | cost and schedule performance (CPI, SPI) | 원가 성과(CPI), 일정 성과(SPI) |
 | triage | 트리아지 |
 | suggestion | 제안 |
+| the menu's groups: work, decide, build, oversee | 작업, 검토, 구성, 운영 (Decide holds Suggestions, which a person reviews) |
+| choose | 선택: "선택하세요", "선택한 이슈"; 고르다 isn't said |
 | tag | 태그 |
 | token, revoke | 토큰, 폐기 |
 | scope (of a token) | 범위 |
 | fingerprint (of a token) | 지문 |
 | not found | 찾을 수 없음: "이슈 {id}을(를) 찾을 수 없습니다." |
 | two-factor sign-in | 2단계 인증 |
-| sign in, sign out | 로그인, 로그아웃 |
+| passkey, authenticator, attestation, passkey provider, let off (a passkey's requirement) | 패스키, 인증자 (인증 앱 is the code app), 증명, 패스키 공급자, 면제 |
+| sign in, sign out; sign out everywhere | 로그인, 로그아웃; 모든 기기에서 로그아웃 |
 | login (a person's handle) | 로그인 ID |
 | a4a login, {name} login (the credentials a form takes) | a4a 계정, {name} 계정 |
-| identity provider | ID 공급자 |
-| single sign-on | SSO |
+| sign in with or through a provider, act as an account | {name} 계정으로 로그인, {login} 계정으로 |
+| identity provider | ID 공급자; a provider is 공급자, never 제공자 |
+| single sign-on | SSO, never Single Sign-on |
+| sealed (a secret kept encrypted) | 암호화해 보관 |
 | webhook, delivery | 웹훅, 전송 |
 | post (a4a or a provider sending to an address) | 보내다; 게시 is for chat messages and comments |
 | secret | 시크릿 |
 | commit, pull request, branch | 커밋, 풀 리퀘스트, 브랜치 |
+| check run, commit status, report (to a pull request) | 체크, 커밋 상태, 보고 |
 | merge, merged | 병합, 병합됨 |
 | CI, build | CI, 빌드 |
+| script library, its shared code | 스크립트 라이브러리, 공유 코드 |
+| Matrix: homeserver, room | 홈서버 (Element's Korean), 방 |
 | field, value | 필드, 값 |
 | link (between issues), unlink | 링크, 링크 해제 |
 | link, unlink (a chat account) | 연결, 연결 해제 |
@@ -648,13 +661,24 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | handler (of an app) | 핸들러 |
 | person, people | 사용자; 사람 in a sentence |
 | role, permission | 역할, 권한 |
-| administrator, manager, member, viewer, guest | 관리자, 매니저, 멤버, 뷰어, 게스트 |
+| see, read (a person's access), the read permission; read-only | 보다, 볼 수 있다, 보기; 읽기 전용 |
+| visible to, who else sees it | 공개 대상, 이 외에 볼 수 있는 사람 |
+| administrator, manager, member, viewer, guest | 관리자, 매니저, 멤버, 뷰어, 게스트; a project's or a desk's manager is 매니저 in every sentence, 관리자 the administrator alone |
+| a team group's members | 구성원 (a customer group's are 멤버) |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | 화이트보드, 메모, 카드, 섹션, 화살표, 레이블, 개요 |
+| a whiteboard's picture, drawing; draw | 이미지, 그림; 그리기 |
+| undo, redo (buttons); what was undone | 실행 취소, 다시 실행; "이동을 되돌렸습니다" |
 | connect (draw an arrow), make issues (of notes) | 연결; 이슈로 만들기 |
 | a note's tones: plain, idea, agreed, question, problem, parked | 기본, 아이디어, 합의됨, 질문, 문제, 보류 |
 | writing help; where an issue came from (a chat message) | 글쓰기 도움; 출처 |
+| newer, older (a list's pages) | 이전 페이지, 다음 페이지 |
+| created, updated, resolved (date fields) | 생성일, 업데이트일, 해결일 |
 
-**Why 이슈 for issue**: it's what Jira's Korean and Korean developers say, so Korean teams already read trackers in it. 티켓 reads as a support ticket, and 과제 as homework or a funded project.
+**Why 이슈 for issue**: it's what Jira's Korean and Korean developers say, so Korean teams already read trackers in it, and GitHub's and GitLab's Korean say it too. Jira Cloud's newer 업무 항목 renames Jira's own work items, which a4a's English doesn't. 티켓 reads as a support ticket, and 과제 as homework or a funded project.
+
+**Why 지켜보기 for watch**: it's plain Korean that reads in a sentence ("지켜보는 이슈", "이슈를 지켜보고 있어서"), as Redmine's Korean says it. Jira's 주시 is stiff there, and 관심 등록 is a shopping site's.
+
+**Why 인증자 for authenticator**: it's WebAuthn's Korean (플랫폼 인증자, 로밍 인증자) and Microsoft's, what an administrator looks it up by.
 
 **Why 매니저 beside 관리자**: 관리자 is the administrator, as Korean software has it, so a project's manager is 매니저, as Google's and Slack's Korean give roles their loanwords (뷰어, 멤버).
 
