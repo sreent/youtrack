@@ -3364,6 +3364,7 @@
   "page.portal.whatDoYouNeed": "ต้องการความช่วยเหลือเรื่องอะไร?",
   "page.portal.you": "คุณ",
   "page.portal.youAreCopied": "คุณได้รับสำเนาคำขอของ {name} คำตอบของทีมงานจะส่งถึงคุณทางอีเมล และตอบกลับที่นี่ได้",
+  "page.portal.youAsked": "<t0>คุณ</t0> ถาม · <t1>{whenRead}</t1>",
   "page.portal.yourEmail": "อีเมลของคุณ",
   "page.portal.yourName": "ชื่อของคุณ",
   "page.portal.yourReply": "คำตอบของคุณ",

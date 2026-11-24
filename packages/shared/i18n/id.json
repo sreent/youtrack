@@ -3364,6 +3364,7 @@
   "page.portal.whatDoYouNeed": "Ada yang bisa kami bantu?",
   "page.portal.you": "Anda",
   "page.portal.youAreCopied": "Anda menerima tembusan permintaan {name}. Balasan tim akan dikirim lewat email, dan Anda dapat membalas di sini.",
+  "page.portal.youAsked": "<t0>Anda</t0> bertanya · <t1>{whenRead}</t1>",
   "page.portal.yourEmail": "Email Anda",
   "page.portal.yourName": "Nama Anda",
   "page.portal.yourReply": "Balasan Anda",

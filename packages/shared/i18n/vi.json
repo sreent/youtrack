@@ -3364,6 +3364,7 @@
   "page.portal.whatDoYouNeed": "Bạn cần hỗ trợ gì?",
   "page.portal.you": "Bạn",
   "page.portal.youAreCopied": "Bạn được CC trong yêu cầu của {name}: bạn sẽ nhận trả lời của đội hỗ trợ qua email và có thể trả lời tại đây.",
+  "page.portal.youAsked": "<t0>Bạn</t0> đã hỏi · <t1>{whenRead}</t1>",
   "page.portal.yourEmail": "Email của bạn",
   "page.portal.yourName": "Họ và tên",
   "page.portal.yourReply": "Trả lời của bạn",

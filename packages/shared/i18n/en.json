@@ -3364,6 +3364,7 @@
   "page.portal.whatDoYouNeed": "What do you need?",
   "page.portal.you": "You",
   "page.portal.youAreCopied": "You're copied on {name}'s request: the team's replies reach you by email, and you may reply here.",
+  "page.portal.youAsked": "<t0>You</t0> asked · <t1>{whenRead}</t1>",
   "page.portal.yourEmail": "Your email",
   "page.portal.yourName": "Your name",
   "page.portal.yourReply": "Your reply",

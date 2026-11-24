@@ -3364,6 +3364,7 @@
   "page.portal.whatDoYouNeed": "您需要什么帮助？",
   "page.portal.you": "您",
   "page.portal.youAreCopied": "{name} 的请求已抄送给您：团队的回复会通过邮件发给您，您也可以在这里回复。",
+  "page.portal.youAsked": "<t0>您</t0>提交了请求 · <t1>{whenRead}</t1>",
   "page.portal.yourEmail": "邮箱",
   "page.portal.yourName": "姓名",
   "page.portal.yourReply": "回复内容",

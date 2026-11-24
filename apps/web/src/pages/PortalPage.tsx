@@ -346,7 +346,10 @@ function Conversation({ r, me }: { r: PortalRequestDetail; me: PortalMe }) {
       <li>
         <Avatar kind="person" name={r.requester.mine ? me.name : r.requester.name} small />
         <div className="history-body">
-          <p className="history-head">{tr('page.portal.asked', { v: r.requester.mine ? t('page.portal.you') : r.requester.name, t0: (c: ReactNode) => <strong className="who-name">{c}</strong>, whenRead: whenRead(r.createdAt), t1: (c: ReactNode) => <time dateTime={r.createdAt}>{c}</time> })}</p>
+          {/* "You asked" is a message of its own, not "You" set where a name goes: its verb agrees with the reader ("Sie haben gefragt", "Tú preguntaste"). */}
+          <p className="history-head">
+            {tr(r.requester.mine ? 'page.portal.youAsked' : 'page.portal.asked', { v: r.requester.name, t0: (c: ReactNode) => <strong className="who-name">{c}</strong>, whenRead: whenRead(r.createdAt), t1: (c: ReactNode) => <time dateTime={r.createdAt}>{c}</time> })}
+          </p>
           {r.description.trim() ? (
             <div className="history-comment">
               <Markdown text={r.description} outside />

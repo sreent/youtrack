@@ -3364,6 +3364,7 @@
   "page.portal.whatDoYouNeed": "어떤 도움이 필요하신가요?",
   "page.portal.you": "나",
   "page.portal.youAreCopied": "{name}님의 요청에 참조로 추가되어 있습니다. 팀의 답변을 이메일로 받고, 여기서 답장할 수 있습니다.",
+  "page.portal.youAsked": "<t0>내</t0> 문의 · <t1>{whenRead}</t1>",
   "page.portal.yourEmail": "이메일",
   "page.portal.yourName": "이름",
   "page.portal.yourReply": "답장",
