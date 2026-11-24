@@ -862,11 +862,13 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | requester | người yêu cầu |
 | copied on a request (CC), copy, stop copying | được CC, CC, bỏ CC |
 | customer group, kept from the group | nhóm khách hàng, ẩn với nhóm |
+| group requesters (by company or team) | phân nhóm |
 | reporter | người báo cáo |
 | report (an issue), reported | báo cáo, đã báo cáo |
 | assignee | người được giao |
 | assign | giao |
 | agent | tác nhân |
+| an agent of its own (its badge) | tài khoản riêng |
 | assistant (its name), the assistant | assistant, trợ lý |
 | conversation (with the assistant) | cuộc trò chuyện |
 | workflow, script | workflow, script |
@@ -888,7 +890,8 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | vote | bình chọn |
 | timesheet | bảng chấm công |
 | work logged, log time | thời gian đã ghi, ghi thời gian |
-| a time entry, a worklog, a work item (another tracker's) | bản ghi thời gian, bản ghi công việc, mục công việc |
+| map (an import's columns and values) | ghép, its step "Ghép dữ liệu", as Vietnamese import wizards say it; "ánh xạ" is the technical word |
+| a time entry, a worklog, a work item (another tracker's, and a4a's own) | bản ghi thời gian, all three; what an import brings of them, "Thời gian đã ghi". None of those trackers speaks Vietnamese, and "mục công việc" read as a task |
 | estimate | ước tính |
 | rate (per hour) | đơn giá theo giờ |
 | days away, away | ngày vắng mặt, vắng mặt |
@@ -897,6 +900,7 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | booked (in a plan) | đã phân bổ |
 | critical path | đường găng |
 | milestone | mốc |
+| every weekday (a rule's schedule) | từ Thứ Hai đến Thứ Sáu; "ngày làm việc" is the plan's working days |
 | baseline | đường cơ sở |
 | what-if | mô phỏng |
 | earned value, earned | giá trị thu được (EV), thu được |
@@ -905,7 +909,7 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | suggestion | gợi ý |
 | token, revoke | token, thu hồi |
 | fingerprint (of a token) | dấu vân tay |
-| scope (of a token) | phạm vi; on the page, where English says "What it may do" and "Where it may": "Quyền", "Áp dụng cho" |
+| scope (of a token) | quyền, on its page and in its problems ("Token này thiếu quyền …"); where English says "What it may do" and "Where it may", "Quyền" and "Áp dụng cho". "Phạm vi" is a report's or a sprint's scope |
 | two-factor sign-in | xác thực hai yếu tố |
 | sign in, sign out | đăng nhập, đăng xuất |
 | login (a person's handle) | tên đăng nhập |
@@ -933,13 +937,14 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | app, handler (of an app) | ứng dụng, trình xử lý |
 | allow (an app) | cho phép |
 | person, people | người, mọi người; "người dùng" in administration |
+| instance (of a4a), its worker | máy chủ ("Máy chủ này", "một máy chủ khác"), tiến trình chạy |
 | for {name} (acting on their behalf), as {name} | thay mặt {name}, với tư cách {name}; an integration reads "với tư cách GitHub App" |
 | table (a screen reader's name for one) | danh sách; "bảng" is a board |
 | role, permission | vai trò, quyền |
-| take out (of a project, a group) | gỡ … khỏi; the ledger says "đã xóa … khỏi" |
+| take out (of a project, a group) | xóa … khỏi, as Teams', Facebook's and Zalo's "Xóa khỏi nhóm" say it; the button names where from: "Xóa khỏi dự án", "Xóa khỏi nhóm" |
 | administrator, manager, member, viewer, guest | quản trị viên, quản lý, thành viên, người xem, khách |
 | problem (what went wrong) | lỗi |
-| whiteboard; a note, card, section, arrow, an arrow's label, the outline | bảng trắng, ghi chú, thẻ, khu vực, mũi tên, chú thích, dàn ý |
+| whiteboard; a note, card, section, arrow, an arrow's label, an element, the outline | bảng trắng, never shortened to "bảng", which is a board; ghi chú, thẻ, khu vực, mũi tên, chú thích, đối tượng (Office's word for what sits on a slide or a canvas; "phần tử" is a programmer's), dàn ý |
 | connect (draw an arrow), make issues (of notes) | nối; tạo vấn đề |
 | a note's tones: plain, idea, agreed, question, problem, parked | Thường, Ý tưởng, Đã thống nhất, Câu hỏi, Khó khăn, Tạm gác |
 | writing help; where an issue came from (a chat message) | hỗ trợ viết; nguồn gốc |
