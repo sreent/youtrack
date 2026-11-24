@@ -819,13 +819,13 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 - **Buttons and labels are short verb phrases or nouns**, never sentences: "Lưu", "Lưu thay đổi", "Hủy", "Xóa trường". A button that names what it changes says it, as English's does. A label, a legend or a column names what it holds, as a Vietnamese form does, where English describes it: "Quyền" for "What it may do", "Áp dụng cho" for "Where it may", "Nguồn" for "From", "Mô tả" for "What it's for", "Kiểu dữ liệu" for "What it holds"; a table's column of several buttons is "Thao tác", and one of a single button names it ("Thu hồi"). A heading over a preview asks, as Vietnamese software does: "Quy tắc sẽ làm gì lúc này", "Trợ lý đã làm gì", not "Những gì quy tắc sẽ làm". An option or a kind stands without English's article: "lựa chọn từ danh sách", "số nguyên", "Mốc", not "một lựa chọn …".
 - **Status lines** are "Đã …" for what happened and "Đang …" for what is under way: "Đã lưu.", "Đang lưu…", "Đã thêm {name}.". What someone did is said as done, by whom, not in English's passive: "Đã đổi mật khẩu và đăng xuất mọi phiên.", "Người khác đã thay đổi BACK-12 (…)", not "Mật khẩu của bạn đã được đổi", "BACK-12 đã được người khác thay đổi". A line after a toggle or a removal says what was done, then what follows from it: "Đã tắt: …", "Đã bật lại: …", "Đã thu hồi token {name}. …", "Đã gỡ token. …", not English's "{name} is revoked", "It's off"; what changes from then on is "Từ giờ, …".
 - **The passive** is "được" for what is neutral or welcome and "bị" for what befalls a thing: "một vấn đề được tạo", "bình luận bị xóa", "thay đổi bị từ chối". It stays for a state ("Kênh đã bị xóa.") and in the clauses a page joins (a webhook's events, a rule's trigger). Whoever did it goes between "được" and the verb, "vấn đề được Ada báo cáo", and a byline puts them first, "Ada báo cáo ngày …"; "bởi" (by) is English's order, and a4a doesn't use it.
-- **Gender**: Vietnamese nouns and verbs have none, but its pronouns do (anh ấy, chị ấy), so a4a never gives a person one: it says "người đó", "người này", "những người theo dõi", or the name again. A thing is named again rather than called "nó", which reads as spoken: "vấn đề này", "quy tắc này"; "chính nó" (itself) is the exception.
+- **Gender**: Vietnamese nouns and verbs have none, but its pronouns do (anh ấy, chị ấy), so a4a never gives a person one: it says "người đó", "người này", "những người theo dõi", or the name again, and "họ" for one person only where a sentence can't say "người đó", as Microsoft's style guide allows. A thing is named again rather than called "nó", which reads as spoken: "vấn đề này", "quy tắc này", "token này"; "chính nó" (itself) is the exception. Where naming it again weighs a sentence down, the sentence is turned: "lịch sử ghi lại việc dời do cân bằng nguồn lực", not "… đã dời công việc đó".
 - **Roles** are words for anyone: "Quản trị viên", "Quản lý", "Thành viên", "Người xem", "Khách". In a sentence a role is bare and a page lower-cases it (`inSentence()`): "{name} giờ là thành viên của BACK".
 - **Typography**:
   - Sentence case: only a sentence's first word and names take a capital ("Lưu thay đổi", "Hộp thư đến", never "Hộp Thư Đến"). "a4a" stays lower case, first in a sentence too.
   - Quotation marks are “…”, and the ellipsis is one character (…). No space before a colon or a %.
   - Letters are precomposed (NFC): ế is U+1EBF, not e with two combining marks. The catalog is NFC throughout; edit it with a Unicode keyboard (Telex or VNI typing in Unicode), never a legacy encoding.
-  - Tone marks sit the traditional way in oa, oe and uy: "xóa", "hủy", "hòa", "thủy", as Microsoft's and Google's Vietnamese write them, not "xoá", "huỷ".
+  - Tone marks sit the traditional way in oa, oe and uy: "xóa", "hủy", "hòa", "thủy", as Microsoft's Windows and Office and Facebook write them, not "xoá", "huỷ", which Google's and Apple's Vietnamese have moved to. Both are right; the catalog keeps the one placement throughout, and a message added later keeps it too.
   - Fonts: Ocean draws Vietnamese in IBM Plex Sans's and Plex Mono's Vietnamese faces, from Ocean dd43c90 on. With an Ocean from before them, whose Plex files carry Latin-1 and no more, a page draws ă, đ, ĩ, ũ, ơ, ư and every letter with a dot below or a hook (ạ, ả, ế, ộ, ữ…) from the system's font, mid-word, while à, é, ê, ô and the plain letters stay Plex.
 - **Plurals**: Vietnamese doesn't inflect for number, so each plural keeps `other` alone: `{n, plural, other {# vấn đề}}`. A noun after a number takes no marker; "các" or "những" marks a plural where no number is said ("các vấn đề đã chọn"). Where English says one differently ("this issue", "One issue matches") and Vietnamese does too, the plural keeps `=1`: `{total, plural, =1 {Một vấn đề khớp.} other {# vấn đề khớp.}}`.
 - **Pieces a page joins**:
@@ -852,6 +852,7 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | lead (of a project) | trưởng dự án |
 | board, card | bảng, thẻ |
 | column, swimlane | cột, làn |
+| a lane's own order | thứ tự riêng |
 | sprint | sprint |
 | committed (a sprint's commitment) | cam kết |
 | blocker | trở ngại |
@@ -861,6 +862,7 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | request (help desk) | yêu cầu |
 | requester | người yêu cầu |
 | copied on a request (CC), copy, stop copying | được CC, CC, bỏ CC |
+| an email's Cc, a desk's rules for copies, relay (what people write) | dòng Cc, quy định CC ("quy tắc" is a4a's rule), chuyển tiếp |
 | customer group, kept from the group | nhóm khách hàng, ẩn với nhóm |
 | group requesters (by company or team) | phân nhóm |
 | reporter | người báo cáo |
@@ -872,6 +874,7 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | assistant (its name), the assistant | assistant, trợ lý |
 | conversation (with the assistant) | cuộc trò chuyện |
 | workflow, script | workflow, script |
+| script library, its shared code | thư viện script, mã dùng chung |
 | rule, guard (a rule that refuses) | quy tắc, quy tắc chặn |
 | if (a rule's or a transition's condition) | nếu, after the trigger's "Khi" |
 | state machine | máy trạng thái |
@@ -885,16 +888,21 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | subscription, subscribe | đăng ký, đăng ký nhận |
 | watch, watcher | theo dõi, người theo dõi |
 | comment | bình luận |
+| reaction, react | biểu cảm, bày tỏ cảm xúc (Facebook's and Teams' verb) |
 | mention | nhắc đến |
 | tag | nhãn |
 | vote | bình chọn |
 | timesheet | bảng chấm công |
+| submit (a week of time), approve, send back | gửi duyệt, duyệt, trả lại; a week of time is "bảng chấm công của một tuần" |
+| BAU (a timesheet's own row) | việc thường ngày |
 | work logged, log time | thời gian đã ghi, ghi thời gian |
 | map (an import's columns and values) | ghép, its step "Ghép dữ liệu", as Vietnamese import wizards say it; "ánh xạ" is the technical word |
 | a time entry, a worklog, a work item (another tracker's, and a4a's own) | bản ghi thời gian, all three; what an import brings of them, "Thời gian đã ghi". None of those trackers speaks Vietnamese, and "mục công việc" read as a task |
+| ClickUp's List, a task (Asana's, ClickUp's) | List, as ClickUp names it ("danh sách" is any list); công việc |
 | estimate | ước tính |
 | rate (per hour) | đơn giá theo giờ |
 | days away, away | ngày vắng mặt, vắng mặt |
+| HR calendar | lịch nhân sự |
 | levelling | cân bằng nguồn lực |
 | slack (in a plan) | thời gian dự trữ |
 | booked (in a plan) | đã phân bổ |
@@ -911,14 +919,24 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | fingerprint (of a token) | dấu vân tay |
 | scope (of a token) | quyền, on its page and in its problems ("Token này thiếu quyền …"); where English says "What it may do" and "Where it may", "Quyền" and "Áp dụng cho". "Phạm vi" is a report's or a sprint's scope |
 | two-factor sign-in | xác thực hai yếu tố |
+| passkey, a passkey provider, a security key | khóa truy cập, as Google's and Microsoft's Vietnamese say it; trình quản lý mật khẩu, as Google's is named; khóa bảo mật |
+| authenticator, an authenticator app, attestation | trình xác thực, ứng dụng xác thực, chứng thực |
+| require (a passkey) of, let off | yêu cầu … đối với, miễn |
+| sign out everywhere | đăng xuất mọi phiên |
 | sign in, sign out | đăng nhập, đăng xuất |
 | login (a person's handle) | tên đăng nhập |
 | identity provider | nhà cung cấp danh tính |
 | single sign-on | đăng nhập một lần (SSO) |
+| directory accounts | tài khoản từ dịch vụ thư mục; "thư mục" alone is a folder |
+| vouch (a provider, for an address), verify | xác nhận, xác minh |
+| an OpenID provider's Issuer, Client ID, Client secret, public client; the redirect URI | kept as the providers' consoles name them; URI chuyển hướng, as Google's and Microsoft's consoles say it |
 | webhook, delivery | webhook, lượt gửi |
 | post (a4a or a provider sending to an address) | gửi; "đăng" is for chat messages and comments |
+| a Slack thread; Matrix's homeserver, a room | chuỗi tin nhắn; homeserver, as Matrix names it, phòng |
 | secret | khóa bí mật |
+| kept sealed | lưu ở dạng mã hóa |
 | commit, pull request, branch | commit, pull request, nhánh |
+| check run, commit status | check run, as GitHub names it; trạng thái commit |
 | merge, merged | hợp nhất, đã hợp nhất |
 | build (CI) | bản build |
 | CI | CI |
@@ -934,22 +952,25 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | query, command, saved search | truy vấn, lệnh, tìm kiếm đã lưu |
 | attachment, file | tệp đính kèm, tệp |
 | settings | cài đặt |
+| the navigation's groups: Work, Decide, Build, Oversee | Làm việc, Quyết định, Thiết lập, Giám sát (Administration under it too) |
 | app, handler (of an app) | ứng dụng, trình xử lý |
 | allow (an app) | cho phép |
 | person, people | người, mọi người; "người dùng" in administration |
-| instance (of a4a), its worker | máy chủ ("Máy chủ này", "một máy chủ khác"), tiến trình chạy |
+| instance (of a4a), its worker | máy chủ ("Máy chủ này" as a heading, "một máy chủ khác"), and "a4a này" where a sentence speaks of this one; tiến trình chạy |
 | for {name} (acting on their behalf), as {name} | thay mặt {name}, với tư cách {name}; an integration reads "với tư cách GitHub App" |
 | table (a screen reader's name for one) | danh sách; "bảng" is a board |
 | role, permission | vai trò, quyền |
+| People and access (a project's) | Người dùng và quyền truy cập |
 | take out (of a project, a group) | xóa … khỏi, as Teams', Facebook's and Zalo's "Xóa khỏi nhóm" say it; the button names where from: "Xóa khỏi dự án", "Xóa khỏi nhóm" |
 | administrator, manager, member, viewer, guest | quản trị viên, quản lý, thành viên, người xem, khách |
 | problem (what went wrong) | lỗi |
 | whiteboard; a note, card, section, arrow, an arrow's label, an element, the outline | bảng trắng, never shortened to "bảng", which is a board; ghi chú, thẻ, khu vực, mũi tên, chú thích, đối tượng (Office's word for what sits on a slide or a canvas; "phần tử" is a programmer's), dàn ý |
 | connect (draw an arrow), make issues (of notes) | nối; tạo vấn đề |
+| draw, a drawing, a picture (on a whiteboard) | vẽ, nét vẽ, hình ảnh |
 | a note's tones: plain, idea, agreed, question, problem, parked | Thường, Ý tưởng, Đã thống nhất, Câu hỏi, Khó khăn, Tạm gác |
 | writing help; where an issue came from (a chat message) | hỗ trợ viết; nguồn gốc |
 
-**Why vấn đề for issue**: it's Redmine's Vietnamese, and the word Vietnamese-speaking teams use when they don't say "issue". "Phiếu" (ticket) reads as a form or a support desk's, "sự cố" as an incident, and "công việc" (task) leaves out bugs and requests. As far as this catalog's writer knows, neither Jira nor YouTrack has a Vietnamese interface, so the catalog leans on Redmine's and Trello's Vietnamese (bảng, thẻ and nhãn are Trello's), on Vietnamese project management's own terms (đường găng, đường cơ sở, giá trị thu được, thời gian dự trữ), and, where Vietnamese teams say the English word, on that: sprint, backlog, commit, pull request, webhook, token, workflow.
+**Why vấn đề for issue**: it's Redmine's Vietnamese, and the word Vietnamese-speaking teams use when they don't say "issue". "Phiếu" (ticket) reads as a form or a support desk's, "sự cố" as an incident, and "công việc" (task) leaves out bugs and requests. Jira Cloud offers Tiếng Việt only in part, YouTrack and GitHub not at all, and GitLab's Vietnamese is a translation project with nothing translated, so the catalog leans on Redmine's and Trello's Vietnamese (bảng, thẻ and nhãn are Trello's), on Vietnamese project management's own terms (đường găng, đường cơ sở, giá trị thu được, thời gian dự trữ), and, where Vietnamese teams say the English word, on that: sprint, backlog, commit, pull request, webhook, token, workflow.
 
 **Checking Vietnamese**: the checks above, and `e2e/vietnamese.spec.ts`. It signs a person of its own in, through the sign-in page of a Vietnamese browser, opens the issues, an issue, the inbox and the profile, and shows a problem on the sign-in page; each is shot in light, in dark and at 390px, into the HTML report and beside the test in `apps/web/test-results`. A reader of Vietnamese then reads those shots, sets a profile's language to Tiếng Việt and walks the pages, and reads the pieces of one prefix together, as a page joins them: `activity.ledgerEntry.*`, `issues.issueHistory.*`, `server.notify.*`, `rules.words.*`.
 
