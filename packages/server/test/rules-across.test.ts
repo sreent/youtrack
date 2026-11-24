@@ -304,7 +304,7 @@ describe('rules that tell people', () => {
     expect(run).toMatchObject({ outcome: 'applied', issue: issue.id });
     expect(run!.message).toBe('Told Anna Schmidt and Vera Viewer');
     // A page says it in its own language, the names joined as that language joins a list.
-    expect(notesIn(translatorFor('de'), run!.said, run!.message)).toBe('Informiert: Anna Schmidt und Vera Viewer.');
+    expect(notesIn(translatorFor('de'), run!.said, run!.message)).toBe('Benachrichtigt: Anna Schmidt und Vera Viewer.');
     expect(notesIn(translatorFor('ja'), run!.said, run!.message)).toBe('Anna Schmidt、Vera Viewerに通知しました。');
     expect(notesIn(translatorFor('zh'), run!.said, run!.message)).toBe('通知了 Anna Schmidt和Vera Viewer。');
     expect(notesIn(translatorFor('ko'), run!.said, run!.message)).toBe('Anna Schmidt 및 Vera Viewer에게 알렸습니다.');

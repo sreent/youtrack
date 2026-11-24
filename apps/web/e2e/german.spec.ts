@@ -55,7 +55,7 @@ test('speaks German where the browser asks for it, dates and all', async ({ page
   await page.goto('/me');
   await expect(page.getByRole('heading', { name: 'Ihr Profil', exact: true })).toBeVisible();
   await expect(page.getByLabel('Sprache')).toHaveValue('');
-  await expect(page.getByLabel('Sprache').locator('option:checked')).toHaveText('Die Ihres Browsers: Deutsch');
+  await expect(page.getByLabel('Sprache').locator('option:checked')).toHaveText('Sprache Ihres Browsers: Deutsch');
   await shoot(page, info, 'profile');
 });
 
