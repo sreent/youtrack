@@ -328,6 +328,29 @@ export async function copyFromMail(app: AppServices, issue: IssueRow, requesterN
  * says it came in already names who is copied (its address's real owner sees who will hear the
  * team's answers). Says, in the log's words, who it copied and who it left out.
  */
+/**
+ * A customer group's members, copied on its new request to hear by email (D56's revisit), as any
+ * copy is (D57, D67): up to the desk's own cap, counting whom the email copied already, and never
+ * the desk's own addresses, the team's or the requester's. No line in the history: the request is
+ * the group's already.
+ */
+export async function copyGroupMembers(tx: Db, app: AppServices, issue: IssueRow, requesterEmail: string, members: Person[]): Promise<void> {
+  const rows = await tx.select().from(requestCcs).where(eq(requestCcs.issueId, issue.id));
+  const known = new Set(rows.map((r) => lower(r.email)));
+  let active = rows.filter((r) => !r.removedAt).length;
+  const own = await ownCheck(app, tx);
+  const team = await teamAddresses(tx, members.map((m) => m.email));
+  const max = deskCcsMax(await app.schema.get(tx), issue.projectId);
+  for (const m of members) {
+    if (active >= max) break;
+    const key = lower(m.email);
+    if (known.has(key) || standingRefusal(m.email, own, team, requesterEmail)) continue;
+    await tx.insert(requestCcs).values({ id: newId(), issueId: issue.id, email: m.email, name: (m.name ?? '').slice(0, 100), via: 'group', addedById: null }).onConflictDoNothing();
+    known.add(key);
+    active++;
+  }
+}
+
 export async function copyOnNewRequest(tx: Db, ctx: Ctx, issue: IssueRow, requesterName: string, people: Person[]): Promise<{ words: { copied: string[]; left: string[] }; activities: ActivityRow[] }> {
   const done = await copyIn(tx, ctx, issue, people, { via: 'email', requesterName });
   return { words: { copied: done.added.map((r) => r.email), left: done.refused.map(refusalWords) }, activities: done.activities };

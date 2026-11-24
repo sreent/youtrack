@@ -34,6 +34,7 @@ import { openRequest, requestOf, updateRequest } from '../src/services/helpdesk'
 import { newMailSecret, setDeskAddress } from '../src/services/helpdesk-mail';
 import { getIssue, updateIssue } from '../src/services/issues';
 import { createProject, updateProject } from '../src/services/projects';
+import { createUser } from '../src/services/users';
 import { createPolicy, listPolicies, reorderPolicies, slaReport } from '../src/services/sla';
 import { projectByKey } from '../src/services/schema-cache';
 import { createWorld, type TestWorld } from './helpers';
@@ -350,6 +351,23 @@ describe("the group's members hear of its requests", () => {
     expect(ccs.map((c) => c.email)).toContain('colleague@hear.example');
     expect(ccs.every((c) => c.via === 'group')).toBe(true);
     expect(ccs.map((c) => c.email)).not.toContain('rita@hear.example');
+  });
+  it("copies its members as any copy is: up to the desk's own cap, and never the team's address", async () => {
+    const group = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'CapsHear', domains: ['caps-hear.example'], sharing: 'none' });
+    // Someone of the team's, whose address the group's domain also holds.
+    await createUser(w.adminCtx, { login: 'capsteam', name: 'Caps Team', role: 'member', email: 'team@caps-hear.example' });
+    for (const email of ['team@caps-hear.example', 'one@caps-hear.example', 'two@caps-hear.example', 'three@caps-hear.example']) await addGroupMember(w.adminCtx, 'BACK', group.id, { email });
+    await updateProject(w.adminCtx, 'BACK', { settings: { helpdesk: { ccsMax: 2 } } });
+    try {
+      const desk = (await w.app.schema.get()).projectsByKey.get('BACK')!;
+      const issue = await openRequest(w.app, desk, { name: 'Cam', email: 'cam@caps-hear.example', summary: 'Two at most', description: 'Please.', via: 'form' });
+      const ccs = await w.app.db.select().from(requestCcs).where(eq(requestCcs.issueId, issue.uid));
+      expect(ccs).toHaveLength(2);
+      // The team's address is never copied on a request, a group's or not (D57).
+      expect(ccs.map((c) => c.email)).not.toContain('team@caps-hear.example');
+    } finally {
+      await updateProject(w.adminCtx, 'BACK', { settings: { helpdesk: { ccsMax: 20 } } });
+    }
   });
 });
 describe("the customers' directory (D56's revisit)", () => {

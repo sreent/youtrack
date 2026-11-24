@@ -33,7 +33,7 @@ import { projectSettings } from './projects';
 import { requestSla, resumeFields, syncClocks } from './sla';
 import { projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { insertUser } from './users';
-import { ccsOf, copyOnNewRequest, deskCcsMax, heldOf, holdOnNewRequest, type Person } from './request-ccs';
+import { ccsOf, copyGroupMembers, copyOnNewRequest, deskCcsMax, heldOf, holdOnNewRequest, type Person } from './request-ccs';
 import { noteNotRelayed, relayChoice, type RelayChoice, type RelayHow } from '../helpdesk/relay';
 import { outsideAuthors, outsideKey } from './request-authors';
 import { addWatchers } from './watchers';
@@ -252,12 +252,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
         // The group's members hear of its requests (D56's revisit), as the request's CCs (D57):
         // the hand-added and the domains' requesters, less the requester, up to the same cap. The
         // portal's replying stays the sharing's own; a member answers a4a's email about the request.
-        if (group && held.length) {
-          const members = await groupMemberEmails(tx as never, group, email);
-          for (const m of members.slice(0, 20)) {
-            await tx.insert(requestCcs).values({ id: newId(), issueId: row.id, email: m.email, name: m.name, via: 'group', addedById: null }).onConflictDoNothing();
-          }
-        }
+        if (group && held.length) await copyGroupMembers(tx as never, app, row, email, await groupMemberEmails(tx as never, group, email));
         // The project's lead watches each request, so the requester's replies reach someone.
         if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
         // Its group's dedicated agent takes it (D56), as the help desk's agent, in its history.
