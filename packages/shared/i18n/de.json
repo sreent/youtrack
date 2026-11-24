@@ -5914,6 +5914,7 @@
   "server.chat.unsubscribed": "{name} hat das Abonnement dieses Kanals beendet: {about}.",
   "server.chat.whichIssue": "Ich kann nicht erkennen, für welchen Vorgang das war.",
   "server.chat.whoAreYou": "Ich weiß noch nicht, wer Sie in a4a sind: Sagen Sie mir „link“ in unserem persönlichen Chat.",
+  "server.chat.whoDid": "{who} {did}",
   "server.checks.line.notResolved": "{link} · nicht erledigt",
   "server.checks.line.state": "{link} · {state}",
   "server.checks.line.summary": "{link} {summary}",

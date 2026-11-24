@@ -5914,6 +5914,7 @@
   "server.chat.unsubscribed": "{name} cancelou a subscrição deste canal: {about}.",
   "server.chat.whichIssue": "Não sei a que item isso se refere.",
   "server.chat.whoAreYou": "Ainda não sei quem é no a4a: diga-me «link» no nosso chat pessoal.",
+  "server.chat.whoDid": "{who} {did}",
   "server.checks.line.notResolved": "{link} · não resolvido",
   "server.checks.line.state": "{link} · {state}",
   "server.checks.line.summary": "{link} {summary}",

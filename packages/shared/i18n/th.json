@@ -5914,6 +5914,7 @@
   "server.chat.unsubscribed": "{name} เลิกสมัครรับให้ช่องนี้: {about}",
   "server.chat.whichIssue": "ไม่แน่ใจว่าเป็นอิชชูใด",
   "server.chat.whoAreYou": "ยังไม่รู้ว่าคุณเป็นใครใน a4a พิมพ์ “link” ในแชตส่วนตัวกับ a4a",
+  "server.chat.whoDid": "{who} {did}",
   "server.checks.line.notResolved": "{link} · ยังไม่ปิด",
   "server.checks.line.state": "{link} · {state}",
   "server.checks.line.summary": "{link} {summary}",

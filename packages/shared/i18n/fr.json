@@ -5914,6 +5914,7 @@
   "server.chat.unsubscribed": "{name} a désabonné ce canal : {about}.",
   "server.chat.whichIssue": "Je ne sais pas à quel ticket cela s’adressait.",
   "server.chat.whoAreYou": "Je ne sais pas encore qui vous êtes dans a4a : dites-moi « link » dans notre conversation privée.",
+  "server.chat.whoDid": "{who} {did}",
   "server.checks.line.notResolved": "{link} · non résolu",
   "server.checks.line.state": "{link} · {state}",
   "server.checks.line.summary": "{link} {summary}",

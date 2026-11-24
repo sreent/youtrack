@@ -221,6 +221,10 @@ export function teamsChangeCard(issue: CardIssue, change: CardChange, tr: Transl
   const data = {
     ...issue,
     ...change,
+    // Ocean's card joins who and did with a space. The line comes whole instead, in its language's
+    // order, with the particle Japanese and Korean put after the name (「Annaが課題を共有しました」).
+    who: tr.t('server.chat.whoDid', { who: change.who, did: change.did }),
+    did: '',
     words: cardWords(tr),
     stateStyle: stateStyle(issue),
     // not words: Adaptive Card icons and styles

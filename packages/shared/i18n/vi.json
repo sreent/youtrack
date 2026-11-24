@@ -5914,6 +5914,7 @@
   "server.chat.unsubscribed": "{name} đã hủy đăng ký nhận tin cho kênh này: {about}.",
   "server.chat.whichIssue": "Tôi không xác định được thao tác đó dành cho vấn đề nào.",
   "server.chat.whoAreYou": "Tôi chưa biết bạn là ai trong a4a: hãy nhắn “link” cho tôi trong cuộc trò chuyện riêng.",
+  "server.chat.whoDid": "{who} {did}",
   "server.checks.line.notResolved": "{link} · chưa giải quyết",
   "server.checks.line.state": "{link} · {state}",
   "server.checks.line.summary": "{link} {summary}",

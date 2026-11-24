@@ -403,6 +403,9 @@ describe('in each reader’s language (D49)', () => {
     expect(cardText(post)).not.toContain('Assign to me');
     // Its default, English, as before.
     expect(cardText(teamsChannelPost(w.app, shown, await lastEvent()))).toContain('Assign to me');
+    // Who did it and what come as one line, in the language's order with its particle: 「Anna Schmidtがコメントしました」.
+    const japanese = { ...w.app, config: { ...w.app.config, defaultLocale: 'ja' as const } };
+    expect(cardText(teamsChannelPost(japanese, shown, await lastEvent()))).toMatch(/"text":"[^"]*[A-Za-z]が[^"]*しました/);
   });
 });
 

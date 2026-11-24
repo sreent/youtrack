@@ -5914,6 +5914,7 @@
   "server.chat.unsubscribed": "{name} unsubscribed this channel: {about}.",
   "server.chat.whichIssue": "I can’t tell which issue that was for.",
   "server.chat.whoAreYou": "I don’t know who you are in a4a yet: say \"link\" to me in our personal chat.",
+  "server.chat.whoDid": "{who} {did}",
   "server.checks.line.notResolved": "{link} · not resolved",
   "server.checks.line.state": "{link} · {state}",
   "server.checks.line.summary": "{link} {summary}",

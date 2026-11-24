@@ -5914,6 +5914,7 @@
   "server.chat.unsubscribed": "{name} menghentikan langganan saluran ini: {about}.",
   "server.chat.whichIssue": "Saya tidak tahu isu mana yang dimaksud.",
   "server.chat.whoAreYou": "Saya belum mengenali Anda di a4a: ketik “link” kepada saya lewat chat pribadi.",
+  "server.chat.whoDid": "{who} {did}",
   "server.checks.line.notResolved": "{link} · belum selesai",
   "server.checks.line.state": "{link} · {state}",
   "server.checks.line.summary": "{link} {summary}",

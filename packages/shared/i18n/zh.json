@@ -5914,6 +5914,7 @@
   "server.chat.unsubscribed": "{name} 为此频道取消了订阅：{about}。",
   "server.chat.whichIssue": "我无法确定这是针对哪个问题的操作。",
   "server.chat.whoAreYou": "我还不知道你在 a4a 中是谁。请在私聊中对我说“link”。",
+  "server.chat.whoDid": "{who} {did}",
   "server.checks.line.notResolved": "{link} · 未解决",
   "server.checks.line.state": "{link} · {state}",
   "server.checks.line.summary": "{link} {summary}",
