@@ -334,7 +334,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Accents on capitals**: État, À, Échec.
 - **What a page loads**: each loading line is a whole message (`loadingLine.*`), "Chargement" with its "de": "Chargement du planning…", "Chargement des agents…", "Chargement de vos abonnements…", "Chargement des absences de {name}…".
 - **Data stays as named**, field names included where English gives them as examples: "State et Assignee seulement", "Won't fix exige un commentaire". Examples of the query and command languages stay as they are; examples of plain words for the assistant to read are French ("mettez-les en revue et assignez-les à anna").
-- **The code hosts' own settings** are named as those products show them: Settings, Webhooks, Add webhook.
+- **Other products' settings** are named as their English shows them, as the code hosts' are (Settings, Webhooks, Add webhook), YouTrack's, Zendesk's, Asana's and ClickUp's too: a4a can't tell which language a person's copy of them speaks. Where the catalog has a product's own French labels, it gives those: id.atlassian.com's "Sécurité, Jetons d’API", Redmine's "Mon compte, Clé d’accès API".
 
 | English | French |
 |---|---|
@@ -347,6 +347,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | request (help desk) | demande |
 | requester | la personne qui a fait la demande; "Demandé par" in a table; several are "les personnes qui font des demandes", and a heading names the portal, where only they sign in: "Connexion au portail", "Fournisseurs d’identité du portail" |
 | copied on a request (CC), copy, stop copying | en copie, mettre en copie, retirer de la copie |
+| the people on a request | participer à la demande ("suivre" is watching) |
 | customer group | groupe de clients |
 | reporter | la personne qui l’a signalé; "Signalé par" in a table |
 | assignee | responsable |
@@ -382,7 +383,9 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | scope (of a token) | étendue: "l’étendue admin", as GitHub's and Microsoft's French docs say; Slack's own stay "scopes", as its English-only app settings say |
 | not found | introuvable, after the thing: "Ticket {id} introuvable."; a person's account is "Compte … introuvable" |
 | two-factor sign-in | authentification à deux facteurs |
-| passkey | clé d’accès |
+| passkey | clé d’accès; a copied one's badge, "Bloquée"; passkeys alone, "uniquement avec vos clés d’accès", "Clés d’accès uniquement" |
+| signs you in, signs nobody in | vous connecte; ne permet plus de se connecter |
+| let off (a passkey) | dispenser; among a person's notes, "dispense de clé d’accès" |
 | sign in, sign out | se connecter, se déconnecter |
 | login (the name) | identifiant |
 | identity provider | fournisseur d’identité |
@@ -393,6 +396,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | declined (a pull request) | refusée |
 | check run, check (GitHub's) | exécution de vérification, vérification, as GitHub's French docs say; the app's permission keeps GitHub's label, "Checks : Read and write" |
 | commit status (GitLab's, Forgejo's) | statut de commit, as GitLab's French docs say |
+| a pull request names an issue; an id names no issue | mentionne un ticket; ne correspond à aucun ticket |
 | field, value | champ, valeur |
 | link (between issues) | lien |
 | unlink | supprimer le lien (issues); dissocier (a chat account) |
@@ -410,10 +414,13 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | choose (things to act on: a list's checkboxes, the canvas) | sélectionner, as Windows, macOS and Gmail do: "Sélectionner BACK-1", "Tout désélectionner" |
 | email domain | domaine de messagerie |
 | ways to sign in | façons de se connecter |
+| brainstorm | échanger des idées ("faire du brainstorming" is an anglicism, "réfléchir" too weak) |
 | FIDO's metadata, the FIDO Alliance | les métadonnées FIDO, le BLOB FIDO; l’Alliance FIDO |
 | homeserver, room (Matrix) | serveur d’accueil, salon, as Element says |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | tableau blanc (never "tableau" alone, which is a board), note, carte, section, flèche, libellé, plan (Word's and Google Docs' word for an outline; a4a's plan is "planning") |
 | connect (draw an arrow), make issues (of notes) | relier; créer des tickets |
+| the canvas; draw, a drawing, a picture | la zone de dessin; dessiner, un dessin, une image |
+| script library | bibliothèque de scripts |
 | a note's tones: plain, idea, agreed, question, problem, parked | Neutre, Idée, Décision, Question, Problème, En attente ("Validée" would say someone approved it) |
 | writing help; where an issue came from (a chat message) | aide à la rédaction; provenance |
 
