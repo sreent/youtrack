@@ -344,7 +344,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | backlog | backlog |
 | help desk | centre d’assistance; after "à", "l’assistance de {project}" |
 | request (help desk) | demande |
-| requester | la personne qui a fait la demande; "Demandé par" in a table |
+| requester | la personne qui a fait la demande; "Demandé par" in a table; several are "les personnes qui font des demandes", and a heading names the portal, where only they sign in: "Connexion au portail", "Fournisseurs d’identité du portail" |
 | copied on a request (CC), copy, stop copying | en copie, mettre en copie, retirer de la copie |
 | customer group | groupe de clients |
 | reporter | la personne qui l’a signalé; "Signalé par" in a table |
@@ -362,7 +362,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | digest | récapitulatif |
 | subscription, subscribe | abonnement, s’abonner |
 | watch, watcher | suivre, "Suivi par" |
-| timesheet | feuille de temps |
+| timesheet; submit, approve, send back (a week) | feuille de temps (never "semaine de temps"); soumettre, approuver, rouvrir |
 | work logged, log time | temps saisi, saisir du temps |
 | estimate | estimation |
 | days away, away | absences, indisponible |
@@ -378,7 +378,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | suggestion | suggestion |
 | tag | étiquette |
 | token | jeton |
-| scope (of a token) | portée: "la portée admin" |
+| scope (of a token) | étendue: "l’étendue admin", as GitHub's and Microsoft's French docs say; Slack's own stay "scopes", as its English-only app settings say |
 | not found | introuvable, after the thing: "Ticket {id} introuvable."; a person's account is "Compte … introuvable" |
 | two-factor sign-in | authentification à deux facteurs |
 | passkey | clé d’accès |
@@ -389,6 +389,9 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | webhook, delivery | webhook, envoi |
 | secret | secret |
 | commit, pull request, branch | commit, pull request, branche |
+| declined (a pull request) | refusée |
+| check run, check (GitHub's) | exécution de vérification, vérification, as GitHub's French docs say; the app's permission keeps GitHub's label, "Checks : Read and write" |
+| commit status (GitLab's, Forgejo's) | statut de commit, as GitLab's French docs say |
 | field, value | champ, valeur |
 | link (between issues) | lien |
 | unlink | supprimer le lien (issues); dissocier (a chat account) |
@@ -398,10 +401,19 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | report | rapport |
 | settings | paramètres |
 | app | application |
-| handler (of an app) | gestionnaire |
-| whiteboard; a note, card, section, arrow, an arrow's label, the outline | tableau blanc, note, carte, section, flèche, libellé, sommaire |
+| package (of an app) | paquet |
+| manager (the role); handler (of an app) | Gestionnaire, Google's word for the role; gestionnaire, the French for a handler. A page that shows both names the projects: "les gestionnaires des projets" |
+| administrator | admin: "un admin", "les admins", the role's own name and a word for anyone, where "administrateur" isn't |
+| attachment, attach | fichier joint (they're listed under "Fichiers"), joindre; never "pièce jointe" |
+| upload | envoyer, l’envoi; never "téléverser", which France doesn't say |
+| choose (things to act on: a list's checkboxes, the canvas) | sélectionner, as Windows, macOS and Gmail do: "Sélectionner BACK-1", "Tout désélectionner" |
+| email domain | domaine de messagerie |
+| ways to sign in | façons de se connecter |
+| FIDO's metadata, the FIDO Alliance | les métadonnées FIDO, le BLOB FIDO; l’Alliance FIDO |
+| homeserver, room (Matrix) | serveur d’accueil, salon, as Element says |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | tableau blanc (never "tableau" alone, which is a board), note, carte, section, flèche, libellé, plan (Word's and Google Docs' word for an outline; a4a's plan is "planning") |
 | connect (draw an arrow), make issues (of notes) | relier; créer des tickets |
-| a note's tones: plain, idea, agreed, question, problem, parked | Simple, Idée, Validée, Question, Problème, En attente |
+| a note's tones: plain, idea, agreed, question, problem, parked | Neutre, Idée, Décision, Question, Problème, En attente ("Validée" would say someone approved it) |
 | writing help; where an issue came from (a chat message) | aide à la rédaction; provenance |
 
 **Checking French.** The checks above, then `e2e/french.spec.ts`: a person of its own signs in through a French browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads French walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
