@@ -397,7 +397,7 @@ Phrasing:
 - `problem.rule.subtaskLinkParent` and `subtaskLinkSubtasks` name the rule form's French options, « son parent » and « ses sous-tâches ».
 - `problem.agents.stop.userGone` and `valueGone`: "The {field} it had" is "L’ancienne valeur de {field}".
 - **The issue list's count line** puts the count last, "Tous les tickets (les plus récemment mis à jour d’abord) : 4", and "Tous" adds an "all" English doesn't have.
-- `rules.preview.actsWhen`: "Elle n’agit sur l’un d’eux qu’au moment où {trigger}." "que lorsque" would need an elision before the trigger's "un ticket…".
+- `rules.preview.actsWhen`: "Elle n’agit sur l’un d’eux qu’au moment où {trigger}." "que lorsque" would need an elision before the trigger's "un ticket…", which a4a now makes before a value (D49): "que lorsqu’un ticket…" can be written.
 - `rules.run.scheduled` keeps "worker", an English loanword ("a repris le worker").
 - `problem.chat.stop.membersOnly`: "…et la personne qui l’a abonné ne le gère pas" is correct, "l’" being the channel, but heavy.
 
@@ -443,7 +443,7 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 - `helpdesk.portalSignIn.passwordHelp` calls the form's proof of work "la vérification anti-robot du formulaire", the setting being "Vérifier qu’une personne l’a envoyée".
 - `server.portalAccount.lead`, for a provider's first sign-in: "Pour la première fois, une session a été ouverte via {provider} sur le portail du centre d’assistance, en tant que {email}." It's passive so that nothing agrees with the reader. Stiff for an email's first line?
 - `server.passkeys.added`, `removed`, `copied` and `removedByAdmin` say "le {when}", and {when} is "lun. 16 nov., 15:03 UTC+1".
-- `helpdesk.portalSignIn.throughSome`: "que des adresses de {list}", where {list} is bare domains ("de acme.com et acme.fr"), without elision.
+- `helpdesk.portalSignIn.throughSome`: "que des adresses de {list}", where {list} is bare domains: a4a now elides before one that begins with a vowel ("d’acme.com et acme.fr", D49).
 - `helpdesk.portalSignIn.save` is "Enregistrer la connexion", under the heading "Connexion des personnes qui font des demandes". Could it read as saving a login? "Enregistrer les façons de se connecter" is clearer, and longer.
 - **Requesters, plural,** are "les personnes qui font des demandes", as in D56's messages: long in headings (`page.project.portalSignIn`, `helpdesk.portalSignIn.providers`) and the ledger (`activity.ledgerEntry.portalSignInChanged`).
 
@@ -1102,7 +1102,7 @@ Terms:
 
 Phrasing:
 
-- **Spaces around values**: the catalog spaces a placeholder as the Latin name, id or number it usually holds (「由 {name} 添加」), so a person named in Chinese reads 「以 王芳 身份」. See below.
+- **Spaces around values**: the catalog spaces a placeholder as the Latin name, id or number it usually holds (「由 {name} 添加」), and a4a drops the space on a side where the value is written in Chinese (「以王芳身份」, D49). Does a mixed name read right, 「以 Ada 王身份」?
 - **Intl's own spacing**: dates, durations and lists come from Intl unspaced (「2.5小时」, 「Anna Schmidt和Vera Viewer」) beside the catalog's 「3 个问题」. Acceptable side by side?
 - **Free text moved to the end**, after 错误：, 原因： or 回复： (`problem.apps.catalogUnreadable`, `problem.workflow.ruleRefusesInItsWords`, `problem.imports.source.answeredSaying`). Does it read naturally?
 - **The desk's name in quotes**: `server.helpdesk.whyAnswer`, `whyLink` and `server.portal.lead` quote it, 「您向“BACK 的服务台”提交了请求」, so the plain 「服务台」 reads too.
@@ -1892,11 +1892,7 @@ Messages added with the several groups:
 
 These need the code to change, not a catalog:
 
-- **French can't elide before a name**: "de {name}" prints "de Ada", not "d’Ada", since the name is a value.
-- **Spanish's "y" before an "i" sound**: `problem.command.valueOfFields` joins two field names with "y", which should be "e" when the second starts with an "i" sound. Field names are data. Intl's lists already say "e" there ("Priority e Importancia"); this message writes its "y" itself.
 - **A field's or state's gender**: a message that agrees with `{field}`, `{state}` or `{close}` assumes one.
 - **Notes kept before a4a kept their words**: a commit's command note, a rule's run, a build's note and why a chat subscription, channel or workspace stopped, written before migrations `0028_build_notes` and `0029_kept_notes`, stay in the English they were kept in. New ones are said in each reader's language.
-- **Lists inside the server's problems**: the server joins what a problem lists with ", ": fields, values, roles, boards, sprints, projects, logins, a GitHub App's installations (`problem.issues.noSuchField`, `problem.values.unknownValue`, `problem.access.unknownRole`, `problem.vcs.githubApp.whichInstallation` and their like). Japanese and Chinese read 「acme (123), anna (456)」 where they would write 「、」. An issue's history shows a change to a multi-value field or to its tags joined the same way, as the server keeps the change (`packages/server/src/services/issues.ts`, and `presentValues` in `packages/server/src/services/values.ts`).
-- **Whether a value is Chinese**: Chinese spaces a value written in Latin letters or digits and not one written in Chinese, and a catalog can't tell which a value is, so it spaces names, ids and numbers. A person or a project named in Chinese gets spaces it doesn't need: 「以 王芳 身份」.
 - **Korean's particles after a Latin word**: a4a chooses a particle after Hangul and digits (`koreanParticles` in `packages/shared/src/i18n.ts`), but can't hear how a Latin name, state or key ends, so there Korean keeps both ways (을(를), 이(가)). A value passed with whether it ends in a consonant would let Korean choose the one it needs.
 - **Portuguese's contractions with a value**: a product's or a desk's name takes an article in Portuguese ("do GitHub", "no centro de apoio de X"). The catalog writes the article into the message, so it assumes a masculine product (identity providers, trackers, chat platforms) and leaves the desk's name without one, so each message says "ao", "no" or "do" before it (`server.helpdesk.deskOf`, `server.portal.deskOf`).
