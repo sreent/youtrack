@@ -1088,7 +1088,7 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 - **Instructions are bare verbs**, as Thai apps give them: “เลือกโปรเจกต์”, “ลองอีกครั้ง”. โปรด only where English says please, where something is asked of someone; never กรุณา, which reads as a notice.
 - **Typography:**
   - No space between words. A space between phrases, clauses and sentences, where Thai pauses, and on each side of a value, a number, an id or a Latin word: “เปิด {issue}”, “อิชชู {n} รายการ”, “ตาม Type: Bug”. None before `:` or `)`, or inside “”. A value that is itself Thai, a piece the page translates, joins as a word does: “ใช้{formName} ของคุณ” reads “ใช้ชื่อผู้ใช้ a4a ของคุณ”, and the timesheet's “ในวัน{dayName} แล้ว” reads “ในวันจันทร์ 16 พ.ย. แล้ว”, since Intl's Thai day begins with its weekday's name.
-  - **No full stop.** Thai ends a sentence with a space, and its last with nothing. A message of two sentences has a space between them; sentences a page joins (`sentences()`, a problem's list of problems) are joined by a space (`SENTENCE_GAP`), so no Thai message ends in a full stop and none needs one. A question ends in `?` after its question word (“ลบ {name} ไหม?”), as Thai's ปรัศนี does. `.` stays only inside abbreviations (พ.ย.) and code.
+  - **No full stop.** Thai ends a sentence with a space, and its last with nothing. A message of two sentences has a space between them; sentences a page joins (`sentences()`, a problem's list of problems) are joined by a space (`SENTENCE_GAP`), so no Thai message ends in a full stop and none needs one. A question asks with ไหม, as Google's Thai does, where Microsoft's หรือไม่ would sound like a form, and ends in `?` after it (“ลบ {name} ไหม?”, “หมายถึง “{guess}” ใช่ไหม?”), as Thai's ปรัศนี does. `.` stays only inside abbreviations (พ.ย.) and code.
   - Quotation marks are “…”, the ellipsis is one character (…), and digits are Arabic, never Thai ones (๑๒๓).
   - **A colon introduces** a list, a value, code, or a help text's “ว่างไว้: …”; it never joins a statement to its reason or its consequence, as English's does. Thai says the link, or pauses: “ปิดอยู่ จึงไม่มีใครเห็นปุ่มนี้”, “{name} เป็นฟิลด์ส่วนตัวไม่ได้ เพราะ…”, not “ปิดอยู่: ไม่มีใครเห็นปุ่มนี้”.
 - **Line breaks and badges.** A Thai line breaks only at a space or where the browser's dictionary finds a word's end, and a transliterated word it doesn't know can't break at all. So badges and buttons are a word or two (“ปิดแล้ว”, “เกินกำหนด”), and the pages the browser spec shoots were looked at at 390px, where none spills.
@@ -1106,7 +1106,7 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 - **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is whole Thai, and every case stays: `{state, select, merged {เมิร์จแล้ว} closed {ปิดแล้ว} other {เปิดอีกครั้ง}}`. A field's `{type}` in a problem is such a code too, with `other` keeping the code.
 - **Problems** say what went wrong, then the fix, a space between and no full stop: “ไม่พบอิชชู {id} ใช้รหัสที่อ่านได้ เช่น BACK-12”. Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Thai message, after “ข้อผิดพลาด: ”, “เหตุผล: ” or “คำตอบ: ”, and brings its own punctuation. A problem held in another's values (`{problems}`, `{reasons}`, a parser's `{problem}`) is said whole in Thai, and Thai joins sentences with a space, so it stays where English puts it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`), and a rule's choices are said as the rule form names them.
 - **You and your**: ของคุณ where English's "your" tells the reader's things from others' (“คำขอของคุณ” on the portal, “โทเค็นของคุณ”), and nothing where the owner is plain: “โปรไฟล์”, “ตัวจับเวลา”, “กำลังโหลดกล่องจดหมาย…”. A button the reader presses for themself, which English words with "my" (“Save my week”), says ของฉัน, as Thai apps name the reader's own (“บันทึกสัปดาห์ของฉัน”). คุณ stays where the reader must be told from someone else: “ทำงานในนามของคุณ”, “ในนาม {login} ไม่ใช่ในนามของคุณ”.
-- **The help desk** is a company's to its customers. A request is คำขอ: “ส่งคำขอ” in an issue's history and notifications, “ขอความช่วยเหลือ” on the form and the portal. Its emails to requesters are polite as Thai customer mail is, and name the requester with คุณ before the name, a space between, since a name may be Thai or Latin: “คุณ {name}”. They say why they came: “คุณได้รับอีเมลนี้เนื่องจากคุณส่งคำขอถึง {desk}”, and tell rather than email: “จะแจ้งให้คุณทราบทางอีเมล”. Wherever a customer reads it (the portal, the public form, the tracking page, the emails), the team is ทีมงาน, as Thai support writes it; the team's own pages say ทีม.
+- **The help desk** is a company's to its customers. A request is คำขอ: “ส่งคำขอ” in an issue's history and notifications, “ขอความช่วยเหลือ” on the form and the portal. Its emails to requesters are polite as Thai customer mail is, and name the requester with คุณ before the name, a space between, since a name may be Thai or Latin: “คุณ {name}”. The name sits in the sentence, with no เรียน or vocative before it: “เราได้รับคำขอของคุณ {name} แล้ว”. They say why they came: “คุณได้รับอีเมลนี้เนื่องจากคุณส่งคำขอถึง {desk}”, and tell rather than email: “จะแจ้งให้คุณทราบทางอีเมล”. Wherever a customer reads it (the portal, the public form, the tracking page, the emails), the team is ทีมงาน, as Thai support writes it; the team's own pages say ทีม.
 
 | English | Thai |
 |---|---|
@@ -1125,6 +1125,7 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | SLA at risk, breached | เสี่ยง, เกินกำหนด |
 | request (help desk) | คำขอ |
 | requester | ผู้ร้องขอ, never ผู้ร้อง |
+| an HTTP request (in the API's problems) | คำขอ too, as Microsoft's and Google's Thai say it: “คำขอใหญ่เกินไป” |
 | copied on a request (CC), copy, stop copying | สำเนา, ส่งสำเนาถึง, เลิกส่งสำเนา |
 | customer group, kept from the group | กลุ่มลูกค้า, ซ่อนจากกลุ่ม |
 | reporter; report (an issue), reported | ผู้รายงาน; รายงาน, รายงานโดย |
@@ -1163,7 +1164,8 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | earned value, earned | มูลค่าที่ได้รับ (EV), ได้รับ |
 | cost and schedule performance (CPI, SPI) | ดัชนีต้นทุน (CPI), ดัชนีกำหนดการ (SPI) |
 | triage | คัดกรอง |
-| suggestion | คำแนะนำ |
+| suggestion; dismiss (it), ignore | คำแนะนำ; ปฏิเสธ, Google Docs' word for rejecting a suggestion; ละเว้น where English means ignore |
+| undo, redo | เลิกทำ, ทำซ้ำ, Microsoft's and Google Docs' words |
 | tag | แท็ก |
 | token, access token, revoke | โทเค็น (not โทเคน), โทเค็นการเข้าถึง, เพิกถอน |
 | kept sealed (a token, a secret) | เก็บแบบเข้ารหัส |
@@ -1195,6 +1197,7 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | dashboard, widget | แดชบอร์ด, วิดเจ็ต |
 | report | รายงาน |
 | settings | การตั้งค่า |
+| the navigation's groups: Work, Decide, Build, Oversee | งาน, ตัดสินใจ, สร้าง, กำกับดูแล |
 | app, handler (of an app) | แอป, ตัวจัดการ |
 | person, people | ผู้ใช้; คน counts them |
 | role, permission | บทบาท, สิทธิ์ |
@@ -1209,7 +1212,7 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | script library, its shared code; run from the queue | ไลบรารีสคริปต์, โค้ดที่ใช้ร่วมกัน; รันจากคิว |
 | HR calendar | ปฏิทิน HR |
 
-**Where the words come from.** Jira and YouTrack have no Thai interface, so Thai teams read both in English and say their words as Thai loanwords: อิชชู, สปรินต์, แบ็กล็อก, บอร์ด, คอมมิต, เมิร์จ. The catalog writes those in Thai script, spelled by the Royal Institute's rules for loanwords, and takes Thai's own word where teams use one: ผู้รับผิดชอบ for the assignee, คำขอ for a request, ความคิดเห็น and กล่าวถึง as Facebook's and YouTube's Thai say them, เข้าสู่ระบบ as every Thai sign-in page does.
+**Where the words come from.** Jira and YouTrack have no Thai interface, so Thai teams read both in English and say their words as Thai loanwords: อิชชู, สปรินต์, แบ็กล็อก, บอร์ด, คอมมิต, เมิร์จ. The catalog writes those in Thai script, spelled by the Royal Institute's rules for loanwords, and takes Thai's own word where teams use one: ผู้รับผิดชอบ for the assignee, คำขอ for a request, ความคิดเห็น and กล่าวถึง as Facebook's and YouTube's Thai say them, เข้าสู่ระบบ as every Thai sign-in page does. Thai developers often type commit, merge or pull request in Latin letters, but a Thai interface writes a term in daily use in Thai letters, as Microsoft's Thai style guide does by the Royal Institute's rules; Latin stays for what a product names itself (GitHub, a check run, an identity provider's Issuer and Client ID).
 
 **Why อิชชู for issue.** It's what Thai teams say for what Jira and YouTrack call an issue. ปัญหา, Redmine's and Mantis's Thai, makes "create issue" สร้างปัญหา, Thai for making trouble, and "this issue has a problem" ปัญหานี้มีปัญหา, while a4a's problems are its own word; and a feature isn't one. ทิกเก็ต reads as a support ticket, the help desk's, and งาน is taken by work: work logged, working hours, a plan's booked work.
 

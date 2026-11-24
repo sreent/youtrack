@@ -5961,7 +5961,7 @@
   "server.helpdesk.heldForYou": "{count, plural, other {คุณใส่ผู้รับ # คนต่อไปนี้ไว้ใน Cc ซึ่งจะไม่ได้รับอะไรจนกว่าคุณจะยืนยัน:}}",
   "server.helpdesk.now": "ตอนนี้คำขอของคุณอยู่ในสถานะ {to}",
   "server.helpdesk.nowWas": "ตอนนี้คำขอของคุณอยู่ในสถานะ {to} (เดิมคือ {from})",
-  "server.helpdesk.received": "คุณ {name} เราได้รับคำขอของคุณแล้ว ทีมงานจะตอบกลับในหน้าคำขอ และจะแจ้งให้คุณทราบทางอีเมลเมื่อมีการตอบกลับ",
+  "server.helpdesk.received": "เราได้รับคำขอของคุณ {name} แล้ว ทีมงานจะตอบกลับในหน้าคำขอ และจะแจ้งให้คุณทราบทางอีเมลเมื่อมีการตอบกลับ",
   "server.helpdesk.relay.files": "{count, plural, other {มีไฟล์แนบมาด้วย # ไฟล์ ดูได้ในหน้าของคำขอ}}",
   "server.helpdesk.relay.lead": "{whose, select, yours {{name} เขียนข้อความในคำขอของคุณ} other {{name} เขียนข้อความในคำขอของ {requester}}}",
   "server.helpdesk.relay.stop": "หยุดรับข้อความที่ผู้อื่นเขียนในคำขอนี้",
