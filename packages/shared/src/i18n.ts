@@ -21,11 +21,27 @@ export function isLocale(value: unknown): value is Locale {
 /** The first of these preferences (a browser's languages, an Accept-Language) a4a speaks, by language. */
 export function matchLocale(preferences: readonly string[] | string | null | undefined, fallback: Locale = DEFAULT_LOCALE): Locale {
   const list = typeof preferences === 'string' ? parseAcceptLanguage(preferences) : (preferences ?? []);
+  let traditional = false;
   for (const tag of list) {
-    const lang = tag.trim().toLowerCase().split(/[-_]/)[0];
+    const parts = tag.trim().toLowerCase().split(/[-_]/);
+    const lang = parts[0];
+    // a4a's Chinese is Simplified. A reader of Traditional characters gets their next language instead,
+    // as CLDR keeps zh-Hant apart from zh, and a bare zh after a Traditional tag is that browser's own
+    // fallback for it (Chrome lists "zh-TW,zh"), not a choice of Simplified.
+    if (traditionalChinese(parts)) {
+      traditional = true;
+      continue;
+    }
+    if (lang === 'zh' && parts.length === 1 && traditional) continue;
     if (isLocale(lang)) return lang;
   }
   return fallback;
+}
+
+/** Chinese in Traditional characters: zh-Hant, or Taiwan's, Hong Kong's or Macau's with no Simplified script named. */
+function traditionalChinese(parts: readonly string[]): boolean {
+  if (parts[0] !== 'zh' || parts.includes('hans')) return false;
+  return parts.includes('hant') || parts.some((p) => p === 'tw' || p === 'hk' || p === 'mo');
 }
 
 /** An Accept-Language header's tags, by the weight each gives. */

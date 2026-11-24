@@ -9,7 +9,7 @@ import es from '../i18n/es.json' with { type: 'json' };
 import ja from '../i18n/ja.json' with { type: 'json' };
 import zh from '../i18n/zh.json' with { type: 'json' };
 import th from '../i18n/th.json' with { type: 'json' };
-import { canSayProblem, createTranslator, frenchElides, isListSaid, joinItems, joinList, sayProblem, squareAt, type ProblemSaid } from '../src/i18n';
+import { canSayProblem, createTranslator, frenchElides, isListSaid, joinItems, joinList, sayProblem, squareAt, type ProblemSaid, matchLocale } from '../src/i18n';
 
 const b = (chunks: unknown[]) => ({ b: chunks });
 
@@ -205,5 +205,19 @@ describe('a list among a message’s values, joined in its reader’s language',
     expect(isListSaid({ and: ['a'] })).toBe(true);
     expect(isListSaid({ key: 'x', values: {} })).toBe(false);
     expect(isListSaid([{ key: 'x' }])).toBe(false);
+  });
+});
+
+describe('a browser asking for Traditional Chinese (D49)', () => {
+  it('gets its next language, since a4a has Simplified alone, and the bare zh after a Traditional tag is its fallback', () => {
+    expect(matchLocale('zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7')).toBe('en');
+    expect(matchLocale(['zh-Hant-HK', 'ja'])).toBe('ja');
+    expect(matchLocale(['zh-MO'], 'de')).toBe('de');
+  });
+  it('still gets Simplified Chinese when it asks for it, wherever it is', () => {
+    expect(matchLocale('zh-CN,zh;q=0.9,en;q=0.8')).toBe('zh');
+    expect(matchLocale(['zh'])).toBe('zh');
+    expect(matchLocale(['zh-Hans-TW'])).toBe('zh');
+    expect(matchLocale(['zh-SG', 'en'])).toBe('zh');
   });
 });

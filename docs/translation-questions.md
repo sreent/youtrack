@@ -16,47 +16,15 @@ Its open questions were settled by a model editor's pass on 24 November 2026: 91
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says.
 
-Its open questions were settled by a model editor's pass on 24 November 2026: 89 settled, 5 left for a native speaker.
-
-Phrasing:
-
-- `reports.burndown.added` is both a column of the burndown's table, an amount ("Agregado", as "Quitado" and "Terminado" are), and the kind of one issue's change in its list, where "Agregada" would agree with the issue as "Sacada", "Resuelta" and "Reabierta" now do. It needs a message for each use; meanwhile it says the column's "Agregado".
-
-With the posts that change in place:
-
-- Las publicaciones cambian en su sitio – sin palabras nuevas; una pregunta: ¿debería verse en el canal que se editó, o basta con el contenido reemplazado en silencio?
-
-With the requester's own language:
-
-- El idioma del solicitante: los correos siguen ahora el del navegador (guardado en el solicitante). Sin palabras nuevas; una pregunta: ¿la página del portal debería mostrar un selector de idioma, o basta el navegador?
-
-With the group's members hearing of its requests:
-
-- Los miembros se enteran de las solicitudes de su grupo (sin palabras nuevas); una pregunta: ¿debería la copia decir “de tu grupo” en el asunto o el texto?
-
-With the customers' directory:
-
-- El directorio de clientes (sin palabras nuevas); una pregunta: ¿la lista del formulario debe mostrar solo los nombres, o también los dominios como pista al lado?
+Its open questions were settled by a model editor's pass on 24 November 2026: 89 settled, 1 answered since by a change to the code (the burndown's list has a word of its own), and 4 questions for the product moved to [the end of this page](#for-the-product-not-a-language).
 
 ## French
 
-Its open questions were settled by a model editor's pass on 24 November 2026: 91 settled, 0 left for a native speaker.
-
-Five wait on the code or the product, not on a native speaker's ear:
-
-- **Posts that change in place** (no words of their own): should a channel see that a post was edited, or is its content replaced silently enough?
-- **The requester's own language** (no words of their own): emails follow the browser's language, kept on the requester. Should the portal offer a choice of language, or is the browser's enough?
-- **A group's members hearing of its requests** (no words of their own): should the copy say "de votre groupe" in its subject or its text? That would take a message of its own.
-- **The customers' directory** (no words of their own): should the form's list show names alone, or each one's domains beside it?
+Its open questions were settled by a model editor's pass on 24 November 2026: 91 settled, 1 answered since by the code (a4a elides "de" before a value), and 4 questions for the product moved to [the end of this page](#for-the-product-not-a-language).
 
 ## Japanese
 
-Its open questions were settled by a model editor's pass on 24 November 2026: 87 settled, 2 left for a native speaker.
-
-Both wait on the code as much as on an ear:
-
-- **A group member's copy** (`server.helpdesk.cc.whyAnswer`, `whyLink`): a customer group's members now get its new requests' emails as CCs, so each says only 「{requester}様から{desk}へのリクエストのCCに入っているため、このメールをお送りしています。」. A Japanese customer who never asked to be copied expects to be told why: 「{group}のメンバーとして…」. That needs the server to say the copy is the group's, with the group's name; meanwhile it reads as any CC's, which is true of how a4a sends it.
-- **The customers' directory** on a group's form lists names alone. Japanese companies' names are long and their group companies' alike (「〇〇システム株式会社」, 「〇〇システムズ株式会社」), so the domain beside each name would tell them apart. That needs the page to show it; meanwhile there are no words to change.
+Its open questions were settled by a model editor's pass on 24 November 2026: 87 settled, and 2 questions for the product moved to [the end of this page](#for-the-product-not-a-language).
 
 ## Portuguese
 
@@ -86,21 +54,13 @@ Its open questions were settled by a model editor's pass on 24 November 2026: 10
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
 
-Its open questions were settled by a model editor's pass on 24 November 2026: 103 settled, 3 left for a native speaker.
-
-Phrasing:
-
-- **Traditional Chinese readers**: a browser asking for zh-TW, zh-HK or zh-Hant gets this catalog, since a4a matches a language by its first part, and Chrome lists a bare zh after zh-TW. Readers in Taiwan and Hong Kong read software in Traditional characters or in English, and many take Simplified for the wrong language, so until a4a has a Traditional catalog, `matchLocale` should pass them to their next language, the bare zh after a Traditional tag included: a code change. Meanwhile they get Simplified.
+Its open questions were settled by a model editor's pass on 24 November 2026: 103 settled, and its last 3 answered since by changes to the code: no space beside a value written in Chinese, 和 and 或 spaced beside a Latin item, and Traditional Chinese readers given their next language (D49).
 
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
 
-Its open questions were settled by a model editor's pass on 24 November 2026: 113 settled, 1 left for a native speaker.
-
-With the requester's own language:
-
-- **The portal's language** follows the requester's browser, as their emails do. Many people in Vietnam run their phone and browser in English and still read Vietnamese first, so a requester who writes in Vietnamese can be answered in English; a choice of language on the portal, kept on the requester, would let them say which. That needs the code. Meanwhile the catalog has nothing to change: a browser that asks for Vietnamese gets it.
+Its open questions were settled by a model editor's pass on 24 November 2026: 113 settled, and 1 question for the product moved to [the end of this page](#for-the-product-not-a-language).
 
 ## Indonesian
 
@@ -114,11 +74,16 @@ Its open questions were settled by a model editor's pass on 24 November 2026: 11
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
 
-Its open questions were settled by a model editor's pass on 24 November 2026: 111 settled, 1 left for a native speaker.
+Its open questions were settled by a model editor's pass on 24 November 2026: 111 settled, and its last answered in part since by the code: a value that is one of the catalog's own words joins as a word, and what's left of it, a name beside a pause, is under [What a catalog can't say yet](#what-a-catalog-cant-say-yet).
 
-Typography and phrasing:
+## For the product, not a language
 
-- **A space on each side of a value whose script a4a can't know.** A name, an id or a Latin word takes one, and a piece the page translates joins as a word, but a few values are either: the copy button's piece (`common.copyButton.copied`, `common.copyButton.couldnTCopySelectIt`), so “คัดลอก {what} แล้ว” reads “คัดลอก URL แล้ว” and also “คัดลอก โทเค็น แล้ว”, and a requester's name after คุณ (`server.helpdesk.received`), “คุณ Ada” and also “คุณ สมชาย”. Meanwhile the catalog spaces them, which is right for a Latin value and only a pause for a Thai one. Joining them by script, as `listParts` does for lists, needs the code to say which a value is.
+Several languages' editors met these, and none has words of its own to settle: each asks what a4a should do.
+
+- **A post that changes in place** (D42): should a channel see that a post was edited? Teams and Slack mark an edited message themselves; the editors who answered thought that's enough.
+- **The portal's language** (D63): a requester's emails and the portal follow their browser's language, kept on the requester. Should the portal offer a choice? Many people in Vietnam run their phone and browser in English and read Vietnamese first, so one would help there; the Chinese and Japanese editors thought the browser's enough.
+- **A group's member copied on its new requests** (D56): their email says only that they're copied, as any CC's does. Should it say it's because of their group (`server.helpdesk.cc.whyAnswer`, `whyLink`), with a message of its own?
+- **The customers' directory** on a group's form (D56) lists names alone. Japanese and Chinese companies' names are long and alike (「〇〇システム株式会社」, 「〇〇システムズ株式会社」), so the domains beside each would tell them apart.
 
 ## What a catalog can't say yet
 
