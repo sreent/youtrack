@@ -969,9 +969,9 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 
 - **Anda**, with its capital, where the reader must be named, as Indonesian software addresses its reader; never "kamu", "kau" or "-mu". English says "you" and "your" on nearly every line, and Indonesian doesn't: what the page plainly is about needs no owner ("Profil", "Memuat kotak masuk…", "Ponsel hilang? Masukkan salah satu kode pemulihan."), and a sentence about what can be done takes the di- passive or the passive with "Anda" before the verb rather than "Anda dapat …" ("Pengguna lain dapat diundang setelahnya.", "isu yang Anda pantau"). A sentence says "Anda" once, not two or three times, and "memiliki", never "Anda punya". "Silakan" and "mohon" are for where English says "please", where something is asked of someone; a line doesn't open with them.
 - **Buttons and labels are short verb phrases or nouns**, never sentences: "Simpan", "Simpan perubahan", "Hapus bidang", "Batal". An instruction is the plain imperative, without "-lah" or "mohon": "Pilih proyek", "Ketik namanya". A label is a noun, not "-nya" pointing back as English's "its" does: "Nama", "Nilai (3)", "Posisi sekarang", "Kegunaan". An optional field says "(opsional)" after its name ("Komentar (opsional)", "Catatan (opsional)") where English says "if you want one", and a form's labels are those of Indonesian forms: "Nama lengkap", "Konfirmasi kata sandi baru", "Perihal". A field's help says what to type, "Kosongkan untuk branch apa pun", not English's "Empty: any". A choice of all of something is "Semua proyek", not "Setiap proyek"; a table's columns are what Indonesian tables head them with ("Waktu", "Hasil", "Sumber", "Keterangan", "Status"), and a report's rows go "per hari", "per minggu", never "hari demi hari", which reads as "little by little".
-- **Someone acting for someone** is "atas nama": an agent or a script "atas nama Ada", an agent with its own token "atas nama sendiri", in the history's and the ledger's lines, the notifications and the profile. A rule or an app acting by itself is "otomatis" ("· otomatis ·"); `ui.who.onItsOwn` keeps "dengan sendirinya", since the name before it may be "otomatisasi".
+- **Someone acting for someone** is "atas nama": an agent or a script "atas nama Ada", an agent with its own token "atas nama sendiri", in the history's and the ledger's lines, the notifications and the profile. A rule or an app acting by itself is "otomatis", wherever it shows ("· otomatis ·", "workflow otomatis": `ui.who.onItsOwn` follows an agent's own name, never "otomatisasi"), and a change an agent made by itself is one it made "secara mandiri".
 - **Plain words for the assistant** are "kalimat biasa": "Tanya dengan kalimat biasa", "Tulis perintah dengan kalimat biasa", and its button "Ubah jadi perintah".
-- **Status lines are passive**: "Tersimpan.", "{name} ditambahkan.", "Dihapus."; what is under way is the active form, with the ellipsis: "Menyimpan…", "Mengirim…". The copy button's line, which a screen reader hears while the button itself says "Disalin", puts the word first, "Disalin: token." (`common.copyButton.copied`), since a copied thing's name begins in lower case.
+- **Status lines are passive**: "Tersimpan.", "{name} ditambahkan.", "Dihapus."; what is under way is the active form, with the ellipsis: "Menyimpan…", "Mengirim…". The copy button's line, which a screen reader hears while the button itself says "Disalin", is "Berhasil menyalin token." (`common.copyButton.copied`), the pair of its failure's "Gagal menyalin token.", since a copied thing's name begins in lower case and can't open the line.
 - **Verbs carry no tense.** A line whose place says it happened (the history, a notification) needs no "telah" or "sudah": "mengubah status". "Sudah" is English's "already", "masih" its "still", "belum" its "not yet", and "akan" its "will".
 - **Pronouns have no gender**: "dia", "ia" and "-nya" are anyone's, so a4a never guesses a person's. "-nya" also stands for a thing ("mengubahnya"); where it could be read as either, the sentence names the thing.
 - **Typography**: sentence case, as English's; quotation marks “…”, ‘…’ inside them, in problems too, where English writes straight ones; JSON a script sends keeps its straight quotes (`"all": true`). The one-character ellipsis (…); no space before ":", "?" or "!". A time in prose is written with a point, as Indonesia writes it ("Senin 09.00–17.00"); what a parser reads keeps its colon ("tomorrow 09:30"). An Indonesian prefix on an English word takes a hyphen, as EYD writes it ("di-merge"), and an Indonesian verb is taken where there is one ("diunggah", not "di-upload"). A noun needs no "sebuah" or "seorang" where English's "a" stood before it ("Uji pada isu", "Gambar").
@@ -979,21 +979,23 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 - **Pieces a page joins**:
   - The activity ledger, an issue's history and notifications show who, in bold, then what was done. So an action is an active verb phrase, with its meN- prefix and no subject: "membuat {issue}", "mengomentari", "melaporkan", "menugaskannya kepada Anda". A ledger's badge says what its kind of event does, the same way and as English's do: "berkomentar", "menghapus isu".
   - A webhook's events are joined into "Ketika {join}" by Intl's "or" list, "A atau B", "A, B, atau C", so each is a clause, passive where something is done to a thing: "Ketika isu dibuat atau seseorang berkomentar". The same clauses, with a capital, label the form's checkboxes (`page.webhooks.label.*`).
-  - A rule is one sentence, in English's order, which Indonesian shares: its trigger and conditions are clauses, its actions are imperatives, and the words in `<t0>` are "Saat", "jika" and "maka": "<t0>Saat</t0> isu dibuat, <t0>jika</t0> cocok dengan Type: Bug, <t0>maka</t0> terapkan Assignee anna". An action that does nothing says so without an order: "tidak ada tindakan", "beri tahu “…” (tanpa penerima)".
+  - A rule is one sentence, in English's order, which Indonesian shares: its trigger and conditions are clauses, its actions are imperatives, and the words in `<t0>` are "Saat", "jika" and "maka": "<t0>Saat</t0> isu dibuat, <t0>jika</t0> cocok dengan Type: Bug, <t0>maka</t0> terapkan Assignee anna". An action that does nothing says so without an order: "tidak ada tindakan", "beri tahu “…” (tanpa penerima)". A link's phrase is data, which Indonesian can't turn into a clause about the issues it reaches ("isu yang depends on" reads as the issues that depend), so it names the link in brackets: "semua isu tertaut (depends on) cocok dengan #Unresolved", and "isu tertaut (jenis apa pun)" where the rule takes every link.
   - A board's drop announcements join a lane's piece after "untuk" or "dan", so each piece is a meN- verb: "Lepaskan untuk memindahkan BACK-1 ke Done dan menugaskannya kepada Ada".
   - A loading line is a whole message, one per thing (`loadingLine.*`): "Memuat" and the thing, "Memuat rencana…", "Memuat permintaan Anda…", "Memuat {name}…", and "Memuat…" where nothing is named.
 - **Selects and plurals the Indonesian doesn't need**: a message keeps every placeholder English has. Where Indonesian says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`. Where English selects on a code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`), each case is whole Indonesian, and `other` keeps the code where English's does.
-- **Problems** say what went wrong, then the fix, each a plain sentence: "Nama pengguna atau kata sandi salah.", "Nama itu sudah dipakai. Pilih nama lain." Something a4a can't find is "tidak ditemukan", an unknown project too; what failed is "gagal …" ("{name} gagal dilampirkan."); asking an administrator is "Hubungi administrator". A value to type is asked for with "Masukkan" or "Isi", not English's "Give" ("Masukkan alamat https-nya", "Isi “issue”, misalnya BACK-12"), and a missing one is "wajib diisi" ("Nama wajib diisi."). Someone's change in between is "baru saja diubah orang lain. Muat ulang, lalu ulangi perubahan Anda." Free text from elsewhere (another tracker's words, a script's refusal, a parser's message) stays where English puts it and brings its own full stop. In the query, command and rule problems, the languages' keywords and the fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`).
+- **Problems** say what went wrong, then the fix, each a plain sentence: "Nama pengguna atau kata sandi salah.", "Nama itu sudah dipakai. Pilih nama lain." Something a4a can't find is "tidak ditemukan", an unknown project too; what failed is "gagal …" ("{name} gagal dilampirkan."); asking an administrator is "Hubungi administrator". A value to type is asked for with "Masukkan" or "Isi", not English's "Give" ("Masukkan alamat https-nya", "Isi “issue”, misalnya BACK-12"), something to add to a setting with "Tambahkan" ("Tambahkan GitHub App ke integrasi ini"), and a missing value is "wajib diisi" ("Nama wajib diisi."). Someone's change in between is "baru saja diubah orang lain. Muat ulang, lalu ulangi perubahan Anda." Free text from elsewhere (another tracker's words, a script's refusal, a parser's message) stays where English puts it and brings its own full stop. In the query, command and rule problems, the languages' keywords and the fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`).
 - **You and your**: "Anda" after what it owns, where the owner must be told ("Token Anda", "Permintaan Anda"), and nothing where it's plain: a page's heading is "Profil", not "Profil Anda".
-- **The help desk** is for people outside the team: they send a "permintaan", and are its "pemohon". Its emails and its portal are a company's words to its customers: "Anda", courteous and plain, with no "Yth." or "Bapak/Ibu", since a4a doesn't know who reads them. The first email greets as a service desk does, "Halo {name}, permintaan Anda sudah kami terima.", and the portal asks "Ada yang bisa kami bantu?" over a request's summary.
+- **The help desk** is for people outside the team: they send a "permintaan", and are its "pemohon", never "peminta"; the desk itself is a "layanan bantuan", never "desk", on the team's pages as on the customers'. Its emails and its portal are a company's words to its customers: "Anda", courteous and plain, with no "Yth." or "Bapak/Ibu", since a4a doesn't know who reads them. The first email greets as a service desk does, "Halo {name}, permintaan Anda sudah kami terima.", and the portal asks "Ada yang bisa kami bantu?" over a request's summary.
 - **Data stays as named**: projects, fields and their values, states and tags, inside Indonesian sentences too ("Won't fix memerlukan komentar"). Examples of the query and command languages stay as they are; examples of plain words for the assistant to read are Indonesian.
+- **A whiteboard is seen**, "melihat", as Google Drive's viewers see a file; a project, its issues and its articles are read, "membaca": "Siapa pun yang dapat membaca proyek dapat melihat papan tulisnya", "Siapa yang dapat melihatnya".
+- **Another product's own words** are its interface's: where it speaks only English, as GitHub, Slack, ClickUp and Asana do, its English as it shows it ("lalu klik Add webhook", "List", "personal access token"); where it speaks Indonesian, its Indonesian: an identity provider's "ID klien", "Rahasia klien" and "URI pengalihan", as Google's and Microsoft Entra's consoles name them, and Gitea's and Forgejo's "Aplikasi". OpenID's "Issuer" stays, the discovery document's own key.
 - **Dates and numbers** come from Intl, as Indonesia writes them: "16 Nov 2026", "14.05", "1.234,5", "3 menit yang lalu", and lists "A, B, dan C". Intl reads `id` as `id-ID`, so a4a passes it as it is.
 
-Indonesian teams mostly read their trackers in English, and this catalog found no Indonesian Jira or YouTrack to lean on. So the trackers' own words stay as those teams say them (sprint, backlog, commit, pull request, branch, build, webhook, token, widget), and the everyday ones are those Indonesian software has settled, Google's and Microsoft's: Simpan, Batal, Masuk, Keluar, Pengaturan, Kotak masuk, Notifikasi, Dasbor, Unggah, Unduh.
+Indonesian teams mostly read their trackers in English, and this catalog found no Indonesian Jira or YouTrack to lean on. So the trackers' own words stay as those teams say them (sprint, backlog, story point, velocity, burndown, baseline, milestone, commit, pull request, branch, merge, build, run, check run, webhook, token, widget, timer, secret), and the everyday ones are those Indonesian software has settled, Google's and Microsoft's: Simpan, Batal, Masuk, Keluar, Pengaturan, Kotak masuk, Notifikasi, Dasbor, Unggah, Unduh.
 
 | English | Indonesian |
 |---|---|
-| issue | isu |
+| issue | isu, as GitLab's Indonesian says it ("Isu", "Papan isu") |
 | summary (an issue's title) | ringkasan |
 | description | deskripsi |
 | project | proyek |
@@ -1003,16 +1005,16 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | committed (a sprint's commitment) | komitmen |
 | blocker | penghambat |
 | backlog | backlog |
-| help desk | layanan bantuan |
+| help desk | layanan bantuan, on the team's pages as on the customers'; never "desk" |
 | SLA at risk, breached | berisiko, terlampaui |
 | due, due date | tenggat ("tenggat 2 jam lagi", "Tanpa tenggat"), not "jatuh tempo", a bill's |
 | request (help desk) | permintaan |
-| requester | pemohon |
+| requester | pemohon, as Indonesian request forms' "Nama pemohon"; never "peminta" |
 | copied on a request (CC), copy, stop copying | penerima tembusan, tambahkan ke tembusan, hapus dari tembusan |
 | customer group, kept from the group | grup pelanggan, dirahasiakan dari grup |
 | reporter | pelapor |
 | report (an issue), reported | melaporkan, dilaporkan |
-| assignee, assign | penerima tugas, tugaskan |
+| assignee, assign | penerima tugas, tugaskan, as GitLab's Indonesian says it |
 | agent | agen |
 | assistant (its name), the assistant | assistant, asisten |
 | for (acting for someone), as itself, on its own | atas nama {name}, atas nama sendiri, otomatis |
@@ -1033,10 +1035,15 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | who subscribed a chat channel | pembuat langganan, its column "Penanggung jawab"; not "pelanggan", a customer |
 | watch, watcher | pantau, pemantau |
 | timesheet | lembar waktu |
+| submit, approve, send back (a timesheet); submitted, approved | ajukan, setujui, kembalikan; diajukan, disetujui, as Indonesian offices submit leave. Its buttons name the timesheet ("Ajukan lembar waktu"), since "Minggu ini" is the page's "This week" |
+| a week of time (in an event, a notification, a webhook) | lembar waktu mingguan |
+| week | minggu, never "pekan" (but "akhir pekan") |
+| your own row (a timesheet's, not an issue's) | "Waktu Anda sendiri", "BAU, atau kegiatan lain yang Anda catat" |
 | work logged, log time | waktu tercatat, catat waktu |
 | estimate | estimasi |
 | rate (per hour) | tarif per jam |
-| days away, away | ketidakhadiran, tidak hadir |
+| days away, away | ketidakhadiran, tidak hadir: HR's word, which takes in a sick day or a training as "cuti" doesn't |
+| HR calendar, its feed | kalender SDM, umpan kalender |
 | levelling | perataan beban |
 | slack (in a plan) | kelonggaran |
 | booked (hours in a plan) | dialokasikan: "jam yang dialokasikan" |
@@ -1049,6 +1056,8 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | cost and schedule performance (CPI, SPI) | kinerja biaya, kinerja jadwal |
 | what-if | simulasi |
 | triage | triase |
+| a guard rule, a state machine's moves | aturan penjaga, langkah |
+| script library, shared code; queue (a scripted rule's) | pustaka skrip, kode bersama; antrean |
 | suggestion | saran |
 | tag | tag |
 | token, revoke | token, cabut |
@@ -1060,34 +1069,47 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | not found | tidak ditemukan, after the thing: "Isu {id} tidak ditemukan." |
 | two-factor sign-in | autentikasi dua faktor |
 | sign in, sign out | masuk, keluar |
-| login (a person's handle) | nama pengguna |
+| login (a person's handle) | nama pengguna, beside "Nama lengkap" on a form |
 | identity provider | penyedia identitas |
+| client ID, client secret, redirect URI, issuer (an identity provider's) | ID klien, rahasia klien, URI pengalihan, as Google's and Microsoft Entra's Indonesian consoles name them; Issuer, the discovery document's key |
+| passkey stopped (a copied one) | Dinonaktifkan |
 | single sign-on | single sign-on (SSO) |
 | webhook, delivery | webhook, pengiriman ("Pengiriman terbaru", "pengiriman terakhir"); never "kiriman", a social post |
-| post (a4a or a provider sending to an address) | mengirim |
+| post (a4a or a provider sending to an address) | mengirim; what a provider posts, "pengiriman" or "apa pun yang dikirim penyedia" |
+| origin (of a webhook's address) | asal |
 | secret | secret, as the code hosts' forms name it |
 | commit, pull request, branch | commit, pull request, branch |
 | merge, merged | merge, di-merge |
 | build (CI), CI | build, CI |
+| run, check run, commit status | run, check run, status commit |
+| a paused source's builds, refused politely | diabaikan tanpa pesan kesalahan |
 | field, value | bidang, nilai |
 | link (between issues), unlink | tautan, tautkan; hapus tautan |
+| the issues it {phrase} (in a rule's sentence), any link | isu tertaut ({phrase}), isu tertaut (jenis apa pun) |
 | link, unlink (a chat account) | hubungkan, putuskan |
+| channel, room (Matrix's), homeserver, a post (in a channel) | saluran, ruangan, homeserver, pesan |
+| thread (a chat's), an issue's own | utas, as GitLab's and Discord's Indonesian say it; diskusi |
 | duplicate | duplikat |
 | resolve, resolved, resolution | selesaikan, selesai, penyelesaian |
 | dashboard, widget | dasbor, widget |
 | report | laporan |
 | settings | pengaturan |
-| app, handler (of an app) | aplikasi, penangan |
+| app, handler (of an app) | aplikasi, penangan; Gitea's and Forgejo's Applications settings, "Aplikasi", as their Indonesian names them |
 | allow (an app), apps you allowed | izinkan, "Aplikasi yang Anda izinkan" |
 | person, people | orang (counted: "3 orang"), pengguna (accounts) |
 | role, permission | peran, izin |
 | administrator, manager, member, viewer, guest | administrator, manajer, anggota, pelihat, tamu |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | papan tulis, catatan, kartu, bagian, panah, label, kerangka |
+| see (a whiteboard), who sees it, a whiteboard of your own | melihat, akses ("Simpan akses"), papan tulis pribadi |
+| a picture, a drawing (on a whiteboard); Draw, Picture (its tools) | gambar, not "foto"; gambar tangan; Menggambar, Tambahkan gambar |
 | connect (draw an arrow), make issues (of notes) | hubungkan; jadikan isu |
 | a note's tones: plain, idea, agreed, question, problem, parked | Biasa, Ide, Disepakati, Pertanyaan, Masalah, Ditunda |
 | writing help; where an issue came from (a chat message) | bantuan menulis; asal isu |
+| drafted with the assistant | "Draf teks ini disusun oleh asisten." |
+| undo, redo | batalkan, ulangi, as Microsoft's style guide gives them beside "Batal" for Cancel; "membatalkan perubahan" in the history |
+| acknowledgement (a help desk's first email) | email konfirmasi; not "tanda terima", Outlook's read and delivery receipts |
 
-**Why isu for issue**: it is the word Indonesian developers already say, in KBBI's spelling, and it covers a bug, a task and a request alike. "Masalah" is a problem, which a feature request isn't; "tiket" reads as a help desk's or a train's; "tugas" is a task, one kind of issue among others.
+**Why isu for issue**: it is the word Indonesian developers already say, in KBBI's spelling, and GitLab's Indonesian interface's ("Isu", "Papan isu"), and it covers a bug, a task and a request alike. "Masalah" is a problem, which a feature request isn't; "tiket" reads as a help desk's or a train's; "tugas" is a task, one kind of issue among others.
 
 **Checking Indonesian**: the checks above, then `e2e/indonesian.spec.ts`: a person of its own signs in through an Indonesian browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads Indonesian walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), an issue's history (`issues.issueHistory.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
 
