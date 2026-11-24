@@ -5601,7 +5601,7 @@
   "roles.words.seeTimeAndCosts2": "時間とコストを見る",
   "roles.words.setPrivateFieldsOnIssues": "課題の非公開フィールドを設定します。非公開フィールドを閲覧する権限も必要です。",
   "rules.preview.actsOn": "対象は{target, select, parent {親課題} subtasks {サブタスク} other {「{phrase}」の関係にある課題}}です。",
-  "rules.preview.actsScheduled": "{reach, select, yes {{schedule}に、一致する課題ごとに実行されます。} other {{schedule}に、一致する課題それぞれに対して実行されます。}}",
+  "rules.preview.actsScheduled": "{reach, select, yes {{schedule}に、一致する各課題を起点に実行されます。} other {{schedule}に、一致する課題それぞれに対して実行されます。}}",
   "rules.preview.actsWhen": "{trigger}ときだけ、その課題に対して実行されます。",
   "rules.preview.adminOnly": "保存されていないスクリプトを実行できるのは管理者だけです。",
   "rules.preview.fixScript": "スクリプトを直すと、実行結果が表示されます。",
