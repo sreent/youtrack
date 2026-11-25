@@ -99,7 +99,7 @@
     "package": "node scripts/build.mjs && vsce package --no-dependencies --out dist/a4a.vsix"
   },
   "dependencies": {
-    "@sreent/ocean": "github:sreent/ocean#e68303204aa67fcd39eee8569640a669bed9832f"
+    "@sreent/ocean": "github:sreent/ocean#15a7e4e0fcb31ab3e5e79a0f0aa7d2a44df3715e"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
