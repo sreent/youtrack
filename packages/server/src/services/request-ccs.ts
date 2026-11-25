@@ -276,7 +276,8 @@ export async function ccsOf(db: Db, s: SchemaSnapshot, issueId: string): Promise
     .where(and(eq(requestCcs.issueId, issueId), isNull(requestCcs.removedAt)))
     .orderBy(asc(requestCcs.addedAt), asc(requestCcs.id));
   const ids = [...new Set(rows.flatMap((r) => (r.groupId ? [r.groupId] : [])))];
-  const names = new Map(ids.length ? (await db.select({ id: customerGroups.id, name: customerGroups.name }).from(customerGroups).where(inArray(customerGroups.id, ids))).map((g) => [g.id, g.name]) : []);
+  const groups = ids.length ? await db.select({ id: customerGroups.id, name: customerGroups.name }).from(customerGroups).where(inArray(customerGroups.id, ids)) : [];
+  const names = new Map(groups.map((g) => [g.id, g.name]));
   return (await withHearing(db, issueId, rows)).map(({ row: r, hears }) => {
     const by = r.addedById ? s.users.get(r.addedById) : undefined;
     const group = r.via === 'group' && r.groupId ? (names.get(r.groupId) ?? null) : null;
@@ -401,7 +402,16 @@ export async function copyGroupMembers(tx: Db, app: AppServices, issue: IssueRow
     // a millisecond apart, so they're listed in the cap's order.
     await tx
       .insert(requestCcs)
-      .values({ id: newId(), issueId: issue.id, email: m.email, name: (m.name ?? '').slice(0, 100), via: 'group', groupId: now.id, addedById: null, addedAt: sql`clock_timestamp() + ${n++} * interval '1 millisecond'` })
+      .values({
+        id: newId(),
+        issueId: issue.id,
+        email: m.email,
+        name: (m.name ?? '').slice(0, 100),
+        via: 'group',
+        groupId: now.id,
+        addedById: null,
+        addedAt: sql`clock_timestamp() + ${n++} * interval '1 millisecond'`,
+      })
       .onConflictDoNothing();
     known.add(key);
     active++;
@@ -508,9 +518,10 @@ export async function stopGroupCopies(app: AppServices, groupId: string, request
     const tx = txRaw as unknown as Db;
     // Alone, so a request of the group's filed at this moment copies them before this, or sees it.
     await groupCopyLock(tx, group.id, true);
-    const [kept] = await tx.select().from(groupCopyStops).where(and(eq(groupCopyStops.groupId, group.id), eq(groupCopyStops.requesterId, who.id)));
+    const theirs = and(eq(groupCopyStops.groupId, group.id), eq(groupCopyStops.requesterId, who.id));
+    const [kept] = await tx.select().from(groupCopyStops).where(theirs);
     if (!kept) await tx.insert(groupCopyStops).values({ groupId: group.id, requesterId: who.id }).onConflictDoNothing();
-    else if (kept.resumedAt) await tx.update(groupCopyStops).set({ stoppedAt: sql`clock_timestamp()`, resumedAt: null }).where(and(eq(groupCopyStops.groupId, group.id), eq(groupCopyStops.requesterId, who.id)));
+    else if (kept.resumedAt) await tx.update(groupCopyStops).set({ stoppedAt: sql`clock_timestamp()`, resumedAt: null }).where(theirs);
     // Its open requests that copied them, in one order, so two stops at once lock them alike.
     const open = await tx
       .select({ cc: requestCcs, issue: issues })

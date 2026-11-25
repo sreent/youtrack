@@ -229,7 +229,10 @@ function Members({ project, group, canEdit }: { project: Project; group: Custome
  * requests. Their own choice, which only they turn back on, on the portal.
  */
 function CopyStops({ project, group }: { project: Project; group: CustomerGroup }) {
-  const stops = useQuery({ queryKey: ['customer-group-stops', project.key, group.id, group.stops], queryFn: () => get<GroupCopyStop[]>(`/projects/${project.key}/customer-groups/${group.id}/copy-stops`) });
+  const stops = useQuery({
+    queryKey: ['customer-group-stops', project.key, group.id, group.stops],
+    queryFn: () => get<GroupCopyStop[]>(`/projects/${project.key}/customer-groups/${group.id}/copy-stops`),
+  });
   return (
     <div className="stack tight">
       <p className="note">{t('helpdesk.groups.stopsHelp')}</p>
