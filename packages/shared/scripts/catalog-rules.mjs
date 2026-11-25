@@ -47,8 +47,11 @@ export function pluralTag(locale) {
   return locale === 'en' ? 'en-GB' : locale;
 }
 
-const NAMES = { en: 'English', de: 'German', es: 'Spanish', fr: 'French', id: 'Indonesian', ja: 'Japanese', ko: 'Korean', pt: 'Portuguese', th: 'Thai', vi: 'Vietnamese', zh: 'Chinese' };
-/** A language's name in English, for the checks' and the review's words. */
+/** A language's tag for a page's or a file's `lang`, as `langTag` in src/i18n.ts says it. */
+export const langTagOf = (locale) => (locale === 'pt' ? 'pt-PT' : locale);
+
+const NAMES = { en: 'English', de: 'German', es: 'Spanish', fr: 'French', id: 'Indonesian', ja: 'Japanese', ko: 'Korean', pt: 'Portuguese', th: 'Thai', vi: 'Vietnamese', zh: 'Simplified Chinese' };
+/** A language's name in English, as the docs' headings say it, for the checks' and the review's words. */
 export const languageName = (locale) => NAMES[locale] ?? locale;
 
 /** A message's tree, or a thrown error saying where it doesn't parse. */

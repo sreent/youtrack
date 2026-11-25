@@ -16,7 +16,8 @@
     "test:e2e": "pnpm build && pnpm --filter @a4a/web test:e2e",
     "typecheck": "pnpm -r typecheck",
     "db:seed": "pnpm --filter @a4a/server db:seed",
-    "db:generate": "pnpm --filter @a4a/server db:generate"
+    "db:generate": "pnpm --filter @a4a/server db:generate",
+    "i18n:review": "node packages/shared/scripts/i18n-review.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
