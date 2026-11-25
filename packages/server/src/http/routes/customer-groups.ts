@@ -4,9 +4,9 @@
  * or its being kept from the group, which the team changes as it changes the request.
  */
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import { CustomerDirectorySchema, CustomerGroupBody, CustomerGroupMemberBody, CustomerGroupMemberSchema, CustomerGroupSchema, HelpdeskRequestSchema, RequestUpdateBody } from '@a4a/shared';
+import { CustomerDirectorySchema, CustomerGroupBody, CustomerGroupMemberBody, CustomerGroupMemberSchema, CustomerGroupSchema, GroupCopyStopSchema, HelpdeskRequestSchema, RequestUpdateBody } from '@a4a/shared';
 import { z } from 'zod';
-import { addGroupMember, createCustomerGroup, customerDirectory, deleteCustomerGroup, getCustomerGroup, listCustomerGroups, listGroupMembers, removeGroupMember, updateCustomerGroup } from '../../services/customer-groups';
+import { addGroupMember, createCustomerGroup, customerDirectory, deleteCustomerGroup, getCustomerGroup, listCustomerGroups, listGroupCopyStops, listGroupMembers, removeGroupMember, updateCustomerGroup } from '../../services/customer-groups';
 import { updateRequest } from '../../services/helpdesk';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
@@ -87,6 +87,20 @@ export function customerGroupRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     { method: 'get', path: '/projects/{key}/customer-groups/{id}/members', tags, summary: 'Requesters added to a group by hand', params: KeyId, response: z.array(CustomerGroupMemberSchema) },
     ({ ctx, params }) => listGroupMembers(ctx, params.key, params.id),
+  );
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/projects/{key}/customer-groups/{id}/copy-stops',
+      tags,
+      summary: 'Who of a group stopped its emails',
+      description:
+        "Anyone who reads the desk (D56): its people who stopped being copied on its requests, from a group copy's email or on the portal, so the team can tell why someone isn't hearing of them. Their own choice, which only they undo, on the portal.",
+      params: KeyId,
+      response: z.array(GroupCopyStopSchema),
+    },
+    ({ ctx, params }) => listGroupCopyStops(ctx, params.key, params.id),
   );
   route(
     app,

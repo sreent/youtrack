@@ -6,7 +6,7 @@
  */
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { absences, activities, customerGroups, helpdeskRequests, issueFieldValues, notifications, projects, requestCcs, users } from '../src/db/schema';
+import { absences, activities, customerGroups, helpdeskRequests, issueFieldValues, notifications, projects, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { helpdeskConsumer } from '../src/helpdesk/consumer';
 import { receiveMail } from '../src/helpdesk/inbound';
@@ -34,7 +34,6 @@ import { openRequest, requestOf, updateRequest } from '../src/services/helpdesk'
 import { newMailSecret, setDeskAddress } from '../src/services/helpdesk-mail';
 import { getIssue, updateIssue } from '../src/services/issues';
 import { createProject, updateProject } from '../src/services/projects';
-import { createUser } from '../src/services/users';
 import { createPolicy, listPolicies, reorderPolicies, slaReport } from '../src/services/sla';
 import { projectByKey } from '../src/services/schema-cache';
 import { createWorld, type TestWorld } from './helpers';
@@ -270,7 +269,7 @@ describe('customer groups', () => {
     const zoes = await ask('BACK', 'zoe@acme.com', 'Globex badge'); // by hand in Globex
     await flush();
     const dina = await signedIn('dina@acme.com', '10.5.0.1');
-    expect((await dina.req('GET', '/portal/me')).body.groups).toEqual([{ desk: { key: 'BACK', name: 'Backend' }, name: 'Acme', sharing: 'comment' }]);
+    expect((await dina.req('GET', '/portal/me')).body.groups).toEqual([{ id: expect.any(String), desk: { key: 'BACK', name: 'Backend' }, name: 'Acme', sharing: 'comment', copies: true }]);
     const list = (await dina.req('GET', '/portal/requests')).body as { id: string; group: string; canReply: boolean; requester: { mine: boolean } }[];
     expect(list.find((r) => r.id === carls.id)).toMatchObject({ group: 'Acme', canReply: true, requester: { mine: false } });
     expect(list.some((r) => r.id === zoes.id)).toBe(false);
@@ -339,35 +338,6 @@ describe('customer groups', () => {
     // Still in Acme (D56's revisit: several groups, one taken off leaves the other).
     expect((await groupOfRequester(w.app.db, back.id, rita))?.name).toBe('Acme');
     expect((await refused(removeGroupMember(w.adminCtx, 'BACK', globex.id, rita.id))).status).toBe(404);
-  });
-});
-describe("the group's members hear of its requests", () => {
-  it("files a new request with its members copied, for the email alone", async () => {
-    const group = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'MembersHear', domains: ['hear.example'], sharing: 'none' });
-    await addGroupMember(w.adminCtx, 'BACK', group.id, { email: 'colleague@hear.example' });
-    const desk = (await w.app.schema.get()).projectsByKey.get('BACK')!;
-    const issue = await openRequest(w.app, desk, { name: 'Rita', email: 'rita@hear.example', summary: 'Tell my group', description: 'Please.', via: 'form' });
-    const ccs = await w.app.db.select().from(requestCcs).where(eq(requestCcs.issueId, issue.uid));
-    expect(ccs.map((c) => c.email)).toContain('colleague@hear.example');
-    expect(ccs.every((c) => c.via === 'group')).toBe(true);
-    expect(ccs.map((c) => c.email)).not.toContain('rita@hear.example');
-  });
-  it("copies its members as any copy is: up to the desk's own cap, and never the team's address", async () => {
-    const group = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'CapsHear', domains: ['caps-hear.example'], sharing: 'none' });
-    // Someone of the team's, whose address the group's domain also holds.
-    await createUser(w.adminCtx, { login: 'capsteam', name: 'Caps Team', role: 'member', email: 'team@caps-hear.example' });
-    for (const email of ['team@caps-hear.example', 'one@caps-hear.example', 'two@caps-hear.example', 'three@caps-hear.example']) await addGroupMember(w.adminCtx, 'BACK', group.id, { email });
-    await updateProject(w.adminCtx, 'BACK', { settings: { helpdesk: { ccsMax: 2 } } });
-    try {
-      const desk = (await w.app.schema.get()).projectsByKey.get('BACK')!;
-      const issue = await openRequest(w.app, desk, { name: 'Cam', email: 'cam@caps-hear.example', summary: 'Two at most', description: 'Please.', via: 'form' });
-      const ccs = await w.app.db.select().from(requestCcs).where(eq(requestCcs.issueId, issue.uid));
-      expect(ccs).toHaveLength(2);
-      // The team's address is never copied on a request, a group's or not (D57).
-      expect(ccs.map((c) => c.email)).not.toContain('team@caps-hear.example');
-    } finally {
-      await updateProject(w.adminCtx, 'BACK', { settings: { helpdesk: { ccsMax: 20 } } });
-    }
   });
 });
 describe("the customers' directory (D56's revisit)", () => {

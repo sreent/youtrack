@@ -16,7 +16,7 @@ import { deskSender } from '../services/desk-mailbox';
 import { mintReplyToken, replyAddress } from './addresses';
 import type { Translator } from '@a4a/shared/i18n';
 import { translatorFor } from '../i18n';
-import { ccById, ccsToTell, forgetCcConfirmation, heldOf, mintCcConfirmation } from '../services/request-ccs';
+import { ccById, ccsToTell, copyStanding, forgetCcConfirmation, groupStopSubject, heldOf, mintCcConfirmation } from '../services/request-ccs';
 import { readableId } from '../services/issue-refs';
 import type { SchemaSnapshot } from '../services/schema-cache';
 
@@ -151,11 +151,22 @@ async function publicReply(app: AppServices, s: SchemaSnapshot, tr: Translator, 
  * and its changes of state, said as someone else's request. Its reply address answers for them
  * alone, its link opens the request on the portal (never the requester's tracking link, which would
  * speak in the requester's name), and its unsubscribe link takes them off the request.
+ *
+ * One of its customer group's people (D56's revisit) hears only while the group shares the request
+ * with them, checked as it's sent; their email says it's because of the group, and how replying works
+ * for them: a reply address only where the group lets its people answer, and a link that stops the
+ * group's emails, since their reason is the group, not this request.
  */
 async function renderCcMail(app: AppServices, row: MailRow, p: Payload): Promise<RenderedMail | null> {
   const cc = await ccById(app.db, String(p.ccId));
   // Taken off since it was queued: they hear nothing more.
   if (!cc || cc.removedAt) return null;
+  // Nor does a group's copy the group no longer shares this request with (D56's revisit).
+  const standing = await copyStanding(app.db, cc);
+  if (!standing.hears) return null;
+  const grouped = standing.group && standing.requesterId ? { ...standing.group, requesterId: standing.requesterId } : null;
+  // Only where its group lets its people answer each other's requests do they get an address to reply to.
+  const answers = !grouped || grouped.sharing === 'comment';
   const [found] = await app.db
     .select({ request: helpdeskRequests, requester: requesters, issue: issues })
     .from(helpdeskRequests)
@@ -185,18 +196,22 @@ async function renderCcMail(app: AppServices, row: MailRow, p: Payload): Promise
     return null; // only what follows: they don't get the requester's acknowledgement
   }
 
-  const stop = await unsubscribeToken(app, 'cc', cc.id);
+  const stop = grouped ? await unsubscribeToken(app, 'group', groupStopSubject(grouped.id, grouped.requesterId)) : await unsubscribeToken(app, 'cc', cc.id);
   const deskMail = await deskAddress(app, issue.projectId);
-  const replyToken = deskMail ? await mintReplyToken(app.db, issue.id, cc.email) : null;
+  const replyToken = deskMail && answers ? await mintReplyToken(app.db, issue.id, cc.email) : null;
   const base = app.config.publicUrl;
   const subject = `Re: ${issue.summary}`;
   const { text, html } = composeMail(subject, {
     lang: langTag(tr.locale),
     lead,
     sections: quote ? [{ head: tr.t('server.helpdesk.theyWrote'), quote }] : [],
-    action: { label: tr.t('server.helpdesk.cc.seeRequest'), url: `${base}/portal?request=${encodeURIComponent(readableId(s, issue))}` },
-    why: replyToken ? tr.t('server.helpdesk.cc.whyAnswer', { desk, requester: asker }) : tr.t('server.helpdesk.cc.whyLink', { desk, requester: asker }),
-    stop: { label: tr.t('server.helpdesk.cc.stop'), url: `${base}/unsubscribe?token=${encodeURIComponent(stop)}` },
+    action: { label: answers ? tr.t('server.helpdesk.cc.seeRequest') : tr.t('server.helpdesk.groupCopy.seeRequest'), url: `${base}/portal?request=${encodeURIComponent(readableId(s, issue))}` },
+    why: grouped
+      ? tr.t('server.helpdesk.groupCopy.why', { group: grouped.name, desk, how: !answers ? 'read' : replyToken ? 'email' : 'portal' })
+      : replyToken
+        ? tr.t('server.helpdesk.cc.whyAnswer', { desk, requester: asker })
+        : tr.t('server.helpdesk.cc.whyLink', { desk, requester: asker }),
+    stop: { label: grouped ? tr.t('server.helpdesk.groupCopy.stop', { group: grouped.name }) : tr.t('server.helpdesk.cc.stop'), url: `${base}/unsubscribe?token=${encodeURIComponent(stop)}` },
   });
   const from = project ? await deskSender(app, project.id, project.name) : undefined;
   return {

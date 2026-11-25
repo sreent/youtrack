@@ -1408,7 +1408,8 @@ export const requesters = pgTable(
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('requesters_email_lower').on(sql`lower(${t.email})`)],
+  // A customer group's domain names its people by their address's domain (D56): its copies read them by it.
+  (t) => [uniqueIndex('requesters_email_lower').on(sql`lower(${t.email})`), index('requesters_domain').on(sql`lower(split_part(${t.email}, '@', 2))`)],
 );
 
 /** An issue that came in through a project's help desk: who asked, and the first-response target then in force. */
@@ -2970,14 +2971,16 @@ export const requestCcs = pgTable(
     email: text('email').notNull(),
     /** As whoever copied them named them (an email's Cc, the team, the requester); empty for none. */
     name: text('name').notNull().default(''),
-    /** 'team', 'email' (the Cc of the requester's email) or 'portal' (the requester, signed in). */
+    /** 'team', 'email' (the Cc of the requester's email), 'portal' (the requester, signed in) or 'group' (one of its customer group's people, D56's revisit). */
     via: text('via').notNull(),
+    /** For a group's copy, the customer group that copied them: they hear only while it shares the request with them (D56's revisit). */
+    groupId: text('group_id').references(() => customerGroups.id, { onDelete: 'set null' }),
     /** Whoever on the team copied them; null when the requester did. */
     addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
     addedAt: ts('added_at').notNull().defaultNow(),
     /** No longer copied. They're told nothing, can't answer, and an email's Cc doesn't add them back. */
     removedAt: ts('removed_at'),
-    /** 'team'; 'unsubscribe': they stopped it themselves, from an email; or 'portal': its requester took them off (D67). */
+    /** 'team'; 'unsubscribe': they stopped it themselves, from an email; 'portal': its requester took them off (D67); or 'group': they stopped their group's copies (D56's revisit). */
     removedVia: text('removed_via'),
     removedById: text('removed_by_id').references(() => users.id, { onDelete: 'set null' }),
   },
@@ -3674,4 +3677,30 @@ export const passkeySetupLinks = pgTable(
     createdAt: created(),
   },
   (t) => [index('passkey_setup_links_user').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// Group copies (wave 8: docs/architecture.md, D56's revisit)
+// ---------------------------------------------------------------------------
+
+/**
+ * Someone of a customer group who stopped its copies (D56's revisit): from a group copy's email, or on
+ * the portal. Per group and requester, since a domain's people have no member row. While stopped
+ * (`resumedAt` null) its new requests don't copy them; turned back on, copies made since hear, and those
+ * made before the stop never do again.
+ */
+export const groupCopyStops = pgTable(
+  'group_copy_stops',
+  {
+    groupId: text('group_id')
+      .notNull()
+      .references(() => customerGroups.id, { onDelete: 'cascade' }),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    stoppedAt: ts('stopped_at').notNull().defaultNow(),
+    /** When they turned its copies back on; null while they're stopped. */
+    resumedAt: ts('resumed_at'),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.requesterId] }), index('group_copy_stops_requester').on(t.requesterId)],
 );
