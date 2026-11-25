@@ -99,7 +99,8 @@ test('a held CC is confirmed by the acknowledgement’s link, and the requester 
   const own = await browser.newContext({ baseURL: server.url, locale: 'en-GB', viewport: { width: 1280, height: 900 } });
   const ownWatch = await prepareContext(own);
   const jane = await own.newPage();
-  await jane.goto(/(\/portal#hdc_[A-Za-z0-9_-]{43})/.exec(ack.text)![1]!);
+  const confirmLink = /(\/portal#hdc_[A-Za-z0-9_-]{43})/.exec(ack.text)![1]!;
+  await jane.goto(confirmLink);
   await expect(jane.getByRole('heading', { name: 'Confirm whom you copied' })).toBeVisible();
   await expect(jane.getByRole('checkbox', { name: new RegExp(OLA) })).toBeChecked();
   await jane.getByRole('checkbox', { name: new RegExp(BOB) }).uncheck();
@@ -108,9 +109,14 @@ test('a held CC is confirmed by the acknowledgement’s link, and the requester 
   await jane.getByRole('button', { name: 'Copy whom I chose' }).click();
   await expect(jane.getByRole('status')).toHaveText('1 person is copied: they get the team’s replies from now on.');
   await expect(jane.getByText('1 is dropped, and told nothing.')).toBeVisible();
-  // Used, the link says so, as a stale or unknown one would, and offers the portal; its API's 401 is expected.
+  // Used, the link gives way in the address to the request it was about (D63's revisit): a reload can't
+  // spend it again, and finds the portal asking her to sign in to see it.
+  await expect(jane).toHaveURL(/\/portal\?request=CCD-1$/);
   ownWatch.allow(/status of 401/);
   await jane.reload();
+  await expect(jane.getByRole('textbox', { name: 'Your email' })).toBeVisible();
+  // Opened again from her email, the used link says so, as a stale or unknown one would, and offers the portal; its API's 401 is expected.
+  await jane.goto(confirmLink);
   await expect(jane.getByText(/This link has expired or was used/)).toBeVisible();
   await expect(jane.getByRole('link', { name: 'Open the portal' })).toBeVisible();
 
