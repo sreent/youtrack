@@ -23,8 +23,10 @@ const flag = (name) => {
   return i < 0 ? null : (rest[i + 1] ?? '');
 };
 const usage = 'Usage:\n  pnpm i18n:review export <lang|all> [--out <folder, or file.xlsx>]\n  pnpm i18n:review import <file.xlsx> [--dry-run] [--reader "<name>"]';
-const quote = (s) => `“${String(s).replace(/\n/g, '⏎')}”`;
-const indent = (s) => String(s).split('\n').join('\n      ');
+/** What a sheet's reader wrote, made safe for a terminal: a control or a direction mark is shown, never sent. */
+const shown = (s) => String(s).replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F​-‏‪-‮⁦-⁩]/g, (c) => `<U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}>`);
+const quote = (s) => `“${shown(s).replace(/\n/g, '⏎')}”`;
+const indent = (s) => shown(s).split('\n').join('\n      ');
 
 async function main() {
   if (command === 'export' && subject) {
@@ -54,7 +56,7 @@ async function main() {
     }
     if (r.refused.length) {
       console.log('\nRefused (the catalog keeps its words):');
-      for (const x of r.refused) console.log(`  ${x.key}${x.row ? ` (row ${x.row})` : ''}: ${quote(x.suggestion)}\n      ${x.why.map(indent).join('\n      ')}`);
+      for (const x of r.refused) console.log(`  ${shown(x.key)}${x.row ? ` (row ${x.row})` : ''}: ${quote(x.suggestion)}\n      ${x.why.map(indent).join('\n      ')}`);
     }
     if (r.notes.length) {
       console.log("\nThe reader's notes:");
@@ -62,14 +64,14 @@ async function main() {
     }
     if (r.answers.length) {
       console.log("\nThe reader's answers:");
-      for (const a of r.answers) console.log(`  ${a.kind}: ${indent(a.question)}\n    → ${indent(a.answer)}`);
+      for (const a of r.answers) console.log(`  ${shown(a.kind)}: ${indent(a.question)}\n    → ${indent(a.answer)}`);
     }
     if (r.terms.length) {
       console.log('\nBetter terms (change them by hand, with the terms table in docs/translating.md):');
       for (const t of r.terms) {
         const prefixes = new Map();
         for (const k of t.messages) prefixes.set(k.split('.').slice(0, 2).join('.'), (prefixes.get(k.split('.').slice(0, 2).join('.')) ?? 0) + 1);
-        console.log(`  ${t.english}: now ${quote(t.word)}${t.better ? `, better ${quote(t.better)}` : ''}${t.note ? `\n      ${indent(t.note)}` : ''}`);
+        console.log(`  ${shown(t.english)}: now ${quote(t.word)}${t.better ? `, better ${quote(t.better)}` : ''}${t.note ? `\n      ${indent(t.note)}` : ''}`);
         console.log(`      ${t.messages.length} messages say ${quote(t.form)}${prefixes.size ? `: ${[...prefixes].map(([p, n]) => `${p} (${n})`).join(', ')}` : ''}`);
       }
     }

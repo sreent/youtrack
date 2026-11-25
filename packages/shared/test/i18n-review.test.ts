@@ -296,6 +296,23 @@ describe('a native speaker’s sheet', () => {
     const bare = path.join(r.root, 'bare.xlsx');
     writeFileSync(bare, zip([['xl/workbook.xml', '<workbook><sheets/></workbook>']]));
     await expect(bring(r, bare)).rejects.toThrow(/isn't an a4a review sheet/);
+    // Entities are where XML hides its bombs: a sheet never declares any.
+    const entities = path.join(r.root, 'entities.xlsx');
+    writeFileSync(entities, zip([['xl/workbook.xml', '<!DOCTYPE x [<!ENTITY a "aaaa">]><workbook><sheets/></workbook>']]));
+    await expect(bring(r, entities)).rejects.toThrow(/declares a DOCTYPE/);
+    // A part whose bytes don't match its checksum is refused, not half read.
+    const damaged = zip([['xl/workbook.xml', '<workbook><sheets/></workbook>']]);
+    damaged[damaged.indexOf(Buffer.from('xl/workbook.xml')) + 'xl/workbook.xml'.length + 2] ^= 0xff;
+    const file = path.join(r.root, 'damaged.xlsx');
+    writeFileSync(file, damaged);
+    await expect(bring(r, file)).rejects.toThrow(/can't be read as a sheet/);
+  });
+
+  it('names a reader only as the owner gives the name, and nothing else of it reaches the docs', async () => {
+    const r = repo();
+    const report = await bring(r, fillIn(await sheetFor(r), [{ key: 'page.issue.save', suggestion: 'บันทึกเลย' }]), { dryRun: true, reader: 'Ana\n## Owned `x` [link](y)' });
+    expect(report.record).toMatch(/, by Ana ## Owned x link \(y\): 1 change/);
+    expect(report.record).not.toMatch(/\n|`x`|\[/);
   });
 });
 
