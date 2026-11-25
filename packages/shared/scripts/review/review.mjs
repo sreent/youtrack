@@ -262,9 +262,10 @@ const alive = (pid) => {
 
 /**
  * One import at a time, across processes: a lock file beside the catalogs, made with O_EXCL. One
- * whose process is gone is taken over; a live one is waited for, up to `wait` ms.
+ * whose process is gone is taken over; a live one is waited for, up to `wait` ms, which leaves it
+ * time to run check:words.
  */
-async function withLock(root, fn, wait = 15000) {
+async function withLock(root, fn, wait = 180000) {
   const lock = path.join(root, 'packages/shared/i18n/.review.lock');
   const until = Date.now() + wait;
   for (;;) {
@@ -518,9 +519,12 @@ export async function importSheet({ root, file, dryRun = false, reader = null, n
       report.wrote = true;
       report.checked = await check(root);
       if (!report.checked.ok) {
+        const said = report.checked.output.split('\n').slice(0, 30).join('\n');
+        // Put back only what this import wrote: a save by someone else since stays theirs.
+        if ((await readFile(target, 'utf8')) !== catalogText(next)) throw new ReviewError(`check:words failed after the write, and ${locale}.json was saved by someone else since, so it's left as they saved it. It said:\n${said}`);
         await writeWhole(target, before);
         report.wrote = false;
-        throw new ReviewError(`check:words failed after the write, so ${locale}.json is as it was, and nothing was recorded. It said:\n${report.checked.output.split('\n').slice(0, 30).join('\n')}`);
+        throw new ReviewError(`check:words failed after the write, so ${locale}.json is as it was, and nothing was recorded. It said:\n${said}`);
       }
     }
     if (docAfter !== docBefore) await writeWhole(docFile, docAfter);
