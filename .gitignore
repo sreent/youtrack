@@ -10,5 +10,9 @@ packages/server/test-results/
 apps/web/test-results/
 playwright-report/
 
+# A native speaker's sheet brought back (pnpm i18n:review import): its lock, and a write cut short
+packages/shared/i18n/.review.lock
+*.review-tmp
+
 # Git worktrees that Claude Code makes for agents working in parallel
 .claude/worktrees/

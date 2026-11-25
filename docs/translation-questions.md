@@ -4,15 +4,19 @@ German, Spanish, French and Japanese were each translated, then read again whole
 
 On 24 November 2026 a model editor for each language settled the questions this page then held, about a thousand across the ten languages. Each decided from how the interfaces its readers use every day say a thing (Microsoft's, Apple's and Google's, GitHub's, GitLab's and Atlassian's documentation, the language's style guides), applied each decision across its catalog, and put each term it settled in its language's table in [translating.md](translating.md). None of those editors is a native speaker either.
 
-What follows is what's left, by language: what needs a native speaker's ear, or the code to change. Each item names its key, says what the catalog says now, and asks the question.
+What follows is what's left, by language: what needs a native speaker's ear, or the code to change. Each item names its key, says what the catalog says now, and asks the question. Each language's head says whether a native speaker has read it, how far and when: [A native speaker's read](translating.md#a-native-speakers-read) makes them a sheet with these questions in it, and its import writes that line.
 
-To settle one, change the message in its catalog and take the item off this page. If it's a term, change it everywhere and put it in the language's terms table in [translating.md](translating.md). `pnpm --filter @a4a/web check:words` checks that every message still parses, with English's placeholders.
+To settle one, change the message in its catalog and take the item off this page. If it's a term, change it everywhere and put it in the language's terms table in [translating.md](translating.md). `pnpm --filter @a4a/web check:words` checks that every message still parses and keeps what English's must: its placeholders and tags, a select's cases, the language's plural categories and `#`.
 
 ## German
+
+**Read by a native speaker:** not yet.
 
 Its open questions were settled by a model editor's pass on 24 November 2026: 91 settled, 0 left for a native speaker.
 
 ## Spanish
+
+**Read by a native speaker:** not yet.
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says.
 
@@ -20,15 +24,21 @@ Its open questions were settled by a model editor's pass on 24 November 2026: 89
 
 ## French
 
+**Read by a native speaker:** not yet.
+
 Its open questions were settled by a model editor's pass on 24 November 2026: 91 settled, 1 answered since by the code (a4a elides "de" before a value), and 4 questions for the product moved to [the end of this page](#for-the-product-not-a-language).
 
 ## Japanese
+
+**Read by a native speaker:** not yet.
 
 Its open questions were settled by a model editor's pass on 24 November 2026: 87 settled, and 2 questions for the product moved to [the end of this page](#for-the-product-not-a-language).
 
 ## Portuguese
 
-`pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
+**Read by a native speaker:** not yet.
+
+`pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. These are the choices a native speaker should settle.
 
 Its open questions were settled by a model editor's pass on 24 November 2026: 73 settled, 1 left for a native speaker.
 
@@ -42,7 +52,9 @@ Needs the code to change:
 
 ## Korean
 
-Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
+**Read by a native speaker:** not yet.
+
+Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"). Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
 
 Its open questions were settled by a model editor's pass on 24 November 2026: 105 settled, 2 answered since by changes to the code (whom a rule told, "Anna, Ben 외 3명"; and its lines breaking at its spaces, below), and 1 left for a native speaker.
 
@@ -50,19 +62,25 @@ Its open questions were settled by a model editor's pass on 24 November 2026: 10
 
 ## Simplified Chinese
 
-The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
+**Read by a native speaker:** not yet.
+
+The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing").
 
 Its open questions were settled by a model editor's pass on 24 November 2026: 103 settled, and its last 3 answered since by changes to the code: no space beside a value written in Chinese, 和 and 或 spaced beside a Latin item, and Traditional Chinese readers given their next language (D49).
 
 ## Vietnamese
 
-Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
+**Read by a native speaker:** not yet.
+
+Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing").
 
 Its open questions were settled by a model editor's pass on 24 November 2026: 113 settled, and 1 question for the product moved to [the end of this page](#for-the-product-not-a-language).
 
 ## Indonesian
 
-Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
+**Read by a native speaker:** not yet.
+
+Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing").
 
 Its open questions were settled by a model editor's pass on 24 November 2026: 110 settled, 1 left for a native speaker.
 
@@ -70,7 +88,9 @@ Its open questions were settled by a model editor's pass on 24 November 2026: 11
 
 ## Thai
 
-Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
+**Read by a native speaker:** not yet.
+
+Thai was written in one pass by a writer who isn't a native speaker, as the others were. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
 
 Its open questions were settled by a model editor's pass on 24 November 2026: 111 settled, and its last answered in part since by the code: a value that is one of the catalog's own words joins as a word, and what's left of it, a name beside a pause, is under [What a catalog can't say yet](#what-a-catalog-cant-say-yet).
 

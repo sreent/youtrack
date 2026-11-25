@@ -479,7 +479,7 @@ Then download the app package from the Chat page (Download the Teams app), uploa
 pnpm test
 ```
 
-This runs the web app's three checks, then the server's tests on in-memory PGlite, then the VS Code extension's tests. The checks are `check:design` (a4a's look is all Ocean's: its stylesheets may hold no rules of their own), `check:words` (every catalog has English's messages, no words people read are written into the code, and in every language a control's name holds the words it shows) and `check:problems` (every problem the server makes has a key in the catalogs). To run the server's tests against a real Postgres server, where each test file gets its own database:
+This runs the web app's three checks, then the server's tests on in-memory PGlite, then the VS Code extension's tests. The checks are `check:design` (a4a's look is all Ocean's: its stylesheets may hold no rules of their own), `check:words` (every catalog has English's messages, each keeping English's placeholders, select cases, plurals and tags, in its language's typography; no words people read are written into the code, and in every language a control's name holds the words it shows) and `check:problems` (every problem the server makes has a key in the catalogs). To run the server's tests against a real Postgres server, where each test file gets its own database:
 
 ```bash
 TEST_DATABASE_URL=postgres://user@localhost:5432/postgres pnpm test
@@ -524,7 +524,7 @@ CI runs these for DeepSeek and Qwen, on `main` and when run by hand, each when i
 | `packages/mcp-bridge` | `a4a-mcp`, the stdio bridge |
 | `packages/vscode` | The VS Code extension |
 | `apps/web` | The web UI on Ocean |
-| `docs/` | [What the API and MCP can do](docs/mcp-and-api.md), [the architecture and its decisions](docs/architecture.md), [translating a4a](docs/translating.md) and [the questions for native speakers](docs/translation-questions.md) |
+| `docs/` | [What the API and MCP can do](docs/mcp-and-api.md), [the architecture and its decisions](docs/architecture.md), [translating a4a](docs/translating.md), [the questions for native speakers](docs/translation-questions.md), and [a native speaker's read](docs/translating.md#a-native-speakers-read): a sheet a reader can finish in an hour (`pnpm i18n:review export <lang>`), and an import that checks every suggestion before it writes one (`pnpm i18n:review import <file>`) |
 
 The schema lives in `packages/server/src/db/schema.ts`. Migrations are generated with:
 
