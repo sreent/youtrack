@@ -125,7 +125,8 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       const text =
         e.type === 'request.cc_added'
           ? tr('activity.ledgerEntry.copiedOn', { email, issue })
-          : tr('activity.ledgerEntry.stoppedCopyingOn', { via: e.data.via === 'unsubscribe' ? 'unsubscribe' : 'team', email, issue });
+          : // Stopping their customer group's emails is them stopping too (D56's revisit).
+            tr('activity.ledgerEntry.stoppedCopyingOn', { via: e.data.via === 'unsubscribe' || e.data.via === 'group' ? 'unsubscribe' : 'team', email, issue });
       return { text: <>{text}</>, badge: ['outside', t('activity.ledgerEntry.changesWhoIsCopied')] };
     }
     case 'issue.updated':

@@ -275,7 +275,8 @@ const getIssueTool = defineTool({
               firstResponse: request.firstResponse.state,
               due: request.firstResponse.dueAt,
               emailMuted: request.emailMuted || undefined,
-              copied: request.ccs.length ? request.ccs.map((c) => c.email) : undefined,
+              // Those who hear of it now: a customer group's copy only while the group shares it with them (D56).
+              copied: request.ccs.some((c) => c.hears) ? request.ccs.filter((c) => c.hears).map((c) => c.email) : undefined,
               customerGroup: request.group?.name ?? undefined,
               private: request.private || undefined,
             }

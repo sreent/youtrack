@@ -26,7 +26,7 @@ import { groupsOfRequester, requesterByEmail, sharingOf, type GroupRow } from '.
 import { botCtx, deskProject, openRequest, postRequesterReply } from './helpdesk';
 import { applyChanges } from './issues';
 import { publishActivities } from '../events/activity';
-import { copyFromPortal, deskCcsMax, heldOf, portalCcsOf, refusalProblem, settleHeld, uncopyFromPortal } from './request-ccs';
+import { copyFromPortal, deskCcsMax, groupCopiesStopped, heldOf, portalCcsOf, refusalProblem, resumeGroupCopies, settleHeld, stopGroupCopies, uncopyFromPortal } from './request-ccs';
 import { outsideAuthors, outsideKey } from './request-authors';
 import { readableId, stateNames } from './issue-refs';
 import { projectSettings } from './projects';
@@ -180,9 +180,12 @@ async function sharingGroups(app: AppServices, r: PortalViewer): Promise<GroupRo
 async function meOf(app: AppServices, r: PortalViewer): Promise<PortalMe> {
   const s = await app.schema.get();
   const view = await viewOf(app, r);
+  // Each copies them on its new requests (D56's revisit) unless they stopped its emails.
+  const stopped = new Set<string>();
+  for (const g of view.sharing) if (await groupCopiesStopped(app.db, g.id, r.id)) stopped.add(g.id);
   const groups = view.sharing.flatMap((g) => {
     const desk = s.projects.get(g.projectId);
-    return desk && !desk.archived ? [{ desk: { key: desk.key, name: desk.name }, name: g.name, sharing: g.sharing as 'read' | 'comment' }] : [];
+    return desk && !desk.archived ? [{ id: g.id, desk: { key: desk.key, name: desk.name }, name: g.name, sharing: g.sharing as 'read' | 'comment', copies: !stopped.has(g.id) }] : [];
   });
   // Desks with requests of their own this session doesn't open: how each signs them in instead.
   const asked = await app.db.selectDistinct({ projectId: helpdeskRequests.projectId }).from(helpdeskRequests).where(eq(helpdeskRequests.requesterId, r.id));
@@ -227,6 +230,20 @@ export async function updatePortalMe(app: AppServices, r: PortalViewer, input: {
   if (Object.keys(set).length) await app.db.update(requesters).set({ ...set, updatedAt: new Date() }).where(eq(requesters.id, r.id));
   const [fresh] = await app.db.select().from(requesters).where(eq(requesters.id, r.id));
   return meOf(app, { ...fresh!, signedIn: r.signedIn });
+}
+
+/**
+ * Their switch for a group of theirs (D56's revisit): off stops its emails, as a group copy's link
+ * does, taking them off its open requests; on copies them on its new requests from now on, not on the
+ * ones they stopped. Only a group the portal lists for them; any other is missing, alike. Their own
+ * choice, told to nobody. Saying what it is already changes nothing.
+ */
+export async function portalSetGroupCopies(app: AppServices, r: PortalViewer, groupId: string, copies: boolean): Promise<PortalMe> {
+  const mine = (await meOf(app, r)).groups.find((g) => g.id === groupId);
+  if (!mine) throw new AppError(404, 'not_found', "There's no group of yours here", 'Choose one of the groups listed on your page.').said('portal.noGroupHere');
+  if (copies) await resumeGroupCopies(app, groupId, r.id);
+  else await stopGroupCopies(app, groupId, r.id, 'portal');
+  return meOf(app, r);
 }
 
 type Row = { request: typeof helpdeskRequests.$inferSelect; issue: typeof issues.$inferSelect; requester: RequesterRow; copied: boolean };
@@ -342,12 +359,6 @@ export async function portalRequest(app: AppServices, r: PortalViewer, id: strin
   };
 }
 
-/**
- * Their reply: on a request of their own; on one they're copied on (D57); or on one of their group's
- * where the group lets its members answer each other's (D56). A public comment in their name, as on
- * the tracking page. A colleague's reaches the request's requester by email too; a4a carries no words
- * of someone copied to anyone (D57).
- */
 /** A request of theirs, their group's (where it shares) or one they're copied on, for what their
  * pages' own seam needs (D39's pictures, D59's writing help): its issue and whether they may
  * answer it. Missing to anyone else, in the portal's words.
@@ -358,6 +369,12 @@ export async function requesterRequest(app: AppServices, r: PortalViewer, id: st
   return { issue: row.issue, canReply: requesterMayComment(row.request, r, groups, row.copied) };
 }
 
+/**
+ * Their reply: on a request of their own; on one they're copied on (D57); or on one of their group's
+ * where the group lets its members answer each other's (D56). A public comment in their name, as on
+ * the tracking page. A colleague's reaches the request's requester by email too; a4a carries no words
+ * of someone copied to anyone (D57).
+ */
 export async function portalReply(app: AppServices, r: PortalViewer, id: string, text: string, aiDrafted = false): Promise<PortalRequestDetail> {
   const groups = sharingOf(await sharingGroups(app, r));
   const row = await oneRow(app, r, id, groups);

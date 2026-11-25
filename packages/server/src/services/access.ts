@@ -914,6 +914,31 @@ export function requesterSees(request: RequestSharing, viewer: { id: string }, g
   return sharing === 'read' || sharing === 'comment';
 }
 
+/**
+ * Where someone a customer group copied on a request stands with that group now (D56's revisit),
+ * read by `groupCopyStandings` (services/customer-groups.ts): what the group shares (null when it's
+ * gone), whether the address is still its member, by hand or by a domain, and their own choice:
+ * `stopped` while they've stopped its emails, else when they last turned them back on (null for never).
+ */
+export type GroupCopyStanding = { sharing: 'none' | 'read' | 'comment' | null; member: boolean; stopped: boolean; resumedAt: Date | null };
+
+/**
+ * Whether someone copied on a request hears of it now: each email to them, each list of who is
+ * copied, and each relay of words asks this, as each email is rendered. A copy by the team, an
+ * email's Cc or the requester always does while it stands (D57). A group's copy (`via` group) is
+ * seeing the request, as an email that quotes the team's reply is, so it hears only while the group
+ * shares that request with them, as `requesterSees` would let them read it: still filed under the
+ * group that copied them and not kept private, the group sharing (`read` or `comment`), the address
+ * still its member, and they haven't stopped its emails; turned back on, only copies made since hear.
+ */
+export function groupCopyHears(request: RequestSharing, copy: { via: string; groupId: string | null; addedAt: Date }, standing: GroupCopyStanding | undefined): boolean {
+  if (copy.via !== 'group') return true;
+  if (!copy.groupId || request.groupId !== copy.groupId || request.private || !standing) return false;
+  if (standing.sharing !== 'read' && standing.sharing !== 'comment') return false;
+  if (!standing.member || standing.stopped) return false;
+  return !standing.resumedAt || copy.addedAt >= standing.resumedAt;
+}
+
 /** How a requester's portal session was opened (D63): an emailed link, their password, an identity provider, or a passkey (D69). */
 export type PortalSignedIn = { method: 'link' | 'password' | 'sso' | 'passkey'; providerId: string | null };
 

@@ -311,6 +311,11 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       // Someone copied on a help desk request, or no longer (D57); stopped from an email's link, it's them.
       const email = String((data.cc as { email?: unknown } | undefined)?.email ?? '');
       const via = String(data.via ?? 'team') /* a stable code */;
+      // They stopped their customer group's emails (D56's revisit): which group's, from a link or on the portal.
+      if (e.type === 'request.cc_removed' && via === 'group') {
+        const group = String((data.group as { name?: unknown } | undefined)?.name ?? '');
+        return { ...base, did: t('issues.issueHistory.groupCopyStopped', { where: data.where === 'portal' ? 'portal' : 'link', group }) };
+      }
       return { ...base, did: e.type === 'request.cc_added' ? t('issues.issueHistory.ccAdded', { via, email }) : t('issues.issueHistory.ccRemoved', { via, email }) };
     }
     case 'sla.warning':

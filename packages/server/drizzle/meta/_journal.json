@@ -428,6 +428,13 @@
       "when": 1795016144172,
       "tag": "0060_requester_language",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795016145172,
+      "tag": "0061_group_copy_stops",
+      "breakpoints": true
     }
   ]
 }

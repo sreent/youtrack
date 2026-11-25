@@ -347,6 +347,56 @@ function HowYouSignIn({ me, onChange }: { me: PortalMe; onChange: (me: PortalMe)
   );
 }
 
+/**
+ * The groups they're in that share requests with them, and copy them on their new ones by email
+ * (D56's revisit): a switch each. Off takes them off the group's open requests too; on copies them on
+ * its new requests from then on. Their own choice, told to nobody.
+ */
+function GroupEmails({ me, onChange }: { me: PortalMe; onChange: (me: PortalMe) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [said, setSaid] = useState<string | null>(null);
+  if (!me.groups.length) return null;
+  const set = async (id: string, group: string, copies: boolean) => {
+    setBusy(id);
+    setError(null);
+    setSaid(null);
+    try {
+      onChange(await patch<PortalMe>(`/portal/me/groups/${encodeURIComponent(id)}`, { copies }));
+      setSaid(t('page.portal.groupEmailsSaved', { copies: copies ? 'yes' : 'no', group }));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <section className="stack tight" aria-labelledby="portal-group-emails">
+      <h2 id="portal-group-emails">{t('page.portal.groupEmails')}</h2>
+      <p className="note">{t('page.portal.groupEmailsHelp')}</p>
+      <ul className="plain stack tight">
+        {me.groups.map((g) => (
+          <li key={g.id} className="stack tight">
+            <label className="check">
+              <input type="checkbox" checked={g.copies} disabled={busy !== null} aria-describedby={`portal-group-${g.id}`} onChange={(e) => void set(g.id, g.name, e.target.checked)} />
+              {t('page.portal.groupEmailsSwitch', { group: g.name })}
+            </label>
+            <p className="note" id={`portal-group-${g.id}`}>
+              {t('page.portal.groupAtDesk', { group: g.name, desk: g.desk.name })}
+            </p>
+          </li>
+        ))}
+      </ul>
+      {error ? <ErrorNote error={error} /> : null}
+      {said ? (
+        <p role="status" className="outcome">
+          {said}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function Conversation({ r, me }: { r: PortalRequestDetail; me: PortalMe }) {
   return (
     <ol className="history" aria-label={t('page.portal.theRequestAndTheReplies')}>
@@ -909,6 +959,7 @@ export default function PortalPage() {
           </form>
           <HowYouSignIn me={m} onChange={(x) => qc.setQueryData(['portal', 'me'], x)} />
           <PortalPasskeysSection me={m} />
+          <GroupEmails me={m} onChange={(x) => qc.setQueryData(['portal', 'me'], x)} />
         </div>
       )}
     </RequesterLone>

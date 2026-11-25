@@ -2010,13 +2010,19 @@ export const UnsubscribeQuery = z.object({ token: z.string().min(10).max(400) })
 export const UnsubscribeSchema = z
   .object({
     kind: z
-      .enum(['watching', 'direct', 'digest', 'request', 'subscription', 'cc', 'relay'])
-      .describe("What the link is for: a person's kind of email, one subscription's emails, a help desk request's emails to its requester, or to someone copied on it (cc: stopping takes them off it, D57), or relayed to a colleague who answered it (relay: they stop hearing it, D67)"),
+      .enum(['watching', 'direct', 'digest', 'request', 'subscription', 'cc', 'relay', 'group'])
+      .describe(
+        "What the link is for: a person's kind of email, one subscription's emails, a help desk request's emails to its requester, or to someone copied on it (cc: stopping takes them off it, D57), or relayed to a colleague who answered it (relay: they stop hearing it, D67), or to one of its customer group's people (group: they stop being copied on the group's requests, this one, its other open ones and its later ones, D56)",
+      ),
     what: z.string().describe('What the link stops, in words'),
     subscription: z
       .object({ target: z.enum(['project', 'search']), events: z.enum(SUBSCRIPTION_EVENTS), name: z.string().describe('The project’s name, or the saved search’s') })
       .nullable()
       .describe('For a subscription that lasts: what it tells of, for a page that says what in its own words (D49)'),
+    group: z
+      .object({ name: z.string(), desk: z.string().describe('Its desk’s project, by name') })
+      .nullable()
+      .describe('For a customer group’s copies: the group whose emails it stops, for a page that says so in its own words (D49)'),
     done: z.boolean().describe('Whether it is stopped now'),
   })
   .meta({ id: 'Unsubscribe' });
@@ -2067,9 +2073,15 @@ export const RequestCcSchema = z
   .object({
     email: z.string(),
     name: z.string().describe('As whoever copied them named them; empty for none'),
-    via: z.enum(REQUEST_CC_VIA).describe('team: someone on the team copied them; email: the Cc of the requester’s email; portal: the requester, on the portal'),
+    via: z
+      .enum(REQUEST_CC_VIA)
+      .describe('team: someone on the team copied them; email: the Cc of the requester’s email; portal: the requester, on the portal; group: one of the customer group the request was filed under, copied as it came in (D56)'),
     addedBy: UserRefSchema.nullable().describe('Who on the team copied them; null when the requester did'),
     addedAt: timestamp,
+    group: z.string().nullable().describe('For a group’s copy, the customer group that copied them, by name; null otherwise'),
+    hears: z
+      .boolean()
+      .describe('Whether they are told of it now. A group’s copy hears only while the group shares this request with them: still filed under it, not kept private, the group sharing, the address still its member, and they haven’t stopped its emails (D56)'),
   })
   .meta({ id: 'RequestCc' });
 export type RequestCc = z.infer<typeof RequestCcSchema>;
@@ -3984,8 +3996,16 @@ export const PortalMeSchema = z
       .describe("The language they chose for the portal and every email to them (D63's revisit). Null: their browser's, else the server's default"),
     defaultLocale: z.enum(LOCALES).describe("The server's default language, for a browser that asks for none a4a speaks"),
     groups: z
-      .array(z.object({ desk: z.object({ key: z.string(), name: z.string() }), name: z.string(), sharing: z.enum(['read', 'comment']) }))
-      .describe("The customer groups they're in that share requests with them, one at most per desk (D56)"),
+      .array(
+        z.object({
+          id: z.string(),
+          desk: z.object({ key: z.string(), name: z.string() }),
+          name: z.string(),
+          sharing: z.enum(['read', 'comment']),
+          copies: z.boolean().describe('Whether its new requests copy them by email (D56): false once they stopped its emails, from an email or here'),
+        }),
+      )
+      .describe("The customer groups they're in that share requests with them (D56)"),
     signedInWith: z
       .object({ method: z.enum(PORTAL_SIGN_IN_METHODS), provider: z.object({ id: z.string(), name: z.string() }).nullable() })
       .describe('How this session was opened (D63): it opens the requests of desks that take that way'),
@@ -4399,6 +4419,8 @@ export const CustomerGroupSchema = z
       )
       .describe("Its dedicated agents, in order: its members' new requests go to whoever has the fewest open"),
     members: z.number().int().describe('Requesters added by hand'),
+    people: z.number().int().describe('Everyone in it now, by hand and by its domains, who would be copied on a new request of its (D56): not the team, nor anyone who stopped its emails'),
+    stops: z.number().int().describe('Its people who stopped its emails (D56): its requests copy them no more'),
     openRequests: z.number().int().describe('Its requests not yet resolved'),
     provider: z
       .object({ id: z.string(), name: z.string() })
@@ -4433,6 +4455,18 @@ export const CustomerGroupMemberSchema = z
   })
   .meta({ id: 'CustomerGroupMember' });
 export type CustomerGroupMember = z.infer<typeof CustomerGroupMemberSchema>;
+
+/** Someone of a customer group who stopped its emails (D56): from a group copy's email, or on the portal. Their own choice, which only they undo. */
+export const GroupCopyStopSchema = z
+  .object({
+    requester: z.object({ id: z.string(), name: z.string(), email: z.string() }),
+    stoppedAt: timestamp,
+  })
+  .meta({ id: 'GroupCopyStop' });
+export type GroupCopyStop = z.infer<typeof GroupCopyStopSchema>;
+
+/** A requester's switch, on the portal, for a group of theirs: whether its new requests copy them by email (D56). */
+export const PortalGroupCopiesBody = z.object({ copies: z.boolean().describe('true: copy me on its new requests from now on; false: stop, and take me off its open ones') });
 
 export const CustomerGroupMemberBody = z.object({
   email: z.string().trim().email().max(320),

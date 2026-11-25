@@ -96,9 +96,7 @@ Its open questions were settled by a model editor's pass on 24 November 2026: 11
 
 ## For the product, not a language
 
-Several languages' editors met these, and none has words of its own to settle: each asks what a4a should do.
-
-- **A group's member copied on its new requests** (D56): their email says only that they're copied, as any CC's does. Should it say it's because of their group (`server.helpdesk.cc.whyAnswer`, `whyLink`), with a message of its own?
+Several languages' editors met four questions no catalog could settle, each asking what a4a should do. Each is decided where its decision lives: a post that changes in place is marked by its chat platform, not by a4a (D42's revisit); the portal offers a language, kept on the requester and followed by every email to them (D63's revisit); a customer group's copies go only where the group shares, say they're because of the group, and stop by the group (D56's revisit); and the customers' directory suggests each customer by its name and its domains (D56).
 
 ## What a catalog can't say yet
 

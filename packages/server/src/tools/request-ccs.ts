@@ -15,13 +15,21 @@ const listRequestCcsTool = defineTool({
   name: 'list_request_ccs',
   title: 'See who is copied on a help desk request',
   description:
-    'Who is copied on a help desk request: people outside the team who get its public replies and changes of state by email, as its requester does, and may answer by email. Each says how they came to be copied (by the team, from the Cc of the requester’s email, or by the requester on the portal) and when.',
+    'Who is copied on a help desk request: people outside the team who get its public replies and changes of state by email, as its requester does, and may answer by email. Each says how they came to be copied (by the team, from the Cc of the requester’s email, by the requester on the portal, or as one of its customer group’s people) and when; a group’s copy the group no longer shares the request with says `hears: false`.',
   input: z.object({ issue: issueInput }),
   kind: 'reads',
   async run(ctx, input) {
     const ccs = await listCcs(ctx, input.issue);
     return {
-      data: ccs.map((c) => ({ email: c.email, name: c.name || undefined, via: c.via, by: c.addedBy?.login ?? 'the requester', at: c.addedAt })),
+      // A customer group's copy (D56): by its group, and said when the group no longer shares the request with them.
+      data: ccs.map((c) => ({
+        email: c.email,
+        name: c.name || undefined,
+        via: c.via,
+        by: c.via === 'group' ? (c.group ? `the customer group ${c.group}` : 'its customer group') : (c.addedBy?.login ?? 'the requester'),
+        at: c.addedAt,
+        ...(c.hears ? {} : { hears: false }),
+      })),
       summary: ccs.length ? `${ccs.length} copied on ${input.issue.toUpperCase()}` : `Nobody is copied on ${input.issue.toUpperCase()}`,
     };
   },

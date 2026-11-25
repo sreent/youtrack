@@ -14,18 +14,18 @@
  *   group's dedicated agents; and its members see, or answer, each other's requests on the portal,
  *   unless one is kept private (services/portal.ts, through the seam's `requesterSees`).
  */
-import { isOwnAgent, type BusinessHours, type Change, type CustomerGroup, type CustomerGroupInput, type CustomerGroupMember, type CustomerSharing } from '@a4a/shared';
+import { isOwnAgent, type BusinessHours, type Change, type CustomerGroup, type CustomerGroupInput, type CustomerGroupMember, type CustomerSharing, type GroupCopyStop } from '@a4a/shared';
 import { and, asc, eq, gte, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
 import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { absences, customerGroupAgents, customerGroupDomains, customerGroupMembers, customerGroups, helpdeskRequests, issueFieldValues, issues, portalProviders, requesters, users } from '../db/schema';
+import { absences, customerGroupAgents, customerGroupDomains, customerGroupMembers, customerGroups, groupCopyStops, helpdeskRequests, issueFieldValues, issues, portalProviders, requesters, users } from '../db/schema';
 import type { ActivityRow } from '../events/activity';
 import { calendarOf } from '../helpdesk/business-time';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { localDate, serverTimeZone } from '../reports/tz';
-import { emailDomain, issueSeenSql, projectAccess, projectGrantsOf, requesterMayComment, requireProject } from './access';
+import { emailDomain, issueSeenSql, projectAccess, projectGrantsOf, requesterMayComment, requireProject, type GroupCopyStanding } from './access';
 import { readableId } from './issue-refs';
 import { applyChanges, type ChangeSpec } from './issues';
 import { projectSettings } from './projects';
@@ -141,6 +141,7 @@ async function dtos(db: Db, s: SchemaSnapshot, project: ProjectRow, rows: GroupR
   const grants = await projectGrantsOf(db, project.id, agents.map((a) => a.userId));
   const tied = [...new Set(rows.map((g) => g.providerId).filter((id): id is string => Boolean(id)))];
   const providers = new Map(tied.length ? (await db.select({ id: portalProviders.id, name: portalProviders.name }).from(portalProviders).where(inArray(portalProviders.id, tied))).map((x) => [x.id, x]) : []);
+  const reach = await reachOf(db, ids);
   return rows.map((g) => ({
     id: g.id,
     name: g.name,
@@ -154,6 +155,8 @@ async function dtos(db: Db, s: SchemaSnapshot, project: ProjectRow, rows: GroupR
         return u ? [{ user: userRefDto(u), assignable: assignable(u, grants.get(u.id)) }] : [];
       }),
     members: Number(members.find((m) => m.id === g.id)?.n ?? 0),
+    people: reach.get(g.id)?.people ?? 0,
+    stops: reach.get(g.id)?.stops ?? 0,
     openRequests: Number(open.find((o) => o.id === g.id)?.n ?? 0),
     provider: (g.providerId && providers.get(g.providerId)) || null,
   }));
@@ -517,27 +520,125 @@ export async function migrateOrganizations(db: Db): Promise<number> {
   }
   return made;
 }
+// ---------------------------------------------------------------------------
+// A group's copies (D56's revisit): who its new requests copy, and who of them hears now
+// ---------------------------------------------------------------------------
+
 /**
- * The group's members, as addresses to copy (D56's revisit): those added by hand, and the
- * requesters its domains name, less the requester themself. A group's members hear of its
- * requests, as the request's CCs (D57).
+ * Everyone in these groups now, one row each per group, as SQL to select from: those added by hand,
+ * and the requesters its domains name who aren't added by hand to a group at its desk, which is
+ * `groupsOfRequester`'s rule. One rule for whom a new request copies, how many a group's page says it
+ * reaches, and whether a copy's address is still its member when its email goes.
  */
-export async function groupMemberEmails(db: Db, group: GroupRow, excludeEmail: string): Promise<{ email: string; name: string }[]> {
-  const hand = await db.select({ email: requesters.email, name: requesters.name }).from(customerGroupMembers).innerJoin(requesters, eq(requesters.id, customerGroupMembers.requesterId)).where(eq(customerGroupMembers.groupId, group.id));
-  const domains = await db.select({ domain: customerGroupDomains.domain }).from(customerGroupDomains).where(eq(customerGroupDomains.groupId, group.id));
-  const list = new Map<string, string>();
-  for (const m of hand) if (m.email.toLowerCase() !== excludeEmail.toLowerCase()) list.set(m.email.toLowerCase(), m.name);
-  if (domains.length) {
-    const domainSet = new Set(domains.map((d) => d.domain.toLowerCase()));
-    const all = await db.select({ email: requesters.email, name: requesters.name }).from(requesters);
-    for (const r of all) {
-      const domain = r.email.slice(r.email.indexOf('@') + 1).toLowerCase();
-      if (!domainSet.has(domain)) continue;
-      if (r.email.toLowerCase() !== excludeEmail.toLowerCase() && !list.has(r.email.toLowerCase())) list.set(r.email.toLowerCase(), r.name);
-    }
-  }
-  return [...list].map(([email, name]) => ({ email, name }));
+function peopleSql(groupIds: string[]): SQL {
+  const ids = sql.join(groupIds.map((id) => sql`${id}`), sql`, `);
+  return sql`
+    SELECT m.group_id, r.id, r.email, r.name, 0 AS kind, m.created_at AS added_at
+    FROM customer_group_members m JOIN requesters r ON r.id = m.requester_id
+    WHERE m.group_id IN (${ids})
+    UNION ALL
+    SELECT d.group_id, r.id, r.email, r.name, 1 AS kind, NULL::timestamptz AS added_at
+    FROM customer_group_domains d JOIN requesters r ON lower(split_part(r.email, '@', 2)) = d.domain
+    WHERE d.group_id IN (${ids})
+      AND NOT EXISTS (SELECT 1 FROM customer_group_members x WHERE x.project_id = d.project_id AND x.requester_id = r.id)`;
 }
+
+/** Not the team's (their email, or one they confirmed: they watch instead, D57), and not stopped. As SQL over `peopleSql`'s row `p`. */
+const reachableSql = sql`
+  NOT EXISTS (SELECT 1 FROM group_copy_stops s WHERE s.group_id = p.group_id AND s.requester_id = p.id AND s.resumed_at IS NULL)
+  AND NOT EXISTS (SELECT 1 FROM users u WHERE lower(u.email) = lower(p.email))
+  AND NOT EXISTS (SELECT 1 FROM user_emails e WHERE e.confirmed_at IS NOT NULL AND lower(e.email) = lower(p.email))`;
+
+const rowsOf = <T>(res: unknown): T[] => (res as { rows?: T[] }).rows ?? [];
+const truth = (v: unknown) => v === true || v === 't' || String(v) === 'true';
+
+/**
+ * Whom a new request of this group's copies, in the order the desk's cap takes them (D56's revisit):
+ * those added by hand first, the team chose them, first added first; then the domains' requesters who
+ * asked the desk most recently; ties by address. Never its requester, the team, or anyone who stopped
+ * the group's emails. At most `limit`.
+ */
+export async function groupCopyCandidates(db: Db, group: GroupRow, requesterEmail: string, limit: number): Promise<{ email: string; name: string }[]> {
+  if (limit <= 0) return [];
+  const res = await db.execute(sql`
+    WITH p AS (${peopleSql([group.id])})
+    SELECT p.email, p.name FROM p
+    WHERE lower(p.email) <> ${requesterEmail.trim().toLowerCase()} AND ${reachableSql}
+    ORDER BY p.kind, p.added_at ASC NULLS LAST,
+      (SELECT max(h.created_at) FROM helpdesk_requests h WHERE h.requester_id = p.id AND h.project_id = ${group.projectId}) DESC NULLS LAST,
+      lower(p.email)
+    LIMIT ${limit}`);
+  return rowsOf<{ email: string; name: string }>(res);
+}
+
+/**
+ * Where each of these addresses stands with a request's group now, for the seam's `groupCopyHears`
+ * (services/access.ts): what it shares, whether they're its member, and whether they stopped its
+ * emails. Keyed by the address in lower case; a request in no group has no standings.
+ */
+export async function groupCopyStandings(db: Db, groupId: string | null, emails: string[]): Promise<Map<string, GroupCopyStanding>> {
+  const list = [...new Set(emails.map((e) => e.trim().toLowerCase()))];
+  const out = new Map<string, GroupCopyStanding>();
+  if (!groupId || !list.length) return out;
+  const [group] = await db.select({ sharing: customerGroups.sharing }).from(customerGroups).where(eq(customerGroups.id, groupId));
+  const res = await db.execute(sql`
+    WITH p AS (${peopleSql([groupId])})
+    SELECT lower(r.email) AS email, EXISTS (SELECT 1 FROM p WHERE p.id = r.id) AS member, s.resumed_at, (s.requester_id IS NOT NULL AND s.resumed_at IS NULL) AS stopped
+    FROM requesters r LEFT JOIN group_copy_stops s ON s.group_id = ${groupId} AND s.requester_id = r.id
+    WHERE lower(r.email) IN (${sql.join(list.map((e) => sql`${e}`), sql`, `)})`);
+  for (const r of rowsOf<{ email: string; member: unknown; resumed_at: unknown; stopped: unknown }>(res)) {
+    out.set(r.email, {
+      sharing: (group?.sharing as CustomerSharing | undefined) ?? null,
+      member: truth(r.member),
+      stopped: truth(r.stopped),
+      resumedAt: r.resumed_at ? new Date(r.resumed_at as string) : null,
+    });
+  }
+  return out;
+}
+
+/**
+ * New requests and stopping take turns per group (D56's revisit): a request filed under it holds this
+ * shared while it copies the group's people, and someone stopping its emails holds it alone, so a
+ * request filed at the same moment either copies them before the stop takes them off, or sees the stop.
+ */
+export async function groupCopyLock(tx: Db, groupId: string, alone: boolean): Promise<void> {
+  const key = `a4a:group-copies:${groupId}`;
+  await tx.execute(alone ? sql`SELECT pg_advisory_xact_lock(hashtext(${key}))` : sql`SELECT pg_advisory_xact_lock_shared(hashtext(${key}))`);
+}
+
+/** How many each group's new requests would copy now (its people, less the team and those who stopped), and how many stopped. */
+async function reachOf(db: Db, ids: string[]): Promise<Map<string, { people: number; stops: number }>> {
+  const out = new Map<string, { people: number; stops: number }>(ids.map((id) => [id, { people: 0, stops: 0 }]));
+  if (!ids.length) return out;
+  const people = rowsOf<{ group_id: string; n: unknown }>(await db.execute(sql`WITH p AS (${peopleSql(ids)}) SELECT p.group_id, count(*)::int AS n FROM p WHERE ${reachableSql} GROUP BY p.group_id`));
+  for (const r of people) out.get(r.group_id)!.people = Number(r.n);
+  const stops = await db
+    .select({ id: groupCopyStops.groupId, n: sql<number>`count(*)::int` })
+    .from(groupCopyStops)
+    .where(and(inArray(groupCopyStops.groupId, ids), isNull(groupCopyStops.resumedAt)))
+    .groupBy(groupCopyStops.groupId);
+  for (const r of stops) out.get(r.id)!.stops = Number(r.n);
+  return out;
+}
+
+/**
+ * Who of a group stopped its emails (D56's revisit), for the team: "why isn't Ana hearing about these?"
+ * Anyone who reads the desk. It's their own choice, which only they undo, on the portal.
+ */
+export async function listGroupCopyStops(ctx: Ctx, key: string, id: string): Promise<GroupCopyStop[]> {
+  const project = await requireProject(ctx, key, 'read');
+  await ownGroup(ctx.db, project, id);
+  const rows = await ctx.db
+    .select({ s: groupCopyStops, r: requesters })
+    .from(groupCopyStops)
+    .innerJoin(requesters, eq(requesters.id, groupCopyStops.requesterId))
+    .where(and(eq(groupCopyStops.groupId, id), isNull(groupCopyStops.resumedAt)))
+    .orderBy(asc(sql`lower(${requesters.email})`))
+    .limit(2000);
+  return rows.map(({ s, r }) => ({ requester: { id: r.id, name: r.name, email: r.email }, stoppedAt: s.stoppedAt.toISOString() }));
+}
+
 /**
  * The customers a4a knows, across the desks the caller can read (D56's revisit): each name once,
  * with its domains, so a desk's manager naming a new group picks one the other desks already serve.

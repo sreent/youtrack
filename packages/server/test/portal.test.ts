@@ -124,7 +124,7 @@ describe('the portal', () => {
     await addComment(w.as(w.anna), mine.id, 'We are on it, Rita.', { visibility: 'public' });
 
     const rita = await signedIn('rita@acme.com', '10.1.2.1');
-    expect((await rita.req('GET', '/portal/me')).body.groups).toEqual([{ desk: { key: 'BACK', name: 'Backend' }, name: 'Acme', sharing: 'read' }]);
+    expect((await rita.req('GET', '/portal/me')).body.groups).toEqual([{ id: expect.any(String), desk: { key: 'BACK', name: 'Backend' }, name: 'Acme', sharing: 'read', copies: true }]);
     const list = (await rita.req('GET', '/portal/requests')).body as { id: string; requester: { mine: boolean } }[];
     expect(list.map((r) => r.id).sort()).toEqual([mine.id, colleague.id].sort());
     expect(list.find((r) => r.id === colleague.id)!.requester.mine).toBe(false);

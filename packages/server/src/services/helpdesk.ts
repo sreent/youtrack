@@ -18,7 +18,7 @@ import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { comments, customerGroups, helpdeskMailboxes, helpdeskRequests, helpdeskTokens, issues, requestCcs, requesters, users } from '../db/schema';
-import { assignToGroupAgent, GROUP_CHANGE, groupByRef, groupMemberEmails, groupsOfRequester, type GroupRow } from './customer-groups';
+import { assignToGroupAgent, GROUP_CHANGE, groupByRef, groupsOfRequester, type GroupRow } from './customer-groups';
 import { requesterPasskeyCount } from './portal-passkeys';
 import { publishActivities, type ActivityRow } from '../events/activity';
 import { captchaChallenge } from '../helpdesk/captcha';
@@ -249,18 +249,16 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
         slaActivities = await syncClocks(tx, app, await app.schema.get(tx), row, request!);
         // Whom their email copied, before the email that says it came in is sent (D57); held for
         // them to confirm instead, when nobody can vouch that they sent it (D67).
-        // Whom their email copied, before the email that says it came in is sent (D57); held for
-        // them to confirm instead, when nobody can vouch that they sent it (D67).
         if (input.cc?.length && input.ccHeld) heldCcs = await holdOnNewRequest(tx, app, row, input.cc);
         else if (input.cc?.length) {
           const done = await copyOnNewRequest(tx, ctx, row, name, input.cc);
           copied = done.words;
           slaActivities.push(...done.activities);
         }
-        // The group's members hear of its requests (D56's revisit), as the request's CCs (D57):
-        // the hand-added and the domains' requesters, less the requester, up to the same cap. The
-        // portal's replying stays the sharing's own; a member answers a4a's email about the request.
-        if (group && held.length) await copyGroupMembers(tx as never, app, row, email, await groupMemberEmails(tx as never, group, email));
+        // The group's people hear of its requests by email (D56's revisit), where it shares them and the
+        // request isn't kept from it: the hand-added first, then the domains' requesters who asked most
+        // recently, less the requester, up to the same cap. Their answering stays the sharing's own.
+        if (group && held.length) await copyGroupMembers(tx, app, row, group);
         // The project's lead watches each request, so the requester's replies reach someone.
         if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
         // Its group's dedicated agent takes it (D56), as the help desk's agent, in its history.

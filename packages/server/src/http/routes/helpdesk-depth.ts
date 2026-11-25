@@ -7,6 +7,7 @@ import {
   AttachmentSchema,
   ErrorSchema,
   PortalDeskSchema,
+  PortalGroupCopiesBody,
   PortalMeSchema,
   PortalMeUpdateBody,
   PortalNewRequestBody,
@@ -46,6 +47,7 @@ import {
   portalRequest,
   portalRequester,
   portalRequests,
+  portalSetGroupCopies,
   portalSetPrivate,
   requesterRequest,
   redeemSignIn,
@@ -250,6 +252,27 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
     async ({ c, body }) => {
       sameOrigin(c);
       return updatePortalMe(c.get('runtime'), await who(c), body);
+    },
+  );
+  route(
+    app,
+    {
+      method: 'patch',
+      path: '/portal/me/groups/{id}',
+      tags,
+      summary: 'Turn emails about a group of mine on or off',
+      description:
+        "A requester's own switch for a customer group of theirs that shares requests with them (D56): off, its new requests don't copy them, and they're taken off its open ones, as a group copy's unsubscribe link does; on, its new requests copy them again from now on, not the ones they stopped. Told to nobody. A group not listed in their `GET /portal/me` is missing. Limited with the portal's other acts.",
+      auth: 'none',
+      params: z.object({ id: z.string().min(1).max(40).describe("The group's id, from GET /portal/me") }),
+      body: PortalGroupCopiesBody,
+      response: PortalMeSchema,
+    },
+    async ({ c, params, body }) => {
+      sameOrigin(c);
+      const r = await who(c);
+      await hit(c, [['portalAct', r.id]], 'Too many changes just now', 'helpdesk.tooManyChangesNow');
+      return portalSetGroupCopies(c.get('runtime'), r, params.id, body.copies);
     },
   );
   route(app, { method: 'get', path: '/portal/desks', tags, summary: 'The desks a requester can ask from the portal', auth: 'none', response: z.array(PortalDeskSchema) }, async ({ c }) =>
