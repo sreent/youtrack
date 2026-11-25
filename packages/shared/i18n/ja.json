@@ -1048,6 +1048,8 @@
   "helpdesk.groups.inDeskHours": "デスクの営業時間",
   "helpdesk.groups.inItsHours": "独自の営業時間（{zone}）",
   "helpdesk.groups.intro": "依頼者を会社やチームごとにまとめます。メールアドレスのドメインで自動的に、または手動で追加します。グループでは、メンバーのリクエストをポータルで共有したり、独自の営業時間でSLAを計算したり、新しいリクエストを専任の担当者に割り当てたりできます。今後届くリクエストは依頼者のグループに入り、それ以前のリクエストは元のままです。",
+  "helpdesk.groups.knownCustomers": "他のヘルプデスクの顧客",
+  "helpdesk.groups.knownCustomersCount": "他のヘルプデスクの顧客{n, plural, other {#社}}：上下キーで選び、Enterキーで決定します。",
   "helpdesk.groups.memberEmail": "メールアドレス",
   "helpdesk.groups.members": "手動で追加",
   "helpdesk.groups.membersCount": "手動で追加（{n}人）",

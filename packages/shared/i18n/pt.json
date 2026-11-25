@@ -1048,6 +1048,8 @@
   "helpdesk.groups.inDeskHours": "No horário do centro de apoio",
   "helpdesk.groups.inItsHours": "No horário do grupo ({zone})",
   "helpdesk.groups.intro": "Agrupe requerentes por empresa ou equipa: pelo domínio do e-mail ou manualmente. Um grupo pode partilhar os pedidos dos membros no portal, contar o SLA no próprio horário e encaminhar os novos pedidos para pessoas específicas. Os pedidos feitos a partir de agora ficam no grupo de quem os fez; os anteriores mantêm o grupo que tinham.",
+  "helpdesk.groups.knownCustomers": "Clientes de outros centros de apoio",
+  "helpdesk.groups.knownCustomersCount": "{n, plural, one {# cliente} other {# clientes}} de outros centros de apoio: setas para cima e para baixo para escolher, Enter para confirmar.",
   "helpdesk.groups.memberEmail": "E-mail",
   "helpdesk.groups.members": "Adicionados manualmente",
   "helpdesk.groups.membersCount": "Adicionados manualmente ({n})",

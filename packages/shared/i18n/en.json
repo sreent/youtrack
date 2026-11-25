@@ -1048,6 +1048,8 @@
   "helpdesk.groups.inDeskHours": "In the desk’s hours",
   "helpdesk.groups.inItsHours": "In its own hours ({zone})",
   "helpdesk.groups.intro": "Group requesters by company or team: by their email’s domain, or by hand. A group can share its members’ requests on the portal, count its SLA in its own hours, and give its new requests to people of its own. Requests filed from now on go under their requester’s group; earlier ones keep theirs.",
+  "helpdesk.groups.knownCustomers": "Customers other help desks serve",
+  "helpdesk.groups.knownCustomersCount": "{n, plural, one {# customer} other {# customers}} other help desks serve: up and down to choose, Enter to take one.",
   "helpdesk.groups.memberEmail": "Their email",
   "helpdesk.groups.members": "Added by hand",
   "helpdesk.groups.membersCount": "Added by hand ({n})",

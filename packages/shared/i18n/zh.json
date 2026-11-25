@@ -1048,6 +1048,8 @@
   "helpdesk.groups.inDeskHours": "按服务台的工作时间",
   "helpdesk.groups.inItsHours": "按本组的工作时间（{zone}）",
   "helpdesk.groups.intro": "按公司或团队为请求人分组：可以按邮箱域名自动分组，也可以手动添加。客户组可以在门户上共享成员的请求、按本组的工作时间计算 SLA，并把新请求分配给指定人员。此后提交的请求归入请求人所在的组，之前的请求保持不变。",
+  "helpdesk.groups.knownCustomers": "其他服务台的客户",
+  "helpdesk.groups.knownCustomersCount": "{n, plural, other {# 家}}其他服务台的客户：用上下键选择，按 Enter 确认。",
   "helpdesk.groups.memberEmail": "邮箱",
   "helpdesk.groups.members": "手动添加",
   "helpdesk.groups.membersCount": "手动添加（{n}）",

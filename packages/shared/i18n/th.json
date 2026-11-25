@@ -1048,6 +1048,8 @@
   "helpdesk.groups.inDeskHours": "ตามเวลาทำการของเฮลป์เดสก์",
   "helpdesk.groups.inItsHours": "ตามเวลาทำการของกลุ่มเอง ({zone})",
   "helpdesk.groups.intro": "จัดกลุ่มผู้ร้องขอตามบริษัทหรือทีม โดยใช้โดเมนอีเมลหรือเพิ่มเอง กลุ่มแชร์คำขอของสมาชิกบนพอร์ทัลได้ นับ SLA ตามเวลาทำการของกลุ่มเองได้ และส่งคำขอใหม่ให้คนที่กลุ่มกำหนดได้ คำขอที่ส่งเข้ามาหลังจากนี้จะอยู่ในกลุ่มของผู้ร้องขอ ส่วนคำขอก่อนหน้ายังอยู่ในกลุ่มเดิม",
+  "helpdesk.groups.knownCustomers": "ลูกค้าของเฮลป์เดสก์อื่น",
+  "helpdesk.groups.knownCustomersCount": "มีลูกค้าของเฮลป์เดสก์อื่น {n, plural, other {# ราย}} กดลูกศรขึ้นลงเพื่อเลือก แล้วกด Enter",
   "helpdesk.groups.memberEmail": "อีเมลของผู้ร้องขอ",
   "helpdesk.groups.members": "เพิ่มด้วยตนเอง",
   "helpdesk.groups.membersCount": "เพิ่มด้วยตนเอง ({n})",

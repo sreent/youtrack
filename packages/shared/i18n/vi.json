@@ -1048,6 +1048,8 @@
   "helpdesk.groups.inDeskHours": "Theo giờ của bộ phận hỗ trợ",
   "helpdesk.groups.inItsHours": "Theo giờ riêng ({zone})",
   "helpdesk.groups.intro": "Phân nhóm người yêu cầu theo công ty hoặc đội, dựa vào tên miền email hoặc thêm thủ công. Mỗi nhóm có thể chia sẻ yêu cầu của thành viên trên cổng hỗ trợ, tính SLA theo giờ riêng, và giao yêu cầu mới cho người phụ trách riêng. Yêu cầu gửi từ giờ thuộc nhóm của người yêu cầu; yêu cầu cũ giữ nguyên nhóm.",
+  "helpdesk.groups.knownCustomers": "Khách hàng của các bộ phận hỗ trợ khác",
+  "helpdesk.groups.knownCustomersCount": "{n, plural, other {# khách hàng}} của các bộ phận hỗ trợ khác: dùng phím mũi tên lên, xuống để di chuyển, Enter để chọn.",
   "helpdesk.groups.memberEmail": "Email người yêu cầu",
   "helpdesk.groups.members": "Thêm thủ công",
   "helpdesk.groups.membersCount": "Thêm thủ công ({n})",

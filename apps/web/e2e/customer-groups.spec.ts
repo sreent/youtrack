@@ -70,6 +70,55 @@ test('a manager makes a group with a domain and an agent, and its member’s req
 
 });
 
+test('a manager names a group after a customer another desk serves, told apart from one alike by its domains', async ({ page, api }) => {
+  // Another desk serves two customers whose names differ by one character, as Japanese companies' often do.
+  const u = unique();
+  const other = uniqueKey('CA');
+  await api.createProject({ key: other, name: `Customers ${other}`, lead: THIRD.login });
+  const one = { name: `〇〇システム株式会社 ${u}`, domain: `sys-${u}.example`.toLowerCase() };
+  const two = { name: `〇〇システムズ株式会社 ${u}`, domain: `systems-${u}.example`.toLowerCase() };
+  for (const c of [one, two]) await api.post(`/projects/${other}/customer-groups`, { name: c.name, domains: [c.domain], sharing: 'none' });
+  // This desk has a group of its own named alike: it's not suggested, since it can't take that name again.
+  const key = uniqueKey('CB');
+  await api.createProject({ key, name: `Customers ${key}`, lead: THIRD.login });
+  const mine = `〇〇システム工業 ${u}`;
+  await api.post(`/projects/${key}/customer-groups`, { name: mine, domains: [`kogyo-${u}.example`.toLowerCase()], sharing: 'none' });
+
+  await page.goto(`/projects/${key}`);
+  const groups = page.getByRole('region', { name: 'Customer groups' });
+  await groups.getByRole('button', { name: 'Add a group' }).click();
+  const form = groups.getByRole('form', { name: 'Add a group' });
+  const field = form.getByRole('combobox', { name: 'Name', exact: true });
+  await field.fill(u);
+  // Each by its name and its domains, which tell them apart.
+  const known = form.getByRole('listbox', { name: 'Customers other help desks serve' });
+  await expect(known.getByRole('option')).toHaveCount(2);
+  await expect(known.getByRole('option', { name: `${one.name} ${one.domain}` })).toBeVisible();
+  await expect(known.getByRole('option', { name: `${two.name} ${two.domain}` })).toBeVisible();
+  await expect(form.getByRole('status').filter({ hasText: 'other help desks serve' })).toHaveText('2 customers other help desks serve: up and down to choose, Enter to take one.');
+  await expectAccessible(page);
+  // At a phone's width a long name's domains wrap beneath it, and nothing scrolls sideways.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectNoSidewaysScroll(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  // The arrows choose and Enter takes: its name and its domains, which the field had none of. Names
+  // come in the page's language's order, where kana come before kanji: システムズ, then システム株式会社.
+  await field.press('ArrowDown');
+  await expect(known.getByRole('option', { name: `${two.name} ${two.domain}` })).toHaveAttribute('aria-selected', 'true');
+  await field.press('Enter');
+  await expect(field).toHaveValue(two.name);
+  await expect(form.getByLabel('Email domains')).toHaveValue(two.domain);
+  await expect(known).toHaveCount(0);
+  // Typed, and never taken, a new customer's name stays as written: Escape puts the suggestions away.
+  await field.fill(`株式会社 ${u}`);
+  await expect(known.getByRole('option')).toHaveCount(2);
+  await field.press('Escape');
+  await expect(known).toHaveCount(0);
+  await expect(field).toHaveValue(`株式会社 ${u}`);
+  await expect(form.getByLabel('Email domains')).toHaveValue(two.domain);
+});
+
 test('a colleague signs in to the portal, answers a request shared with their group, and the requester hears of it', async ({ browser }) => {
   test.setTimeout(180_000);
   const mail = await startMailServer();

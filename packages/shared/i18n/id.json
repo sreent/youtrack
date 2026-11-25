@@ -1048,6 +1048,8 @@
   "helpdesk.groups.inDeskHours": "Dalam jam kerja layanan bantuan",
   "helpdesk.groups.inItsHours": "Dalam jam kerjanya sendiri ({zone})",
   "helpdesk.groups.intro": "Kelompokkan pemohon menurut perusahaan atau tim, berdasarkan domain email atau secara manual. Grup dapat berbagi permintaan anggotanya di portal, menghitung SLA dengan jam kerjanya sendiri, dan menyerahkan permintaan barunya kepada orang yang ditunjuk. Permintaan yang diajukan mulai sekarang masuk ke grup pemohonnya, sedangkan permintaan sebelumnya tetap di grup lamanya.",
+  "helpdesk.groups.knownCustomers": "Pelanggan layanan bantuan lain",
+  "helpdesk.groups.knownCustomersCount": "{n, plural, other {# pelanggan}} layanan bantuan lain. Pilih dengan panah atas dan bawah, lalu tekan Enter.",
   "helpdesk.groups.memberEmail": "Email",
   "helpdesk.groups.members": "Ditambahkan manual",
   "helpdesk.groups.membersCount": "Ditambahkan manual ({n})",

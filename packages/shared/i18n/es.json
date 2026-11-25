@@ -1048,6 +1048,8 @@
   "helpdesk.groups.inDeskHours": "En el horario del servicio",
   "helpdesk.groups.inItsHours": "En su propio horario ({zone})",
   "helpdesk.groups.intro": "Agrupa a las personas solicitantes por empresa o equipo: por el dominio de su correo o a mano. Un grupo puede compartir las solicitudes de sus miembros en el portal, contar su SLA según su propio horario y asignar sus solicitudes nuevas a personas concretas. Las solicitudes que lleguen a partir de ahora van al grupo de su solicitante; las anteriores conservan el suyo.",
+  "helpdesk.groups.knownCustomers": "Clientes de otros servicios de asistencia",
+  "helpdesk.groups.knownCustomersCount": "{n, plural, one {# cliente} other {# clientes}} de otros servicios de asistencia: arriba y abajo para elegir, Intro para tomar uno.",
   "helpdesk.groups.memberEmail": "Su correo",
   "helpdesk.groups.members": "Personas agregadas a mano",
   "helpdesk.groups.membersCount": "Personas agregadas a mano ({n})",

@@ -1048,6 +1048,8 @@
   "helpdesk.groups.inDeskHours": "In den Arbeitszeiten des Helpdesks",
   "helpdesk.groups.inItsHours": "In eigenen Arbeitszeiten ({zone})",
   "helpdesk.groups.intro": "Gruppieren Sie anfragende Personen nach Firma oder Team: nach der Domain ihrer E-Mail-Adresse oder von Hand. Eine Gruppe kann die Anfragen ihrer Mitglieder im Portal teilen, ihr SLA nach eigenen Arbeitszeiten richten und ihre neuen Anfragen bestimmten Personen zuweisen. Anfragen, die ab jetzt eingehen, werden der Gruppe ihrer anfragenden Person zugeordnet; frühere behalten ihre bisherige.",
+  "helpdesk.groups.knownCustomers": "Kunden anderer Helpdesks",
+  "helpdesk.groups.knownCustomersCount": "{n, plural, one {# Kunde} other {# Kunden}} anderer Helpdesks: Mit den Pfeiltasten auswählen, mit der Eingabetaste übernehmen.",
   "helpdesk.groups.memberEmail": "E-Mail-Adresse",
   "helpdesk.groups.members": "Von Hand hinzugefügt",
   "helpdesk.groups.membersCount": "Von Hand hinzugefügt ({n})",
