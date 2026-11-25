@@ -321,7 +321,7 @@ export function checkWords(root) {
 }
 
 /** Characters nobody can see, which a sheet's cell can carry in from a paste: never brought into a catalog. */
-const INVISIBLE = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F​-‏‪-‮⁠-⁤⁦-⁩﻿]/u;
+const INVISIBLE = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/u;
 const LINKS = /https?:\/\/[^\s<>{}"]+|www\.[^\s<>{}"]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+/gi;
 
 /** Why a suggestion can't be taken whatever its words: a size, a character or a link it shouldn't bring. */
@@ -552,7 +552,7 @@ export function recordRead(doc, { locale, sheetId, made, now, reader, howFar, ch
   if (mine >= 0 && !newChanges) return doc;
   const deepest = Math.max(0, ...[...report.applied, ...report.notes.map((n) => ({ key: n.key }))].map((x) => tierOf(x.key).tier));
   const far = howFar && HOW_FAR.includes(howFar) ? howFar : deepest ? `As far as tier ${deepest} at least (how far wasn't said)` : 'The terms or the questions (how far wasn’t said)';
-  const name = reader ? reader.replace(/[\u0000-\u001F\u007F-\u009F​-‏‪-‮⁦-⁩`*_[\]<>|\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+  const name = reader ? reader.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069`*_[\]<>|\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
   const by = name ? `, by ${name}` : '';
   const counted = changes === 0 ? 'no changes' : plural(changes, 'change', 'changes');
   const sentence = `${far}, from a sheet made on ${day(made)}, brought back on ${day(now)}${by}: ${counted} (sheet \`${sheetId}\`).`;

@@ -24,7 +24,7 @@ const flag = (name) => {
 };
 const usage = 'Usage:\n  pnpm i18n:review export <lang|all> [--out <folder, or file.xlsx>]\n  pnpm i18n:review import <file.xlsx> [--dry-run] [--reader "<name>"]';
 /** What a sheet's reader wrote, made safe for a terminal: a control or a direction mark is shown, never sent. */
-const shown = (s) => String(s).replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F​-‏‪-‮⁦-⁩]/g, (c) => `<U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}>`);
+const shown = (s) => String(s).replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069]/g, (c) => `<U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}>`);
 const quote = (s) => `“${shown(s).replace(/\n/g, '⏎')}”`;
 const indent = (s) => shown(s).split('\n').join('\n      ');
 

@@ -197,7 +197,7 @@ describe('a native speaker’s sheet', () => {
     ['a control’s name that loses what it shows', 'page.issue.removeFor', 'ลบ {name}', /shows “นำออก”, so it should hold those words whole/],
     ['Thai’s full stop', 'page.admin.title', 'การดูแลระบบ.', /\[thai-stop\]/],
     ['a link English hasn’t', 'page.issue.save', 'บันทึกที่ https://example.test', /adds a link or an address English hasn't/],
-    ['a character nobody sees', 'page.issue.save', 'บันทึก‮', /a character nobody sees \(U\+202E\)/],
+    ['a character nobody sees', 'page.issue.save', 'บันทึก\u202E', /a character nobody sees \(U\+202E\)/],
     ['a line break', 'page.issue.save', 'บัน\nทึก', /breaks a line/],
     ['an unknown key', 'page.nothing.here', 'อะไร', /no message has this key/],
   ])('refuses %s, saying why, and writes nothing', async (_, key, suggestion, why) => {

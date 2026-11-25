@@ -233,7 +233,7 @@ function textsOf(els) {
     } else if (el.options) {
       const inner = Object.values(el.options).flatMap((o) => textsOf(o.value));
       ways = ways.flatMap((w) => inner.map((i) => w + i)).slice(0, 64);
-    } else ways = ways.map((w) => `${w}⁣`);
+    } else ways = ways.map((w) => `${w}\u2063`);
   }
   return ways;
 }
