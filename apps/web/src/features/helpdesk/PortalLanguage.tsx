@@ -64,12 +64,16 @@ export function PortalLanguage({ me, busy }: { me?: PortalMe | null; busy?: bool
   );
 }
 
-/** A requester's page (D45): one card, its language at its head, where someone who can't read it looks first. */
+/**
+ * A requester's page (D45): one card, its language at its foot, as Google's sign-in page keeps its own
+ * there. At the head it took three rows on a phone before the page's purpose; at the foot it's the last
+ * thing on a short card, and on the signed-in portal it sits among the account's settings.
+ */
 export function RequesterLone({ children, wide, me, busy }: { children: ReactNode; wide?: boolean; me?: PortalMe | null; busy?: boolean }) {
   return (
     <Lone wide={wide}>
-      <PortalLanguage me={me} busy={busy} />
       {children}
+      <PortalLanguage me={me} busy={busy} />
     </Lone>
   );
 }
