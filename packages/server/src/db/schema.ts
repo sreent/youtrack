@@ -1402,8 +1402,10 @@ export const requesters = pgTable(
     name: text('name').notNull(),
     /** Their portal password (D63), as scrypt hashes members' (lib/crypto.ts); null for none. It opens the portal alone. */
     passwordHash: text('password_hash'),
-    /** Their own language (D63's revisit): the portal's emails follow it, as their browser asked; null for the desk's. */
+    /** The language their browser last asked for on the portal (D63's revisit); null until it asked. Their choice, when they made one, wins over it. */
     locale: text('locale'),
+    /** The language they chose on the portal (D63's revisit): the portal and every email to them follow it; null until they choose, or once they choose their browser's again. */
+    chosenLocale: text('chosen_locale'),
     passwordSetAt: ts('password_set_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -3205,6 +3207,8 @@ export const portalSsoStates = pgTable('portal_sso_states', {
     .references(() => portalProviders.id, { onDelete: 'cascade' }),
   /** The desk whose page it started from, to come back to. */
   desk: text('desk'),
+  /** The language they chose on the portal before signing in (D63's revisit): theirs once the provider signs them in, if they have none. */
+  locale: text('locale'),
   codeVerifier: text('code_verifier').notNull(),
   nonce: text('nonce').notNull(),
   createdAt: created(),

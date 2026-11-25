@@ -19,6 +19,7 @@ import {
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
+import { LOCALES } from '@a4a/shared/i18n';
 import type { Runtime } from '../../app-services';
 import { AppError } from '../../lib/errors';
 import { beginLoginAttempt, waitInWords } from '../../services/login-throttle';
@@ -47,7 +48,7 @@ import {
 import { finishPortalSaml } from '../../services/portal-saml';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
-import { hit, ip, sameOrigin } from './helpdesk';
+import { hit, ip, pageLocaleOf, sameOrigin } from './helpdesk';
 
 /** The portal's session cookie, as signing in by a link sets it (D45): HttpOnly, SameSite=Strict, the portal's API alone. */
 export function setPortalSession(c: Context<HttpEnv>, runtime: Runtime, token: string): void {
@@ -125,9 +126,10 @@ export function portalSignInRoutes(app: OpenAPIHono<HttpEnv>) {
       const requester = await requesterByPassword(runtime.db, body.email, body.password);
       if (!requester) throw wrongPassword();
       await attempt.succeeded();
-      const token = await startPortalSession(runtime.db, requester.id, { method: 'password', providerId: null }, PORTAL_SESSION_MS);
+      const token = await startPortalSession(runtime.db, requester.id, { method: 'password', providerId: null, chosen: body.locale }, PORTAL_SESSION_MS);
       setPortalSession(c, runtime, token);
-      return portalMe(runtime, { ...requester, signedIn: { method: 'password', providerId: null } });
+      // Read again: a language chosen on the page before it may be theirs now (D63's revisit).
+      return portalMe(runtime, await portalRequester(runtime, token, c.req.header('accept-language')));
     },
   );
 
@@ -148,7 +150,7 @@ export function portalSignInRoutes(app: OpenAPIHono<HttpEnv>) {
       sameOrigin(c);
       await hit(c, [['portalIp', ip(c)]], 'Too many sign-in links from your address', 'helpdesk.tooManyLinksFromAddress');
       await hit(c, [['portalEmail', body.email]], 'Too many sign-in links for this email address', 'helpdesk.tooManyLinksForEmail');
-      await requestPasswordLink(c.get('runtime'), body.email, body.desk);
+      await requestPasswordLink(c.get('runtime'), body.email, body.desk, pageLocaleOf(c));
       return { sent: true as const };
     },
   );
@@ -170,7 +172,7 @@ export function portalSignInRoutes(app: OpenAPIHono<HttpEnv>) {
       const runtime = c.get('runtime');
       sameOrigin(c);
       await hit(c, [['portalIp', ip(c)]], 'Too many sign-ins from your address', 'helpdesk.tooManySignIns');
-      const { session: token } = await setPasswordWithLink(runtime, body.token, body.password, PORTAL_SESSION_MS);
+      const { session: token } = await setPasswordWithLink(runtime, body.token, body.password, PORTAL_SESSION_MS, body.locale);
       setPortalSession(c, runtime, token);
       return portalMe(runtime, await portalRequester(runtime, token, c.req.header('accept-language')));
     },
@@ -209,17 +211,17 @@ export function portalSignInRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: 'Sign in through an identity provider: sends the browser there',
       description:
-        'For browsers. Only a provider the desk named (or some desk) offers. Redirects with PKCE, a state and a nonce, and sets a short-lived cookie binding the state to this browser; on a problem, back to the portal with `?sso=` saying why.',
+        "For browsers. Only a provider the desk named (or some desk) offers. Redirects with PKCE, a state and a nonce, and sets a short-lived cookie binding the state to this browser; on a problem, back to the portal with `?sso=` saying why. `locale`, the language they chose on the page, is theirs once the provider signs them in, if they have chosen none (D63's revisit).",
       auth: 'none',
       params: Id,
-      query: z.object({ desk: z.string().trim().max(20).optional() }),
+      query: z.object({ desk: z.string().trim().max(20).optional(), locale: z.enum(LOCALES).optional() }),
       status: 302,
     },
     async ({ c, params, query }) => {
       const runtime = c.get('runtime');
       await hit(c, [['portalSso', ip(c)]], 'Too many sign-ins from your address', 'helpdesk.tooManySignIns');
       try {
-        const { url, state } = await startPortalSso(runtime, params.id, query.desk);
+        const { url, state } = await startPortalSso(runtime, params.id, query.desk, query.locale);
         setCookie(c, PORTAL_SSO_COOKIE, state, {
           httpOnly: true,
           // The provider sends the browser back from its own site: Lax lets this top-level GET carry it.

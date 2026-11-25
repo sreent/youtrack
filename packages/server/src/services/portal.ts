@@ -16,7 +16,7 @@ import type { AppServices } from '../context';
 import type { Db } from '../db/client';
 import { comments, customerGroups, helpdeskRequests, issues, requesterSessions, requesterSignIns, requesters } from '../db/schema';
 import { AUTOMATIC, composeMail, type RenderedMail } from '../mail/compose';
-import { langTag, matchLocale } from '@a4a/shared/i18n';
+import { isLocale, langTag, matchLocale, type Locale } from '@a4a/shared/i18n';
 import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { randomToken, sha256 } from '../lib/crypto';
 import { AppError } from '../lib/errors';
@@ -30,7 +30,7 @@ import { copyFromPortal, deskCcsMax, heldOf, portalCcsOf, refusalProblem, settle
 import { outsideAuthors, outsideKey } from './request-authors';
 import { readableId, stateNames } from './issue-refs';
 import { projectSettings } from './projects';
-import { translatorFor } from '../i18n';
+import { deskTranslator } from '../helpdesk/mails';
 import { assertWayTaken, deskSignIn, providerNames, prunePortalSso, requestPasswordLink, startPortalSession } from './portal-sign-in';
 
 const SIGN_IN_PREFIX = 'hdl_';
@@ -49,8 +49,11 @@ const signedOut = () => new AppError(401, 'unauthenticated', 'Sign in to see you
 /**
  * Send a sign-in link. It says the same whether or not the address has asked for help before, so
  * the answer gives nothing away; the email itself makes the link, as tracking links are made.
+ *
+ * `asked` is the language of the page that asked (D63's revisit): carried with the mail, for an address
+ * a4a has no language for yet, and never kept on the requester, since nothing unauthenticated changes one.
  */
-export async function requestSignIn(app: AppServices, email: string, desk?: string): Promise<void> {
+export async function requestSignIn(app: AppServices, email: string, desk?: string, asked?: Locale | null): Promise<void> {
   if (!mailConfigured(app)) {
     throw new AppError(503, 'mail_unavailable', "Signing in needs email, and this server doesn't send any", 'Use the link in an email about your request, or ask the team.').said('portal.noEmail');
   }
@@ -59,7 +62,7 @@ export async function requestSignIn(app: AppServices, email: string, desk?: stri
   await enqueueMail(app.db, app, {
     kind: 'portal-sign-in',
     dedupeKey: `portal:${requester.id}:${Date.now()}`,
-    payload: { requesterId: requester.id, desk: desk?.toUpperCase() ?? null },
+    payload: { requesterId: requester.id, desk: desk?.toUpperCase() ?? null, asked: asked ?? null },
     messageId: `portal.${randomToken('', 12)}`,
   });
   kickMail(app);
@@ -83,15 +86,15 @@ export async function inviteRequester(app: AppServices, issueId: string, deskKey
 }
 
 export async function renderPortalSignIn(app: AppServices, mail: MailRow): Promise<RenderedMail | null> {
-  const p = mail.payload as { requesterId?: string; desk?: string | null };
+  const p = mail.payload as { requesterId?: string; desk?: string | null; asked?: string | null };
   const [requester] = await app.db.select().from(requesters).where(eq(requesters.id, String(p.requesterId ?? '')));
   if (!requester) return null;
   const token = randomToken(SIGN_IN_PREFIX, 32);
   await app.db.insert(requesterSignIns).values({ tokenHash: sha256(token), requesterId: requester.id, expiresAt: new Date(Date.now() + SIGN_IN_TTL_MS) });
   const s = await app.schema.get();
   const desk = p.desk ? s.projectsByKey.get(p.desk) : undefined;
-  // A requester has no profile: the server's language (D49).
-  const tr = translatorFor(app.config.defaultLocale);
+  // Their language (D63's revisit); for an address a4a has none for yet, the asking page's; else the desk's (D49).
+  const tr = deskTranslator(app, requester, p.asked);
   const where = desk ? tr.t('server.portal.deskOf', { project: desk.name }) : tr.t('server.portal.theDesk');
   const subject = tr.t('server.portal.subject', { where });
   const { text, html } = composeMail(subject, {
@@ -111,8 +114,8 @@ export async function renderPortalSignIn(app: AppServices, mail: MailRow): Promi
   };
 }
 
-/** Trade a sign-in link's token, once, for a session's. */
-export async function redeemSignIn(app: AppServices, token: string): Promise<{ session: string; me: PortalMe }> {
+/** Trade a sign-in link's token, once, for a session's; a language chosen on the page before it (`chosen`) is theirs if they had none. */
+export async function redeemSignIn(app: AppServices, token: string, chosen?: Locale): Promise<{ session: string; me: PortalMe }> {
   const now = new Date();
   const [used] = await app.db
     .update(requesterSignIns)
@@ -121,7 +124,7 @@ export async function redeemSignIn(app: AppServices, token: string): Promise<{ s
     .returning();
   if (!used) throw new AppError(401, 'link_expired', 'This sign-in link has expired or was used', 'Ask for a new one: it comes by email in a minute.').said('portal.linkExpired');
   const signedIn: PortalSignedIn = { method: 'link', providerId: null };
-  const session = await startPortalSession(app.db, used.requesterId, signedIn, PORTAL_SESSION_MS);
+  const session = await startPortalSession(app.db, used.requesterId, { ...signedIn, chosen }, PORTAL_SESSION_MS);
   const [requester] = await app.db.select().from(requesters).where(eq(requesters.id, used.requesterId));
   return { session, me: await meOf(app, { ...requester!, signedIn }) };
 }
@@ -138,7 +141,7 @@ export async function portalRequester(app: AppServices, session: string | undefi
   if (Date.now() - row.s.lastSeenAt.getTime() > 60_000) {
     await app.db.update(requesterSessions).set({ lastSeenAt: new Date() }).where(eq(requesterSessions.tokenHash, row.s.tokenHash));
   }
-  // Their own language (D63's revisit): the browser's, when it is one a4a speaks; the emails follow it.
+  // What their browser asks for (D63's revisit), kept beside their choice: their emails follow it while they've chosen none.
   if (acceptLanguage) {
     const asked = matchLocale(acceptLanguage, app.config.defaultLocale);
     if (asked !== row.requester.locale) {
@@ -197,6 +200,9 @@ async function meOf(app: AppServices, r: PortalViewer): Promise<PortalMe> {
   return {
     name: r.name,
     email: r.email,
+    // Their choice alone: the page follows it, as the team's follow their profile's (D49); null, their browser's.
+    locale: isLocale(r.chosenLocale) ? r.chosenLocale : null,
+    defaultLocale: app.config.defaultLocale,
     groups,
     signedInWith: { method: r.signedIn.method, provider: via && names.has(via) ? { id: via, name: names.get(via)! } : null },
     password: Boolean(r.passwordHash),
@@ -209,8 +215,16 @@ export async function portalMe(app: AppServices, r: PortalViewer): Promise<Porta
   return meOf(app, r);
 }
 
-export async function renameRequester(app: AppServices, r: PortalViewer, name: string): Promise<PortalMe> {
-  await app.db.update(requesters).set({ name: name.trim().replace(/\s+/g, ' '), updatedAt: new Date() }).where(eq(requesters.id, r.id));
+/**
+ * What a requester changes of their own (D45, D63's revisit): the name the team sees, and their language,
+ * which the portal and every email to them follow; null takes the choice off, and their browser's counts
+ * again. Their account records no event, as D63 says.
+ */
+export async function updatePortalMe(app: AppServices, r: PortalViewer, input: { name?: string; locale?: Locale | null }): Promise<PortalMe> {
+  const set: Partial<RequesterRow> = {};
+  if (input.name !== undefined) set.name = input.name.trim().replace(/\s+/g, ' ');
+  if (input.locale !== undefined) set.chosenLocale = input.locale;
+  if (Object.keys(set).length) await app.db.update(requesters).set({ ...set, updatedAt: new Date() }).where(eq(requesters.id, r.id));
   const [fresh] = await app.db.select().from(requesters).where(eq(requesters.id, r.id));
   return meOf(app, { ...fresh!, signedIn: r.signedIn });
 }

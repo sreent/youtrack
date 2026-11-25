@@ -78,7 +78,6 @@ Its open questions were settled by a model editor's pass on 24 November 2026: 11
 
 Several languages' editors met these, and none has words of its own to settle: each asks what a4a should do.
 
-- **The portal's language** (D63): a requester's emails and the portal follow their browser's language, kept on the requester. Should the portal offer a choice? Many people in Vietnam run their phone and browser in English and read Vietnamese first, so one would help there; the Chinese and Japanese editors thought the browser's enough.
 - **A group's member copied on its new requests** (D56): their email says only that they're copied, as any CC's does. Should it say it's because of their group (`server.helpdesk.cc.whyAnswer`, `whyLink`), with a message of its own?
 
 ## What a catalog can't say yet

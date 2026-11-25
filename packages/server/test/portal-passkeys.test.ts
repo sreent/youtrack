@@ -535,7 +535,7 @@ describe('the team’s side', () => {
     expect(signedIn.status).toBe(200);
     const asAnna = (await issueTokenFor(w.app.db, w.anna.id, { name: 'anna', scopes: ['read', 'write'] })).token;
     const seen = await browser(nextIp()).req('GET', `/issues/${request.id}/request`, undefined, { bearer: asAnna });
-    expect(seen.body.requester).toEqual({ name: 'Yan', email: 'yan@example.org', passkeys: 2 });
+    expect(seen.body.requester).toEqual({ name: 'Yan', email: 'yan@example.org', passkeys: 2, language: null });
     expect(JSON.stringify(seen.body)).not.toContain('Phone');
     // A member who doesn't manage the desk can't; a viewer's token can't write at all.
     const anna = await browser(nextIp()).req('DELETE', `/issues/${request.id}/request/passkeys`, undefined, { bearer: asAnna });

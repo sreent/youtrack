@@ -13,8 +13,9 @@ import { Avatar, Who } from '../components/Who';
 import { errorText, FormField } from '../features/common/bits';
 import { solveCaptcha } from '../features/helpdesk/pow';
 import { PortalNotMe, PortalPasskeyButton, PortalPasskeysSection, usePortalPasskeySignIn } from '../features/helpdesk/PortalPasskeys';
+import { RequesterLone } from '../features/helpdesk/PortalLanguage';
 import { whenRead } from '../features/common/format';
-import { formatList, intlLocale, t, tr } from '../i18n';
+import { formatList, intlLocale, keepPortalLocale, t, tr, unsavedPortalChoice } from '../i18n';
 import type { ReactNode } from 'react';
 
 /** A sign-in link's token is in the fragment, which never leaves the browser: it's sent once, then dropped. */
@@ -69,6 +70,12 @@ function useCaptcha(challenge: CaptchaChallenge | null | undefined) {
   return () => pending.current;
 }
 
+/** A provider's start, carrying a language chosen on the page signed out (D63's revisit): theirs once it signs them in, if they have none. */
+function withChoice(start: string): string {
+  const chosen = unsavedPortalChoice();
+  return chosen ? `${start}${start.includes('?') ? '&' : '?'}locale=${chosen}` : start;
+}
+
 /** Why signing in through a provider sent someone back (the callback's ?sso=), and what to do. */
 function ssoFailure(code: string): { what: string; fix: string } {
   switch (code) {
@@ -108,7 +115,7 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
   const failure = failed ? ssoFailure(failed) : null;
   // A passkey (D69): from the email field's autofill where the browser offers it, and a button.
   const passkeys = usePortalPasskeySignIn(Boolean(methods.data?.passkey) && !sent, desk, onSignedIn);
-  if (methods.error) return <Lone><ErrorNote error={methods.error} /></Lone>;
+  if (methods.error) return <RequesterLone><ErrorNote error={methods.error} /></RequesterLone>;
   if (!methods.data) return <Loone />;
   const m = methods.data;
   const where = m.desk ? { desk: m.desk.key } : {};
@@ -135,7 +142,7 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
         solved = await pending;
       }
       setBusy('signing');
-      onSignedIn(await post<PortalMe>('/portal/password/sign-in', { email, password, ...where, ...(solved ? { captcha: solved } : {}) }));
+      onSignedIn(await post<PortalMe>('/portal/password/sign-in', { email, password, ...where, ...(solved ? { captcha: solved } : {}), locale: unsavedPortalChoice() }));
     } catch (err) {
       setError(err);
       // A proof of work is taken once: a new one for the next try.
@@ -148,7 +155,7 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
   const byEmail = m.link || m.password;
   const intro = m.password && m.link ? t('page.portal.linkOrPasswordIntro') : m.password ? t('page.portal.passwordIntro') : t('page.portal.weLlEmailYouA');
   return (
-    <Lone>
+    <RequesterLone busy={Boolean(busy)}>
       {m.desk ? <p className="label">{m.desk.name}</p> : null}
       <h1>{t('page.portal.yourRequests')}</h1>
       {failure ? (
@@ -163,7 +170,7 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
       ) : (
         <>
           {m.providers.map((p) => (
-            <a key={p.id} className={byEmail ? 'button' : 'button primary'} href={p.start}>
+            <a key={p.id} className={byEmail ? 'button' : 'button primary'} href={withChoice(p.start)}>
               {t('page.portal.signInThrough', { name: p.name })}
             </a>
           ))}
@@ -201,7 +208,7 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
           <PortalPasskeyButton passkeys={passkeys} />
         </>
       )}
-    </Lone>
+    </RequesterLone>
   );
 }
 
@@ -216,7 +223,7 @@ function ChoosePassword({ token, onSignedIn }: { token: string; onSignedIn: (me:
     setBusy(true);
     setError(null);
     try {
-      const me = await post<PortalMe>('/portal/password/set', { token, password });
+      const me = await post<PortalMe>('/portal/password/set', { token, password, locale: unsavedPortalChoice() });
       history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
       onSignedIn(me);
     } catch (err) {
@@ -227,15 +234,15 @@ function ChoosePassword({ token, onSignedIn }: { token: string; onSignedIn: (me:
   };
   if (expired) {
     return (
-      <Lone>
+      <RequesterLone>
         <h1>{t('page.portal.thisPasswordLinkHas')}</h1>
         <p className="note">{t('page.portal.passwordLinksWorkOnce')}</p>
         <a href={`/portal${window.location.search}`}>{t('page.portal.signInAgain')}</a>
-      </Lone>
+      </RequesterLone>
     );
   }
   return (
-    <Lone>
+    <RequesterLone busy={busy}>
       <h1>{t('page.portal.choosePassword')}</h1>
       <form className="form" onSubmit={save} aria-label={t('page.portal.choosePassword')}>
         <FormField label={t('page.portal.newPassword')} help={t('page.portal.passwordHelp')}>
@@ -248,7 +255,7 @@ function ChoosePassword({ token, onSignedIn }: { token: string; onSignedIn: (me:
           </button>
         </div>
       </form>
-    </Lone>
+    </RequesterLone>
   );
 }
 
@@ -518,11 +525,11 @@ function ConfirmCopies({ token }: { token: string }) {
   }, []);
   if (q.error) {
     return (
-      <Lone>
+      <RequesterLone>
         <h1>{t('page.portal.confirm.title')}</h1>
         <ErrorNote error={q.error} />
         <a href="/portal">{t('page.portal.confirm.openPortal')}</a>
-      </Lone>
+      </RequesterLone>
     );
   }
   if (!q.data) return <Loone />;
@@ -540,6 +547,8 @@ function ConfirmCopies({ token }: { token: string }) {
     setError(null);
     try {
       setDone(await post<CcConfirmed>('/portal/cc-confirmation', { copy: [...picked] }, { headers }));
+      // Used: the address keeps the request, not a spent link, so a reload opens the request (D63's revisit).
+      history.replaceState(null, '', `/portal?request=${encodeURIComponent(c.request.id)}`);
     } catch (err) {
       setError(err);
     } finally {
@@ -548,7 +557,7 @@ function ConfirmCopies({ token }: { token: string }) {
   };
   const portal = `/portal?request=${encodeURIComponent(c.request.id)}`;
   return (
-    <Lone>
+    <RequesterLone busy={busy}>
       <h1>{t('page.portal.confirm.title')}</h1>
       {done ? (
         <div className="stack">
@@ -593,7 +602,7 @@ function ConfirmCopies({ token }: { token: string }) {
           <a href={portal}>{t('page.portal.confirm.openPortal')}</a>
         </div>
       )}
-    </Lone>
+    </RequesterLone>
   );
 }
 
@@ -787,12 +796,26 @@ export default function PortalPage() {
   const [redeemError, setRedeemError] = useState<unknown>(null);
   // An email to someone copied on a request links to it here (D57): opened once they're signed in.
   const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get('request'));
-  const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token && !settingPassword && !confirming && !alert });
+  const me = useQuery({
+    queryKey: ['portal', 'me'],
+    queryFn: async () => {
+      const m = await get<PortalMe | null>('/portal/me');
+      // Signed in, the page follows their choice, as the team's pages follow the profile (D63's revisit).
+      if (m) keepPortalLocale(m.locale, m.defaultLocale);
+      return m;
+    },
+    retry: false,
+    enabled: !token && !settingPassword && !confirming && !alert,
+  });
   useEffect(() => {
     if (!token) return;
-    history.replaceState(null, '', window.location.pathname);
-    post<PortalMe>('/portal/sign-in/redeem', { token })
-      .then((m) => qc.setQueryData(['portal', 'me'], m))
+    // The token leaves the address before it's sent, so no reload can send it twice; the rest of the address (a request to open) stays.
+    history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+    post<PortalMe>('/portal/sign-in/redeem', { token, locale: unsavedPortalChoice() })
+      .then((m) => {
+        qc.setQueryData(['portal', 'me'], m);
+        keepPortalLocale(m.locale, m.defaultLocale);
+      })
       .catch(setRedeemError)
       .finally(() => void qc.invalidateQueries({ queryKey: ['portal'] }));
   }, [token, qc]);
@@ -807,15 +830,16 @@ export default function PortalPage() {
   if (confirming) return <ConfirmCopies token={confirming} />;
   if (redeemError) {
     return (
-      <Lone>
+      <RequesterLone>
         <h1>{t('page.portal.thisSignInLinkHas')}</h1>
         <p className="note">{t('page.portal.linksWorkOnceFor20')}</p>
         <a href="/portal">{t('page.portal.signInAgain')}</a>
-      </Lone>
+      </RequesterLone>
     );
   }
   const signedInNow = (m: PortalMe) => {
     qc.setQueryData(['portal', 'me'], m);
+    keepPortalLocale(m.locale, m.defaultLocale);
     setSettingPassword('');
     void qc.invalidateQueries({ queryKey: ['portal'], predicate: (q) => q.queryKey[1] !== 'me' });
   };
@@ -823,7 +847,7 @@ export default function PortalPage() {
   if (settingPassword) return <ChoosePassword token={settingPassword} onSignedIn={signedInNow} />;
   if (me.isLoading || (token && me.data === undefined && !me.error)) return <Loone />;
   if (!me.data) {
-    if (me.error && !(me.error instanceof ApiError && me.error.status === 401)) return <Lone><ErrorNote error={me.error} /></Lone>;
+    if (me.error && !(me.error instanceof ApiError && me.error.status === 401)) return <RequesterLone><ErrorNote error={me.error} /></RequesterLone>;
     return <SignIn desk={desk} onSignedIn={signedInNow} />;
   }
   const m = me.data;
@@ -833,7 +857,7 @@ export default function PortalPage() {
     window.location.assign(desk ? `/portal?desk=${encodeURIComponent(desk)}` : '/portal');
   };
   return (
-    <Lone wide>
+    <RequesterLone wide me={m}>
       <div className="title-row">
         <h1>{t('page.portal.yourRequests')}</h1>
         <button type="button" onClick={() => void signOut()}>{t('page.portal.signOut')}</button>
@@ -887,7 +911,7 @@ export default function PortalPage() {
           <PortalPasskeysSection me={m} />
         </div>
       )}
-    </Lone>
+    </RequesterLone>
   );
 }
 

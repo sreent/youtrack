@@ -149,9 +149,10 @@ export function portalPasskeyRoutes(app: OpenAPIHono<HttpEnv>) {
       const { requester, passkeyId } = await signInWithPortalPasskey(runtime, getCookie(c, PORTAL_PASSKEY_TICKET), body.response as AuthenticationResponseJSON, body.desk);
       await tries.succeeded();
       deleteCookie(c, PORTAL_PASSKEY_TICKET, { path: PORTAL_PASSKEY_PATH });
-      const token = await startPortalSession(runtime.db, requester.id, { method: 'passkey', providerId: null, passkeyId }, PORTAL_SESSION_MS);
+      const token = await startPortalSession(runtime.db, requester.id, { method: 'passkey', providerId: null, passkeyId, chosen: body.locale }, PORTAL_SESSION_MS);
       setPortalSession(c, runtime, token);
-      return portalMe(runtime, { ...requester, signedIn: { method: 'passkey', providerId: null } });
+      // Read again: a language chosen on the page before it may be theirs now (D63's revisit).
+      return portalMe(runtime, await portalRequester(runtime, token, c.req.header('accept-language')));
     },
   );
 

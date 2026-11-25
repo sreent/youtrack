@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { ApiError, get, post } from '../api/client';
 import { Lone } from '../app/Auth';
+import { RequesterLone } from '../features/helpdesk/PortalLanguage';
 import { Markdown } from '../components/Markdown';
 import { ErrorNote, Loading } from '../components/States';
 import { FormField } from '../features/common/bits';
@@ -75,18 +76,18 @@ export default function HelpPage() {
   if (form.error || !form.data) {
     const missing = form.error instanceof ApiError && form.error.status === 404;
     return (
-      <Lone wide>
+      <RequesterLone wide>
         <h1>{missing ? t('page.help.thereSNoHelpDesk') : t('page.help.theFormDidnTLoad')}</h1>
         {missing ? <p className="note">{t('page.help.checkTheAddressYouWere')}</p> : <ErrorNote error={form.error} />}
-      </Lone>
+      </RequesterLone>
     );
   }
   const f = form.data;
   if (received) {
     return (
-      <Lone wide>
+      <RequesterLone wide>
         <Received r={received} project={f.project.name} />
-      </Lone>
+      </RequesterLone>
     );
   }
   const set = (k: keyof typeof fields) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setFields((x) => ({ ...x, [k]: e.target.value }));
@@ -112,7 +113,7 @@ export default function HelpPage() {
     }
   };
   return (
-    <Lone wide>
+    <RequesterLone wide>
       <p className="label">{tr('page.help.helpDesk2', { name: f.project.name })}</p>
       <h1>{tr('page.help.askForHelp', { name: f.project.name })}</h1>
       {f.intro.trim() ? <Markdown text={f.intro} outside /> : null}
@@ -152,6 +153,6 @@ export default function HelpPage() {
           </button>
         </div>
       </form>
-    </Lone>
+    </RequesterLone>
   );
 }

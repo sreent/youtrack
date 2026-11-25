@@ -138,7 +138,7 @@ describe('the help desk', () => {
     expect(issue.project.key).toBe('BACK');
     expect(issue.reporter).toMatchObject({ login: 'helpdesk', isBot: true });
     const request = await requestOf(as(w.ben), issue.id);
-    expect(request.requester).toEqual({ name: 'Jane Doe', email: 'jane@example.com', passkeys: 0 });
+    expect(request.requester).toEqual({ name: 'Jane Doe', email: 'jane@example.com', passkeys: 0, language: null });
     expect(request.firstResponse.state).toBe('due');
     expect(new Date(request.firstResponse.dueAt!).getTime() - new Date(request.createdAt).getTime()).toBe(4 * 3_600_000);
     // The lead watches it and is told; what the requester wrote mentions nobody.
