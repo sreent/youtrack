@@ -38,6 +38,7 @@ import { noteNotRelayed, relayChoice, type RelayChoice, type RelayHow } from '..
 import { outsideAuthors, outsideKey } from './request-authors';
 import { addWatchers } from './watchers';
 import { languageOfRequester } from '../i18n';
+import type { Locale } from '@a4a/shared/i18n';
 
 /** The agent that files requests and posts requesters' replies. Agents go by their id in lower case. */
 export const HELPDESK_BOT = 'helpdesk';
@@ -156,10 +157,14 @@ export async function deskProject(app: AppServices, key: string): Promise<Projec
   return p;
 }
 
-/** A requester by their email, made when new; their name as they last gave it. */
-export async function requesterFor(db: Db, email: string, name: string): Promise<string> {
+/**
+ * A requester by their email, made when new; their name as they last gave it. `heard` is the language
+ * of the page that filed it (the help form's), kept on a requester made here as their browser's
+ * (D63's revisit), so the first email they get is in it; one a4a knows already keeps their own.
+ */
+export async function requesterFor(db: Db, email: string, name: string, heard?: Locale | null): Promise<string> {
   const res = await db.execute(sql`
-    INSERT INTO requesters (id, email, name) VALUES (${newId()}, ${email}, ${name})
+    INSERT INTO requesters (id, email, name, locale) VALUES (${newId()}, ${email}, ${name}, ${heard ?? null})
     ON CONFLICT ((lower(email))) DO UPDATE SET name = EXCLUDED.name, updated_at = now()
     RETURNING id`);
   return String((res as unknown as { rows: { id: string }[] }).rows[0]!.id);
@@ -194,6 +199,8 @@ export interface NewRequest {
   private?: boolean;
   /** Which of their several groups at the desk this one is for (D56's revisit): its id or name. */
   group?: string;
+  /** The language of the page that filed it (the help form's), kept on a requester a4a meets here first (D63's revisit). */
+  locale?: Locale | null;
 }
 
 /**
@@ -206,7 +213,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   const ctx = await botCtx(app, project.id);
   const email = input.email.trim();
   const name = input.name.trim().replace(/\s+/g, ' ');
-  const requesterId = await requesterFor(app.db, email, name);
+  const requesterId = await requesterFor(app.db, email, name, input.locale ?? null);
   const s = await app.schema.get();
   const lead = project.leadId ? s.users.get(project.leadId) : undefined;
   const received = requestMessageId('request-received');
@@ -269,7 +276,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
 }
 
 /** File a request from the public form, as an issue in the project. */
-export async function fileRequest(app: AppServices, key: string, input: { name: string; email: string; summary: string; description: string }): Promise<HelpRequestReceived> {
+export async function fileRequest(app: AppServices, key: string, input: { name: string; email: string; summary: string; description: string; locale?: Locale | null }): Promise<HelpRequestReceived> {
   const project = await deskProject(app, key);
   const issue = await openRequest(app, project, { ...input, via: 'form' });
   const email = input.email.trim();

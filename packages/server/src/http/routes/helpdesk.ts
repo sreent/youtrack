@@ -133,7 +133,8 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
       }
       await hit(c, [['submitEmail', body.email]], 'Too many requests from this email address', 'helpdesk.tooManyFromEmail');
       await hit(c, [['submitDesk', project.id]], 'This help desk is taking too many requests just now', 'helpdesk.deskBusy');
-      return fileRequest(runtime, project.key, body);
+      // The form's page's language: a requester a4a meets here first is written to in it (D63's revisit).
+      return fileRequest(runtime, project.key, { ...body, locale: pageLocaleOf(c) });
     },
   );
 

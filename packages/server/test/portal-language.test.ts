@@ -202,6 +202,28 @@ describe("a requester's language (D63's revisit)", () => {
     expect(langOf(newest('sso@example.com'))).toBe('ko');
   });
 
+  it("writes to someone the help form meets first in the form's page's language; someone it knows keeps theirs", async () => {
+    const b = browser('203.0.113.71');
+    const form = await b.req('GET', '/help/BACK');
+    expect(form.status).toBe(200);
+    // New to a4a, on a form in Vietnamese: kept as their browser's, so the first email, and the next, are in it.
+    const fresh = 'lan.form@example.org';
+    const sent = await b.req('POST', '/help/BACK/requests', { name: 'Lan', email: fresh, summary: 'Hóa đơn chưa đến', description: '', csrf: form.body.csrf }, { 'x-a4a-locale': 'vi' });
+    expect(sent.status, JSON.stringify(sent.body)).toBe(201);
+    await flush();
+    expect(langOf(newest(fresh))).toBe('vi');
+    expect(await row(fresh)).toMatchObject({ locale: 'vi', chosenLocale: null });
+    // Known already, in Japanese: a form in Vietnamese, anyone's to post, changes nothing of theirs.
+    const known = 'ken.form@example.org';
+    await file(known, 'First');
+    await w.app.db.update(requesters).set({ locale: 'ja' }).where(eq(requesters.email, known));
+    const again = await b.req('POST', '/help/BACK/requests', { name: 'Ken', email: known, summary: 'Second', description: '', csrf: form.body.csrf }, { 'x-a4a-locale': 'vi' });
+    expect(again.status, JSON.stringify(again.body)).toBe(201);
+    await flush();
+    expect(await row(known)).toMatchObject({ locale: 'ja', chosenLocale: null });
+    expect(langOf(newest(known, /Second/))).toBe('ja');
+  });
+
   it("asking for a link changes nobody: the mail is in their language, or for an address with none, the asking page's", async () => {
     // Known by her browser's German, and signed out.
     const known = await signIn('greta@example.org', '10.20.3.1', { 'accept-language': 'de' });
