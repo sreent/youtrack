@@ -2098,6 +2098,13 @@ export const HelpdeskRequestSchema = z
       name: z.string(),
       email: z.string(),
       passkeys: z.number().int().describe('How many passkeys they sign in to the portal with (D69); never which'),
+      language: z
+        .object({
+          locale: z.enum(LOCALES),
+          chosen: z.boolean().describe('They chose it on the portal; otherwise it is the language their browser last asked for there'),
+        })
+        .nullable()
+        .describe("The language a4a writes to them in, when it knows one (D63's revisit): their choice on the portal, else their browser's. Null: neither yet, so the desk's, the server's default"),
     }),
     createdAt: timestamp,
     firstResponse: SlaSchema,
@@ -3956,11 +3963,26 @@ export const PortalDeskSignInSchema = z
   .meta({ id: 'PortalDeskSignIn' });
 export type PortalDeskSignIn = z.infer<typeof PortalDeskSignInSchema>;
 
+/**
+ * The language a requester chose on the portal before signing in (D63's revisit), sent with the sign-in:
+ * theirs from then on, if they had chosen none. Asking for a link carries none, so nothing unauthenticated
+ * changes a requester.
+ */
+const portalChosenLocale = z
+  .enum(LOCALES)
+  .optional()
+  .describe("The language they chose on the portal's page before signing in: theirs from now on, if they have chosen none (D63's revisit)");
+
 /** A requester signed in to the portal (D45). */
 export const PortalMeSchema = z
   .object({
     name: z.string(),
     email: z.string(),
+    locale: z
+      .enum(LOCALES)
+      .nullable()
+      .describe("The language they chose for the portal and every email to them (D63's revisit). Null: their browser's, else the server's default"),
+    defaultLocale: z.enum(LOCALES).describe("The server's default language, for a browser that asks for none a4a speaks"),
     groups: z
       .array(z.object({ desk: z.object({ key: z.string(), name: z.string() }), name: z.string(), sharing: z.enum(['read', 'comment']) }))
       .describe("The customer groups they're in that share requests with them, one at most per desk (D56)"),
@@ -4022,8 +4044,12 @@ export const PortalSignInBody = z.object({
   email: z.string().trim().email().max(320),
   desk: z.string().trim().max(20).optional().describe('The desk whose page they signed in from'),
 });
-export const PortalRedeemBody = z.object({ token: z.string().min(10).max(200) });
-export const PortalNameBody = z.object({ name: z.string().trim().min(1).max(200) });
+export const PortalRedeemBody = z.object({ token: z.string().min(10).max(200), locale: portalChosenLocale });
+/** What a requester changes of their own on the portal: the name the team sees, and their language (D63's revisit). Left out, each stays. */
+export const PortalMeUpdateBody = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  locale: z.enum(LOCALES).nullable().optional().describe("The language for the portal and every email to them; null for their browser's again (D63's revisit)"),
+});
 export const PortalNewRequestBody = z.object({
   desk: z.string().trim().min(1).max(20),
   group: z.string().trim().max(100).optional().describe("Which of their several groups at the desk this one is for (D56's revisit): its name, when there are several"),
@@ -4819,12 +4845,13 @@ export const PortalPasswordSignInBody = z.object({
   password: z.string().min(1).max(200),
   desk: z.string().trim().max(20).optional().describe('The desk whose page they sign in from'),
   captcha: CaptchaSolutionSchema.optional(),
+  locale: portalChosenLocale,
 });
 export const PortalPasswordLinkBody = z.object({
   email: z.string().trim().email().max(320),
   desk: z.string().trim().max(20).optional(),
 });
-export const PortalPasswordSetBody = z.object({ token: z.string().min(10).max(200), password: portalPassword });
+export const PortalPasswordSetBody = z.object({ token: z.string().min(10).max(200), password: portalPassword, locale: portalChosenLocale });
 export const PortalPasswordChangeBody = z.object({ current: z.string().min(1).max(200), password: portalPassword });
 // Passkeys (D62)
 // ---------------------------------------------------------------------------
@@ -5046,7 +5073,7 @@ export const PortalPasskeyAlertSchema = z
 export type PortalPasskeyAlert = z.infer<typeof PortalPasskeyAlertSchema>;
 const portalDesk = z.string().trim().max(20).optional().describe('The desk whose page they sign in from: it must take passkeys');
 export const PortalPasskeyOptionsBody = z.object({ desk: portalDesk, rpId: z.string().trim().max(255).optional() });
-export const PortalPasskeySignInBody = PasskeySignInBody.extend({ desk: portalDesk });
+export const PortalPasskeySignInBody = PasskeySignInBody.extend({ desk: portalDesk, locale: portalChosenLocale });
 
 /** How many passkeys the team took from a requester (D69). */
 export const RemovedPasskeysSchema = z.object({ removed: z.number().int() }).meta({ id: 'RemovedPasskeys' });

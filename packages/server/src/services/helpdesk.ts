@@ -37,6 +37,7 @@ import { ccsOf, copyGroupMembers, copyOnNewRequest, deskCcsMax, heldOf, holdOnNe
 import { noteNotRelayed, relayChoice, type RelayChoice, type RelayHow } from '../helpdesk/relay';
 import { outsideAuthors, outsideKey } from './request-authors';
 import { addWatchers } from './watchers';
+import { languageOfRequester } from '../i18n';
 
 /** The agent that files requests and posts requesters' replies. Agents go by their id in lower case. */
 export const HELPDESK_BOT = 'helpdesk';
@@ -437,7 +438,8 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
   const [group] = row.request.groupId ? await ctx.db.select().from(customerGroups).where(eq(customerGroups.id, row.request.groupId)) : [];
   return {
     issue: readableId(s, issue),
-    requester: { name: row.requester.name, email: row.requester.email, passkeys: await requesterPasskeyCount(ctx.db, row.requester.id) },
+    // Their language when a4a knows one (D63's revisit), so whoever answers can answer in it.
+    requester: { name: row.requester.name, email: row.requester.email, passkeys: await requesterPasskeyCount(ctx.db, row.requester.id), language: languageOfRequester(row.requester) },
     createdAt: row.request.createdAt.toISOString(),
     // D24's first-response target, as its clock now stands (D45); a request from before clocks, as it was.
     firstResponse: first

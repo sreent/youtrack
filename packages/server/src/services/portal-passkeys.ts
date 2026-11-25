@@ -276,9 +276,9 @@ export async function portalRegistrationOptions(app: AppServices, requester: Req
   const rows = await rowsOf(app.db, requester.id);
   if (rows.length >= MAX_PASSKEYS) throw tooMany();
   const challenge = await newChallenge(app.db, 'register', session.id, requester.id);
-  // What the browser's passkey manager lists it as, in the help desk's language (D49): their address,
+  // What the browser's passkey manager lists it as, in their language (D63's revisit): their address,
   // and their name marked as the help desk's, beside any passkey of theirs for the team.
-  const tr = deskTranslator(app);
+  const tr = deskTranslator(app, requester);
   return (await generateRegistrationOptions({
     rpName: ((await getSetting(app.db, 'instanceName')) as string | undefined) ?? APP_NAME,
     rpID: rp.id,
@@ -559,8 +559,8 @@ export async function renderPortalPasskeyMail(app: AppServices, row: MailRow): P
   if (!p.requesterId || !p.change || !p.at) return null;
   const [r] = await app.db.select().from(requesters).where(eq(requesters.id, p.requesterId));
   if (!r) return null;
-  // In the help desk's language, as its other emails to a requester are (D49, D63).
-  const tr = deskTranslator(app);
+  // In their language, as every email to a requester is (D63's revisit).
+  const tr = deskTranslator(app, r);
   const words = { name: p.name ?? '', email: r.email, when: emailTime(p.at, zoneOfUser(null), tr.locale), n: p.n ?? 1, desk: p.desk ?? '' };
   const portal = `${app.config.publicUrl}/portal`;
   const why = tr.t('server.portalPasskeys.why', { email: r.email });

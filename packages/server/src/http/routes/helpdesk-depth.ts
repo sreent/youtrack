@@ -8,7 +8,7 @@ import {
   ErrorSchema,
   PortalDeskSchema,
   PortalMeSchema,
-  PortalNameBody,
+  PortalMeUpdateBody,
   PortalNewRequestBody,
   PortalRedeemBody,
   PortalReplyBody,
@@ -49,7 +49,7 @@ import {
   portalSetPrivate,
   requesterRequest,
   redeemSignIn,
-  renameRequester,
+  updatePortalMe,
   requestSignIn,
   signOut,
 } from '../../services/portal';
@@ -65,7 +65,7 @@ import { deskMailbox, setDeskMailbox } from '../../services/desk-mailbox';
 import { createPolicy, deletePolicy, listPolicies, reorderPolicies, slaReport, updatePolicy } from '../../services/sla';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
-import { hit, ip, sameOrigin } from './helpdesk';
+import { hit, ip, pageLocaleOf, sameOrigin } from './helpdesk';
 
 const Key = z.object({ key: z.string().min(1).max(10) });
 const KeyId = Key.extend({ id: z.string().min(1) });
@@ -186,7 +186,8 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
       sameOrigin(c);
       await hit(c, [['portalIp', ip(c)]], 'Too many sign-in links from your address', 'helpdesk.tooManyLinksFromAddress');
       await hit(c, [['portalEmail', body.email]], 'Too many sign-in links for this email address', 'helpdesk.tooManyLinksForEmail');
-      await requestSignIn(c.get('runtime'), body.email, body.desk);
+      // In the asking page's language for an address with none yet, carried with the mail alone (D63's revisit).
+      await requestSignIn(c.get('runtime'), body.email, body.desk, pageLocaleOf(c));
       return { sent: true as const };
     },
   );
@@ -207,7 +208,7 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
       const runtime = c.get('runtime');
       sameOrigin(c);
       await hit(c, [['portalIp', ip(c)]], 'Too many sign-ins from your address', 'helpdesk.tooManySignIns');
-      const { session: token, me } = await redeemSignIn(runtime, body.token);
+      const { session: token, me } = await redeemSignIn(runtime, body.token, body.locale);
       setCookie(c, PORTAL_COOKIE, token, {
         httpOnly: true,
         sameSite: 'Strict',
@@ -233,10 +234,24 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
       return r ? portalMe(c.get('runtime'), r) : null;
     },
   );
-  route(app, { method: 'patch', path: '/portal/me', tags, summary: 'Change the name the team sees', auth: 'none', body: PortalNameBody, response: PortalMeSchema }, async ({ c, body }) => {
-    sameOrigin(c);
-    return renameRequester(c.get('runtime'), await who(c), body.name);
-  });
+  route(
+    app,
+    {
+      method: 'patch',
+      path: '/portal/me',
+      tags,
+      summary: 'Change the name the team sees, or my language',
+      description:
+        "Signed in to the portal. `locale` is the language of the portal and of every email to them, on every device (D63's revisit); null takes the choice off, and their browser's counts again. Left out, each stays.",
+      auth: 'none',
+      body: PortalMeUpdateBody,
+      response: PortalMeSchema,
+    },
+    async ({ c, body }) => {
+      sameOrigin(c);
+      return updatePortalMe(c.get('runtime'), await who(c), body);
+    },
+  );
   route(app, { method: 'get', path: '/portal/desks', tags, summary: 'The desks a requester can ask from the portal', auth: 'none', response: z.array(PortalDeskSchema) }, async ({ c }) =>
     portalDesks(c.get('runtime'), await who(c)),
   );

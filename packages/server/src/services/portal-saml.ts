@@ -40,11 +40,11 @@ function samlFor(app: AppServices, row: ProviderRow, cache: PostgresCache, reque
 }
 
 /** Start the SAML sign-in: the AuthnRequest, and the state the browser must bring back. */
-export async function startPortalSaml(app: AppServices, row: ProviderRow, deskKey: string | null): Promise<{ url: string; state: string }> {
+export async function startPortalSaml(app: AppServices, row: ProviderRow, deskKey: string | null, chosen: string | null = null): Promise<{ url: string; state: string }> {
   await app.db.delete(samlCache).where(lt(samlCache.expiresAt, new Date()));
   const state = randomBytes(32).toString('base64url');
   const requestId = `_${randomBytes(20).toString('hex')}`;
-  await app.db.insert(portalSsoStates).values({ id: sha256(state), providerId: row.id, desk: deskKey, codeVerifier: '', nonce: '', expiresAt: new Date(Date.now() + PORTAL_SSO_TTL_MS) });
+  await app.db.insert(portalSsoStates).values({ id: sha256(state), providerId: row.id, desk: deskKey, locale: chosen, codeVerifier: '', nonce: '', expiresAt: new Date(Date.now() + PORTAL_SSO_TTL_MS) });
   const url = await samlFor(app, row, new PostgresCache(app.db, JSON.stringify({ state: sha256(state) })), requestId).getAuthorizeUrlAsync(state, undefined, {});
   return { url, state };
 }
@@ -91,7 +91,8 @@ export async function finishPortalSaml(app: AppServices, form: { SAMLResponse?: 
   if (!firstTime.length) {
     await app.db.update(requesterIdentities).set({ subject: email, lastAt: new Date() }).where(and(eq(requesterIdentities.requesterId, requester.id), eq(requesterIdentities.providerId, row.id)));
   }
+  // The session first, as the OIDC path's: a language chosen before it is theirs by the time they're told.
+  const session = await startPortalSession(app.db, requester.id, { method: 'sso', providerId: row.id, chosen: pending.locale }, ttlMs);
   if (firstTime.length) await tellOfSignIn(app, requester.id, 'provider', row.name);
-  const session = await startPortalSession(app.db, requester.id, { method: 'sso', providerId: row.id }, ttlMs);
   return { session, desk: pending.desk };
 }

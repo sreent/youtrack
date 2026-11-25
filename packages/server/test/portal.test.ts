@@ -171,7 +171,7 @@ describe("the requester's own language (D63's revisit)", () => {
     const [r] = await w.app.db.select().from(requesters).where(eq(requesters.email, 'anna@acme.example'));
     expect(r!.locale).toBe('de');
     // An email to them now reads German.
-    const tr = deskTranslator(w.app, r!.locale);
+    const tr = deskTranslator(w.app, r);
     expect(tr.locale).toBe('de');
   });
 });

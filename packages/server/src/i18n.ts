@@ -37,6 +37,29 @@ export function localeOfPerson(app: Pick<Ctx['app'], 'config'>, person: { locale
   return isLocale(person?.locale) ? person.locale : app.config.defaultLocale;
 }
 
+/** What a4a knows of a requester's language: the one they chose on the portal, and the one their browser last asked for there. */
+export type RequesterLanguage = { chosenLocale?: string | null; locale?: string | null } | null | undefined;
+
+/**
+ * A requester's language (D63's revisit), for the portal and every email to them: the one they chose,
+ * else the one their browser last asked for, else, for an address a4a knows neither for, the language
+ * of the page that asked for the mail (`asked`: a sign-in link's), else the desk's, the server's
+ * default (D49). Every reader of a requester's language asks here.
+ */
+export function localeOfRequester(app: Pick<Ctx['app'], 'config'>, r: RequesterLanguage, asked?: string | null): Locale {
+  if (isLocale(r?.chosenLocale)) return r.chosenLocale;
+  if (isLocale(r?.locale)) return r.locale;
+  if (isLocale(asked)) return asked;
+  return app.config.defaultLocale;
+}
+
+/** A requester's language as the team sees it (D63's revisit): theirs when a4a knows one, and whether they chose it; null when it knows neither. */
+export function languageOfRequester(r: RequesterLanguage): { locale: Locale; chosen: boolean } | null {
+  if (isLocale(r?.chosenLocale)) return { locale: r.chosenLocale, chosen: true };
+  if (isLocale(r?.locale)) return { locale: r.locale, chosen: false };
+  return null;
+}
+
 /**
  * The language of an answer to a request: the page's (the web says which in `x-a4a-locale`), then the
  * person's choice, then what the browser asks for, then the server's default.

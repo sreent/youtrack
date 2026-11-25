@@ -9,6 +9,7 @@ import { HelpdeskRequestSchema, HelpFormSchema, HelpReplyBody, HelpRequestBody, 
 import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
+import { isLocale, type Locale } from '@a4a/shared/i18n';
 import { checkCaptcha } from '../../helpdesk/captcha';
 import { randomToken } from '../../lib/crypto';
 import { AppError, badRequest } from '../../lib/errors';
@@ -41,6 +42,12 @@ export async function hit(c: Context<HttpEnv>, hits: [HelpLimit, string][], word
 /** The caller's address, through the proxies TRUST_PROXY says are in front. */
 export function ip(c: Context<HttpEnv>): string {
   return clientIp(c, c.get('runtime').config.trustProxy);
+}
+
+/** The language of the page that asked (its `x-a4a-locale`, D49), or null: a public page's mail carries it, for an address with none yet. */
+export function pageLocaleOf(c: Context<HttpEnv>): Locale | null {
+  const page = c.req.header('x-a4a-locale');
+  return isLocale(page) ? page : null;
 }
 
 /**
