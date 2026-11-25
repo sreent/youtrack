@@ -1049,7 +1049,7 @@
   "helpdesk.groups.inItsHours": "Ses propres heures ouvrées ({zone})",
   "helpdesk.groups.intro": "Regroupez les personnes qui font des demandes par entreprise ou par équipe : par le domaine de leur adresse e-mail, ou à la main. Un groupe peut partager les demandes de ses membres sur le portail, compter son SLA selon ses propres heures ouvrées et confier ses nouvelles demandes à des personnes dédiées. Les demandes reçues à partir de maintenant sont rattachées au groupe de la personne qui les a faites ; les précédentes gardent le leur.",
   "helpdesk.groups.knownCustomers": "Clients d’autres assistances",
-  "helpdesk.groups.knownCustomersCount": "{n, plural, one {# client} other {# clients}} d’autres assistances : flèches haut et bas pour choisir, Entrée pour valider.",
+  "helpdesk.groups.knownCustomersCount": "{n, plural, one {# client} other {# clients}} d’autres assistances : flèches haut et bas pour choisir, Entrée pour valider.",
   "helpdesk.groups.memberEmail": "Adresse e-mail",
   "helpdesk.groups.members": "Personnes ajoutées à la main",
   "helpdesk.groups.membersCount": "Personnes ajoutées à la main ({n})",
