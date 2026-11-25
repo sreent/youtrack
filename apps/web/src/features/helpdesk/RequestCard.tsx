@@ -9,7 +9,7 @@ import { Confirm } from '../common/Confirm';
 import { errorText, FormField, Said } from '../common/bits';
 import { RequestSla } from './Sla';
 import { RequestCcs } from './RequestCcs';
-import { intlLocale, t, tr } from '../../i18n';
+import { intlLocale, languageName, t, tr } from '../../i18n';
 
 /** A length of time as people say it: "40 minutes", "3 hours", "2 days". */
 export function span(ms: number): string {
@@ -152,6 +152,10 @@ export function RequestCard({ issue, canEdit = false, canManage = false }: { iss
     <section className="card side-card stack tight" aria-labelledby="request-title">
       <h2 id="request-title">{t('helpdesk.requestCard.helpDeskRequest')}</h2>
       <Who kind="person" name={r.requester.name} about={r.requester.email} small />
+      {/* Their language, when a4a knows it (D63's revisit): what a4a writes to them in, so whoever answers can answer in it. */}
+      {r.requester.language ? (
+        <p className="note">{t('helpdesk.requestCard.language', { language: languageName(r.requester.language.locale), chosen: r.requester.language.chosen ? 'yes' : 'no' })}</p>
+      ) : null}
       <RequesterPasskeys issue={issue} r={r} canManage={canManage} />
       <RequestGroup issue={issue} r={r} canEdit={canEdit} />
       {r.sla.clocks.length ? <RequestSla issueId={issue.id} r={r} canReply /> : <SlaBadge sla={r.firstResponse} since={r.createdAt} />}
