@@ -392,14 +392,16 @@ export async function copyGroupMembers(tx: Db, app: AppServices, issue: IssueRow
   if (active >= max) return;
   const own = await ownCheck(app, tx);
   // A few more than there's room for, for those already on it and addresses refused here.
+  let n = 0;
   for (const m of await groupCopyCandidates(tx, now, asker?.email ?? '', max - active + known.size + 20)) {
     if (active >= max) break;
     const key = lower(m.email);
     if (known.has(key) || !readableAddress(m.email) || own(m.email)) continue;
-    // By the database's clock, as the stop's turning back on is, so the seam compares like with like.
+    // By the database's clock, as the stop's turning back on is, so the seam compares like with like;
+    // a millisecond apart, so they're listed in the cap's order.
     await tx
       .insert(requestCcs)
-      .values({ id: newId(), issueId: issue.id, email: m.email, name: (m.name ?? '').slice(0, 100), via: 'group', groupId: now.id, addedById: null, addedAt: sql`clock_timestamp()` })
+      .values({ id: newId(), issueId: issue.id, email: m.email, name: (m.name ?? '').slice(0, 100), via: 'group', groupId: now.id, addedById: null, addedAt: sql`clock_timestamp() + ${n++} * interval '1 millisecond'` })
       .onConflictDoNothing();
     known.add(key);
     active++;
