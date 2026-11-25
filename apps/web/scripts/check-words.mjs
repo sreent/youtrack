@@ -2,7 +2,10 @@
 /**
  * a4a's words are in its catalogs, not in its code (docs/architecture.md, D49). This check fails when:
  *   - a catalog lacks a key English has, has one English lacks, or a message doesn't parse;
- *   - a translation names other placeholders or tags than English's message;
+ *   - a translation names other placeholders or tags than English's message, loses a select's case,
+ *     counts in plural categories its language hasn't or drops the number (#) where English shows
+ *     it, moves a tag off the values English's holds, or breaks its language's typography
+ *     (packages/shared/scripts/catalog-rules.mjs: a native speaker's sheet is checked by the same);
  *   - code says a key no catalog has, or a catalog keeps a key nothing says;
  *   - words are written straight into the web app's JSX (text, or an attribute a person reads), or
  *     into what a page says from code (a status line, a label in a ternary).
@@ -20,61 +23,34 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { labelPairs, labelProblem, listedLocales, messageProblems, readCatalogs } from '../../../packages/shared/scripts/catalog-rules.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../..');
 const root = process.env.CHECK_WORDS_ROOT ? path.resolve(process.env.CHECK_WORDS_ROOT) : repo;
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
-const { IntlMessageFormat } = require(require.resolve('intl-messageformat', { paths: [path.join(repo, 'packages/shared')] }));
 
 const problems = [];
 const say = (where, what) => problems.push(`${where}: ${what}`);
 
 // ---------------------------------------------------------------------------
-// The catalogs
+// The catalogs, by the rules a native speaker's sheet is checked by too
 // ---------------------------------------------------------------------------
-const catalogDir = path.join(root, 'packages/shared/i18n');
-const catalogs = Object.fromEntries(
-  readdirSync(catalogDir)
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => [f.replace(/\.json$/, ''), JSON.parse(readFileSync(path.join(catalogDir, f), 'utf8'))]),
-);
+const catalogs = readCatalogs(root);
 const en = catalogs.en;
 if (!en) throw new Error('packages/shared/i18n/en.json is missing');
-const localesTs = readFileSync(path.join(root, 'packages/shared/src/i18n.ts'), 'utf8');
-const listed = JSON.parse(localesTs.match(/export const LOCALES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
+const listed = listedLocales(root);
 for (const l of listed) if (!catalogs[l]) say(`LOCALES`, `${l} is listed, but packages/shared/i18n/${l}.json is missing`);
 for (const l of Object.keys(catalogs)) if (!listed.includes(l)) say(`i18n/${l}.json`, `isn't in LOCALES (packages/shared/src/i18n.ts)`);
-
-function argumentsOf(source, where) {
-  try {
-    const names = new Set();
-    const walk = (els) => {
-      for (const el of els) {
-        if (el.type !== 0 && el.type !== 7 && typeof el.value === 'string') names.add(el.value);
-        if (el.options) for (const o of Object.values(el.options)) walk(o.value);
-        if (el.children) walk(el.children);
-      }
-    };
-    walk(new IntlMessageFormat(source, 'en').getAst());
-    return [...names].sort().join(',');
-  } catch (e) {
-    say(where, `doesn't parse: ${e.message}`);
-    return null;
-  }
-}
-const enArgs = Object.fromEntries(Object.entries(en).map(([k, v]) => [k, argumentsOf(v, `en ${k}`)]));
 for (const [locale, messages] of Object.entries(catalogs)) {
-  if (locale === 'en') continue;
-  for (const k of Object.keys(en)) if (!(k in messages)) say(`${locale}.json`, `lacks ${k}`);
+  if (locale !== 'en') for (const k of Object.keys(en)) if (!(k in messages)) say(`${locale}.json`, `lacks ${k}`);
   for (const [k, v] of Object.entries(messages)) {
     if (!(k in en)) {
       say(`${locale}.json`, `has ${k}, which English hasn't`);
       continue;
     }
-    const args = argumentsOf(v, `${locale} ${k}`);
-    if (args !== null && enArgs[k] !== null && args !== enArgs[k]) say(`${locale}.json ${k}`, `names {${args}}, English names {${enArgs[k]}}`);
+    for (const p of messageProblems(locale, en[k], v)) say(`${locale}.json ${k}`, p);
   }
 }
 
@@ -263,15 +239,10 @@ for (const k of Object.keys(en)) if (!used.has(k) && !DYNAMIC.some((p) => k.star
 // pages it visits, mostly in English; this checks every language: where a button or a link is named
 // by aria-label={t('a', …)} and shows {t('b')}, b's words stand whole, in order, in a.
 // ---------------------------------------------------------------------------
-const plainWords = (s) => s.replace(/\{[^{}]*\}/g, ' q9q ').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-for (const f of walkDir(path.join(root, 'apps/web/src')).filter((f) => f.endsWith('.tsx'))) {
-  for (const [, nameKey, shownKey] of readFileSync(f, 'utf8').matchAll(/aria-label=\{tr?\('([\w.]+)'[^}]*\}[^>]*>\s*\{tr?\('([\w.]+)'\)\}\s*</g)) {
-    for (const [locale, messages] of Object.entries(catalogs)) {
-      const [name, shown] = [messages[nameKey], messages[shownKey]];
-      if (!name || !shown || /[{}]/.test(shown) || /,\s*(select|plural)\s*,/.test(name)) continue;
-      const [n, s] = [plainWords(name), plainWords(shown)];
-      if (!n.includes(s) && !n.replace(/ /g, '').includes(s.replace(/ /g, ''))) say(`i18n/${locale}.json`, `${nameKey} names a control that shows ${shownKey}, “${shown}”, so it should hold those words whole: “${name}”`);
-    }
+for (const { nameKey, shownKey } of labelPairs(root)) {
+  for (const [locale, messages] of Object.entries(catalogs)) {
+    const why = labelProblem(messages[nameKey], messages[shownKey]);
+    if (why) say(`i18n/${locale}.json`, `${nameKey} ${why} (${shownKey})`);
   }
 }
 
