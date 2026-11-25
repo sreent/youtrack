@@ -210,6 +210,13 @@ describe('a native speaker’s sheet', () => {
     expect(r.read('packages/shared/i18n/th.json')).toBe(catalog);
   });
 
+  it('takes a control’s name and the words it shows changed together, which neither passes alone', async () => {
+    const r = repo();
+    const report = await bring(r, fillIn(await sheetFor(r), [{ key: 'page.issue.remove', suggestion: 'ลบออก' }, { key: 'page.issue.removeFor', suggestion: 'ลบออก {name}' }]));
+    expect(report.refused).toEqual([]);
+    expect([r.th()['page.issue.remove'], r.th()['page.issue.removeFor']]).toEqual(['ลบออก', 'ลบออก {name}']);
+  });
+
   it('refuses a row whose English changed since the sheet was made, or whose words did', async () => {
     const r = repo();
     const file = fillIn(await sheetFor(r), [{ key: 'page.issue.save', suggestion: 'บันทึกเลย' }, { key: 'page.admin.title', suggestion: 'ผู้ดูแล' }]);

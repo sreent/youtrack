@@ -455,28 +455,30 @@ export async function importSheet({ root, file, dryRun = false, reader = null, n
       }
       if (suggestion === nfc(words[row.key])) continue;
       const why = [...unsafe(suggestion, en[row.key], words[row.key]), ...messageProblems(locale, en[row.key], suggestion)];
-      for (const p of pairs.filter((x) => x.nameKey === row.key || x.shownKey === row.key)) {
-        const said = labelProblem(p.nameKey === row.key ? suggestion : next[p.nameKey], p.shownKey === row.key ? suggestion : next[p.shownKey]);
-        if (said) why.push(`a control is named by ${p.nameKey} and shows ${p.shownKey}: ${said}`);
-      }
       if (why.length) {
         refuse(...why);
         continue;
       }
       next[row.key] = suggestion;
-      report.applied.push({ key: row.key, before: words[row.key], after: suggestion });
+      report.applied.push({ key: row.key, row: row.row, before: words[row.key], after: suggestion });
     }
 
-    // A pair of messages that each pass may fail together (a control's name and what it shows).
-    for (const p of pairs) {
-      const touched = report.applied.filter((a) => a.key === p.nameKey || a.key === p.shownKey);
-      if (!touched.length) continue;
-      const said = labelProblem(next[p.nameKey], next[p.shownKey]);
-      if (!said) continue;
-      for (const a of touched) {
-        report.applied.splice(report.applied.indexOf(a), 1);
-        next[a.key] = words[a.key];
-        report.refused.push({ key: a.key, suggestion: a.after, why: [`with the other suggestion for ${a.key === p.nameKey ? p.shownKey : p.nameKey}, ${said}`] });
+    // A control's name and the words it shows are two messages, so a pair is checked with every
+    // suggestion in place (a reader may change both, together), and what still breaks one is put
+    // back, until none does.
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (const p of pairs) {
+        const touched = report.applied.filter((a) => a.key === p.nameKey || a.key === p.shownKey);
+        const said = touched.length && labelProblem(next[p.nameKey], next[p.shownKey]);
+        if (!said) continue;
+        for (const a of touched) {
+          report.applied.splice(report.applied.indexOf(a), 1);
+          next[a.key] = words[a.key];
+          const both = touched.length > 1 ? `, with the suggestion for ${a.key === p.nameKey ? p.shownKey : p.nameKey}` : '';
+          report.refused.push({ key: a.key, row: a.row, suggestion: a.after, why: [`a control is named by ${p.nameKey} and shows ${p.shownKey}${both}: ${said}`] });
+        }
+        changed = true;
       }
     }
 
