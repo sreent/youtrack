@@ -158,10 +158,10 @@ async function addKey(b: Browser, key: Authenticator, name?: string) {
 }
 
 /** Sign in from the portal's sign-in page: options, then the browser's answer, with the ticket cookie between. */
-async function withKey(key: Authenticator, o: Parameters<Authenticator['sign']>[1] & { desk?: string } = {}, b: Browser = browser(nextIp())) {
+async function withKey(key: Authenticator, o: Parameters<Authenticator['sign']>[1] & { desk?: string; locale?: string } = {}, b: Browser = browser(nextIp())) {
   const options = await b.req('POST', '/portal/passkey/options', o.desk ? { desk: o.desk } : {});
   if (options.status !== 200) return { ...options, b, options: null as any };
-  const r = await b.req('POST', '/portal/passkey', { response: key.sign(options.body, o), ...(o.desk ? { desk: o.desk } : {}) });
+  const r = await b.req('POST', '/portal/passkey', { response: key.sign(options.body, o), ...(o.desk ? { desk: o.desk } : {}), ...(o.locale ? { locale: o.locale } : {}) });
   return { ...r, b, options: options.body };
 }
 
@@ -334,6 +334,20 @@ describe('signing in', () => {
     } finally {
       await updateProject(w.adminCtx, 'BACK', { settings: { helpdesk: { signIn: ways(true, true, true) } } });
     }
+  });
+
+  it("takes a language chosen on the sign-in page when a passkey signs them in, only if they chose none (D63's revisit)", async () => {
+    await openRequest(w.app, await desk('BACK'), { name: 'Lan', email: 'lan.pk@example.org', summary: 'Printer jams', description: '', via: 'form' });
+    const key = new Authenticator();
+    expect((await addKey(await byLink('lan.pk@example.org'), key)).status).toBe(201);
+    // Chosen before signing in: theirs once the passkey signs them in.
+    const first = await withKey(key, { desk: 'BACK', locale: 'vi' });
+    expect([first.status, first.body.locale]).toEqual([200, 'vi']);
+    expect((await w.app.db.select().from(requesters).where(eq(requesters.email, 'lan.pk@example.org')))[0]!.chosenLocale).toBe('vi');
+    // From a page in another language, the choice they made stands; and one a4a doesn't speak is refused.
+    const again = await withKey(key, { desk: 'BACK', locale: 'ja' });
+    expect([again.status, again.body.locale]).toEqual([200, 'vi']);
+    expect((await withKey(key, { desk: 'BACK', locale: 'xx' })).status).toBe(400);
   });
 
   it('refuses a challenge used twice, run out, from another browser or ceremony, another origin, and a device that didn’t verify its person', async () => {
