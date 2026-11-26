@@ -18,7 +18,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@milkdown/kit": "7.23.0",
     "@simplewebauthn/browser": "14.0.0",
-    "@sreent/ocean": "github:sreent/ocean#15a7e4e0fcb31ab3e5e79a0f0aa7d2a44df3715e",
+    "@sreent/ocean": "github:sreent/ocean#496753b6522fe8e309180d5db03a3f4b9257fb3b",
     "@tanstack/react-query": "^5.107.1",
     "clsx": "^2.1.1",
     "react": "^19.3.1",
