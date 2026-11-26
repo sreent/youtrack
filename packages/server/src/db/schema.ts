@@ -15,6 +15,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import type { ProblemSaid } from '@a4a/shared/i18n';
@@ -461,7 +462,8 @@ export const timesheetWeeks = pgTable(
     approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('timesheet_weeks_person_week').on(t.userId, t.week)],
+  // A constraint, as migration 0051 made it in every database: one row per person and week.
+  (t) => [unique('timesheet_weeks_person_week').on(t.userId, t.week)],
 );
 
 export const workItems = pgTable(
@@ -2936,7 +2938,8 @@ export const customerGroupMembers = pgTable(
     addedAt: created(),
   },
   // A requester may be in several groups at a desk (D56's revisit): the membership is the three together.
-  (t) => [primaryKey({ columns: [t.projectId, t.requesterId, t.groupId] }), index('customer_group_members_group').on(t.groupId)],
+  // Named as Postgres named it when migration 0059 made it, in every database.
+  (t) => [primaryKey({ name: 'customer_group_members_pkey', columns: [t.projectId, t.requesterId, t.groupId] }), index('customer_group_members_group').on(t.groupId)],
 );
 
 /** A group's dedicated agents, in order: its members' new requests go to one of them. */

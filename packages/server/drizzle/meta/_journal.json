@@ -435,6 +435,13 @@
       "when": 1795016145172,
       "tag": "0061_group_copy_stops",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795710877609,
+      "tag": "0062_keys_the_schema_declares",
+      "breakpoints": true
     }
   ]
 }

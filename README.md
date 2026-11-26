@@ -526,13 +526,13 @@ CI runs these for DeepSeek and Qwen, on `main` and when run by hand, each when i
 | `apps/web` | The web UI on Ocean |
 | `docs/` | [What the API and MCP can do](docs/mcp-and-api.md), [the architecture and its decisions](docs/architecture.md), [translating a4a](docs/translating.md), [the questions for native speakers](docs/translation-questions.md), and [a native speaker's read](docs/translating.md#a-native-speakers-read): a sheet a reader can finish in an hour (`pnpm i18n:review export <lang>`), and an import that checks every suggestion before it writes one (`pnpm i18n:review import <file>`) |
 
-The schema lives in `packages/server/src/db/schema.ts`. Migrations are generated with:
+The schema lives in `packages/server/src/db/schema.ts`. Change it, then generate its migration, named for what it does:
 
 ```bash
-pnpm db:generate
+pnpm db:generate --name <what>
 ```
 
-They run on start.
+Migrations run on start. drizzle-kit writes the SQL and a snapshot of the schema beside it. You may edit the SQL, for a step it can't write such as clearing rows a new key would refuse, but never write a migration or its snapshot by hand: four hand-written ones left out keys the schema declared, and broke the snapshots `db:generate` reads (D71). `test/migrations.test.ts` catches both. It fails when the database the migrations build differs from the schema, or when the snapshots stop forming one chain whose last is the schema. When two branches each made a migration, keep the first branch's, delete the other's SQL, snapshot and journal entry, merge the schema, and generate again.
 
 ## End-to-end tests
 
