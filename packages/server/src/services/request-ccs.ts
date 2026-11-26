@@ -132,7 +132,8 @@ async function copyIn(tx: Db, ctx: Ctx, issue: IssueRow, people: Person[], by: B
   if (!locked) return { added: [], refused: [], activities: [] };
   const rows = await tx.select().from(requestCcs).where(eq(requestCcs.issueId, issue.id));
   const byAddress = new Map(rows.map((r) => [lower(r.email), r]));
-  let active = rows.filter((r) => !r.removedAt).length;
+  const hearing = await hearingOf(tx, issue.id, rows);
+  let active = hearing.size;
   const own = await ownCheck(app, tx);
   const team = await teamAddresses(tx, people.map((p) => p.email));
   const s = await app.schema.get(tx);
@@ -148,8 +149,10 @@ async function copyIn(tx: Db, ctx: Ctx, issue: IssueRow, people: Person[], by: B
     const name = (p.name ?? '').trim().replace(/\s+/g, ' ').slice(0, 100);
     const had = byAddress.get(key);
     // Copied by their customer group (D56's revisit), they're copied now for a reason of their own: the
-    // row becomes this copy, which hears whatever the group shares, and it takes no more room.
+    // row becomes this copy, which hears whatever the group shares. It takes room only if the group's
+    // copy was silent, since a silent one took none.
     const takesOver = Boolean(had && !had.removedAt && had.via === 'group');
+    const takesRoom = !takesOver || !hearing.has(had!.id);
     let why: CcRefusal | null = standingRefusal(email, own, team, locked.requesterEmail);
     if (!why && had && !had.removedAt && !takesOver) {
       // Copied already: nothing changes, but a hold for them is settled.
@@ -162,7 +165,7 @@ async function copyIn(tx: Db, ctx: Ctx, issue: IssueRow, people: Person[], by: B
     if (!why && gone && by.via === 'email' && !by.confirmed) why = 'removed';
     else if (!why && gone && by.via !== 'team' && (gone.removedVia === 'unsubscribe' || gone.removedVia === 'group')) why = 'stopped';
     // Lowering the cap takes no one off (D67): it stops new copies past it.
-    else if (!why && !takesOver && active >= max) why = 'full';
+    else if (!why && takesRoom && active >= max) why = 'full';
     if (why) {
       out.refused.push({ email, why, max });
       continue;
@@ -176,7 +179,7 @@ async function copyIn(tx: Db, ctx: Ctx, issue: IssueRow, people: Person[], by: B
           .values({ id: newId(), issueId: issue.id, email, ...values })
           .returning();
     await tx.delete(requestCcHolds).where(and(eq(requestCcHolds.issueId, issue.id), sql`lower(${requestCcHolds.email}) = ${key}`));
-    if (!takesOver) active++;
+    if (takesRoom) active++;
     out.added.push(row!);
     const via = by.via !== 'team' && by.confirmed ? 'confirmed' : by.via;
     out.activities.push(
@@ -255,6 +258,16 @@ async function withHearing(db: Db, issueId: string, rows: CcRow[]): Promise<{ ro
   return rows.map((row) => ({ row, hears: Boolean(request) && groupCopyHears(request!, row, standings.get(lower(row.email))) }));
 }
 
+/**
+ * The copies of a request that take room under the desk's cap, by id: those that hear it now. A group's
+ * copy the group no longer shares this request with is silent and takes none (D56's revisit), so a
+ * request made private, or a group that stopped sharing, never keeps someone else from being copied.
+ */
+async function hearingOf(db: Db, issueId: string, rows: CcRow[]): Promise<Set<string>> {
+  const live = rows.filter((r) => !r.removedAt);
+  return new Set((await withHearing(db, issueId, live)).flatMap(({ row, hears }) => (hears ? [row.id] : [])));
+}
+
 /** A copy as the emails to it need it (D56's revisit): whether it hears now, and, for a group's, the group and the requester the address is. */
 export async function copyStanding(db: Db, cc: CcRow): Promise<{ hears: boolean; group: { id: string; name: string; sharing: CustomerSharing } | null; requesterId: string | null }> {
   const [one] = await withHearing(db, cc.issueId, [cc]);
@@ -267,7 +280,7 @@ export async function copyStanding(db: Db, cc: CcRow): Promise<{ hears: boolean;
 /**
  * Who is copied on a request now, first copied first, as the team sees them: each with the group that
  * copied them, if one did, and whether they hear of it now, so a group's copy that doesn't isn't
- * listed as hearing (D56's revisit). Every one of them counts against the desk's cap.
+ * listed as hearing (D56's revisit). Those that hear count against the desk's cap; a silent one doesn't.
  */
 export async function ccsOf(db: Db, s: SchemaSnapshot, issueId: string): Promise<RequestCc[]> {
   const rows = await db
@@ -388,7 +401,7 @@ export async function copyGroupMembers(tx: Db, app: AppServices, issue: IssueRow
   const [asker] = await tx.select({ email: requesters.email }).from(requesters).where(eq(requesters.id, request.requesterId));
   const rows = await tx.select().from(requestCcs).where(eq(requestCcs.issueId, issue.id));
   const known = new Set(rows.map((r) => lower(r.email)));
-  let active = rows.filter((r) => !r.removedAt).length;
+  let active = (await hearingOf(tx, issue.id, rows)).size;
   const max = deskCcsMax(await app.schema.get(tx), issue.projectId);
   if (active >= max) return;
   const own = await ownCheck(app, tx);

@@ -1627,7 +1627,7 @@ D45 let a desk name email domains as organisations, whose requesters read each o
 - A new request in a group with agents takes a lock and reads the agents' roles, days away and open requests, in its transaction: a few queries.
 - A member answers by email only with a4a's email about the request in hand, its reply address intact: a4a writes to the requester alone, so in practice one forwarded whole.
 - Each email to a group's copy, each list of copies and each relay reads the request's group, its people and their stops again: a few queries per request, not per copy.
-- A group that stops sharing keeps its copies on its requests, silent, and they still count against the desk's cap there until the team takes them off; sharing again, they hear again.
+- A group that stops sharing, or a request kept from its group, keeps the group's copies on it, silent, and sharing again, they hear again. A silent copy takes no room under the desk's cap, so it never keeps out someone the team or the requester copies; the cap is checked as someone is copied, so a request shared again can have more copies hearing than the cap.
 - A member who stopped and turned the group's emails back on isn't copied again on its requests already open; the team can copy them by hand.
 
 **Revisit when:** a member's own email about a request they're copied on should answer it (their copies tell them; their answering is the group's own rule, D56's); requests should go to agents by skill or by rotation rather than by load; a group's people should choose what they hear (replies, not changes of state); or a request the team moves into a group should copy its people as a new one does.

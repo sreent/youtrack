@@ -89,7 +89,8 @@ export function RequestCcs({ issue, r, canEdit }: { issue: string; r: HelpdeskRe
       ) : (
         <p className="note">{t('helpdesk.requestCcs.nobody')}</p>
       )}
-      {r.ccs.length >= r.ccsMax ? <p className="note">{t('helpdesk.requestCcs.full', { max: r.ccsMax })}</p> : null}
+      {/* Only those who hear take room under the cap: a group's silent copy takes none (D56's revisit). */}
+      {r.ccs.filter((c) => c.hears).length >= r.ccsMax ? <p className="note">{t('helpdesk.requestCcs.full', { max: r.ccsMax })}</p> : null}
       {r.held.length ? (
         // Whom the email that opened it named, waiting for its requester (D67): told nothing until then.
         <div className="stack tight">

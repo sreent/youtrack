@@ -27,7 +27,7 @@ import { updateIssue } from '../src/services/issues';
 import { portalReply, portalRequest } from '../src/services/portal';
 import { startPortalSession } from '../src/services/portal-sign-in';
 import { updateProject } from '../src/services/projects';
-import { copyGroupMembers, stopGroupCopies } from '../src/services/request-ccs';
+import { addCc, copyGroupMembers, stopGroupCopies } from '../src/services/request-ccs';
 import { projectByKey } from '../src/services/schema-cache';
 import { createWorld, type TestWorld } from './helpers';
 import { fakeSmtp, type FakeSmtp } from './smtp';
@@ -332,6 +332,36 @@ describe('who is copied past the cap', () => {
     try {
       const r = await ask('asker@seven.example', 'Cap order');
       expect(await active(r.uid)).toEqual(['zed@hand.example', 'amy@hand.example', 'new@seven.example', 'old@seven.example', 'a@seven.example']);
+    } finally {
+      await updateProject(w.adminCtx, 'BACK', { settings: { helpdesk: { ccsMax: 20 } } });
+    }
+  });
+});
+
+describe('the cap counts only copies that hear', () => {
+  it("keeps no one out with a group's silent copies, and a silent copy taken over takes room again", async () => {
+    await group('Full', 'read', ['full.example']);
+    await ask('pia@full.example', 'Full first');
+    await ask('raf@full.example', 'Full second');
+    await updateProject(w.adminCtx, 'BACK', { settings: { helpdesk: { ccsMax: 2 } } });
+    try {
+      const r = await ask('sol@full.example', 'Full request');
+      // Who asked most recently first, as past the cap (below).
+      expect(await active(r.uid)).toEqual(['raf@full.example', 'pia@full.example']);
+      // While both hear, the request is full.
+      await expect(addCc(w.adminCtx, r.id, { email: 'boss@elsewhere.example' })).rejects.toMatchObject({ status: 409, words: { key: 'requestCcs.full' } });
+      // Kept from the group, their copies go silent and take no room: the team copies the boss.
+      await updateRequest(w.adminCtx, r.id, { private: true });
+      const ccs = await addCc(w.adminCtx, r.id, { email: 'boss@elsewhere.example' });
+      expect(ccs.map((c) => [c.email, c.hears])).toEqual([
+        ['raf@full.example', false],
+        ['pia@full.example', false],
+        ['boss@elsewhere.example', true],
+      ]);
+      // Copied by the team for a reason of her own, Pia's silent copy hears again (copied now), and takes room: none is left.
+      await addCc(w.adminCtx, r.id, { email: 'pia@full.example' });
+      await expect(addCc(w.adminCtx, r.id, { email: 'raf@full.example' })).rejects.toMatchObject({ status: 409, words: { key: 'requestCcs.full' } });
+      expect((await requestOf(w.adminCtx, r.id)).ccs.filter((c) => c.hears).map((c) => c.email)).toEqual(['boss@elsewhere.example', 'pia@full.example']);
     } finally {
       await updateProject(w.adminCtx, 'BACK', { settings: { helpdesk: { ccsMax: 20 } } });
     }
