@@ -29,7 +29,7 @@
     "@scalar/api-reference": "^1.78.1",
     "@scalar/hono-api-reference": "^0.12.20",
     "@simplewebauthn/server": "14.0.3",
-    "@sreent/ocean": "github:sreent/ocean#496753b6522fe8e309180d5db03a3f4b9257fb3b",
+    "@sreent/ocean": "github:sreent/ocean#c65397529aba3fbfcb33d34f65f87d9c5da00ce6",
     "@xmldom/xmldom": "^0.8.15",
     "busboy": "^1.6.0",
     "drizzle-orm": "^0.45.4",
