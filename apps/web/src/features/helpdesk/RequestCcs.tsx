@@ -10,11 +10,12 @@ import { whenRead } from '../common/format';
 import { inboxKeys } from '../notifications/api';
 import { t } from '../../i18n';
 
-/** How someone came to be copied, and when: by the team, from the requester's email, or by them on the portal. */
+/** How someone came to be copied, and when: by the team, from the requester's email, by them on the portal, or as one of its customer group's people. */
 function how(c: RequestCc, requester: string): string {
   const when = whenRead(c.addedAt);
   if (c.via === 'email') return t('helpdesk.requestCcs.byEmail', { requester, when });
   if (c.via === 'portal') return t('helpdesk.requestCcs.byPortal', { requester, when });
+  if (c.via === 'group') return t('helpdesk.requestCcs.byGroup', { named: c.group ? 'yes' : 'no', group: c.group ?? '', when });
   return t('helpdesk.requestCcs.byTeam', { name: c.addedBy?.name ?? '', when });
 }
 
@@ -73,6 +74,8 @@ export function RequestCcs({ issue, r, canEdit }: { issue: string; r: HelpdeskRe
             <li key={c.email} className="stack tight">
               <Who kind="person" name={c.name || c.email} about={c.name ? c.email : undefined} small />
               <p className="note">{how(c, r.requester.name)}</p>
+              {/* A group's copy the group no longer shares this request with hears nothing (D56's revisit): not listed as hearing. */}
+              {c.hears ? null : <p className="note">{t('helpdesk.requestCcs.quiet')}</p>}
               {canEdit ? (
                 <div className="cluster">
                   <button type="button" className="link" aria-label={t('helpdesk.requestCcs.stopCopyingWho', { email: c.email })} disabled={busy !== null} onClick={() => void stop(c)}>
@@ -86,7 +89,8 @@ export function RequestCcs({ issue, r, canEdit }: { issue: string; r: HelpdeskRe
       ) : (
         <p className="note">{t('helpdesk.requestCcs.nobody')}</p>
       )}
-      {r.ccs.length >= r.ccsMax ? <p className="note">{t('helpdesk.requestCcs.full', { max: r.ccsMax })}</p> : null}
+      {/* Only those who hear take room under the cap: a group's silent copy takes none (D56's revisit). */}
+      {r.ccs.filter((c) => c.hears).length >= r.ccsMax ? <p className="note">{t('helpdesk.requestCcs.full', { max: r.ccsMax })}</p> : null}
       {r.held.length ? (
         // Whom the email that opened it named, waiting for its requester (D67): told nothing until then.
         <div className="stack tight">

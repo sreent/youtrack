@@ -3,7 +3,7 @@
  * fresh tracking token, minted as it is sent and kept only as a hash, so no token waits in the
  * outbox in plain text; one minted for an attempt that failed is forgotten.
  */
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import { comments, helpdeskReplyTokens, helpdeskRequests, helpdeskTokens, issues, requesters } from '../db/schema';
 import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type RenderedMail } from '../mail/compose';
@@ -15,17 +15,30 @@ import { unsubscribeToken } from '../services/notifications';
 import { deskSender } from '../services/desk-mailbox';
 import { mintReplyToken, replyAddress } from './addresses';
 import type { Translator } from '@a4a/shared/i18n';
-import { translatorFor } from '../i18n';
-import { ccById, ccsToTell, forgetCcConfirmation, heldOf, mintCcConfirmation } from '../services/request-ccs';
+import { localeOfRequester, translatorFor, type RequesterLanguage } from '../i18n';
+import type { Db } from '../db/client';
+import { ccById, ccsToTell, copyStanding, forgetCcConfirmation, groupStopSubject, heldOf, mintCcConfirmation } from '../services/request-ccs';
 import { readableId } from '../services/issue-refs';
 import type { SchemaSnapshot } from '../services/schema-cache';
 
 /**
- * The language a desk's emails are in: the server's, since a requester has no profile (D49) and a
- * desk no language of its own. Its requester and everyone copied on a request read the same.
+ * The words of an email to someone outside the team, in their language (D63's revisit): a requester's
+ * choice on the portal, else their browser's, else, for an address with neither, the language of the
+ * page that asked for the mail (`asked`), else the desk's, the server's (D49). A desk has no language
+ * of its own, so someone a4a knows nothing of reads the server's.
  */
-export function deskTranslator(app: AppServices, locale?: string | null): Translator {
-  return translatorFor(locale ?? app.config.defaultLocale);
+export function deskTranslator(app: AppServices, who?: RequesterLanguage, asked?: string | null): Translator {
+  return translatorFor(localeOfRequester(app, who, asked));
+}
+
+/**
+ * What a4a knows of an address's language, when the address is a requester's: someone copied on a
+ * request, or relayed to, is often one (D57, D67). Read, never made: an email to an address a4a
+ * doesn't know makes no requester of it.
+ */
+export async function languageOfAddress(db: Db, email: string): Promise<RequesterLanguage> {
+  const [r] = await db.select({ chosenLocale: requesters.chosenLocale, locale: requesters.locale }).from(requesters).where(sql`lower(${requesters.email}) = ${email.trim().toLowerCase()}`);
+  return r;
 }
 
 type Payload = { issueId?: string; commentId?: string; from?: string | null; to?: string | null; resolved?: boolean; ccId?: string };
@@ -46,8 +59,8 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   if (row.kind !== 'request-received' && request.emailMutedAt) return null;
   const s = await app.schema.get();
   const project = s.projects.get(issue.projectId);
-  // Their own language when their browser asked for one (D63's revisit); else the desk's, the server's (D49).
-  const tr = deskTranslator(app, requester.locale);
+  // Their language (D63's revisit): their choice on the portal, else their browser's, else the desk's (D49).
+  const tr = deskTranslator(app, requester);
   const desk = project ? tr.t('server.helpdesk.deskOf', { project: project.name }) : tr.t('server.helpdesk.theDesk');
 
   let subject = `Re: ${issue.summary}`;
@@ -151,11 +164,22 @@ async function publicReply(app: AppServices, s: SchemaSnapshot, tr: Translator, 
  * and its changes of state, said as someone else's request. Its reply address answers for them
  * alone, its link opens the request on the portal (never the requester's tracking link, which would
  * speak in the requester's name), and its unsubscribe link takes them off the request.
+ *
+ * One of its customer group's people (D56's revisit) hears only while the group shares the request
+ * with them, checked as it's sent; their email says it's because of the group, and how replying works
+ * for them: a reply address only where the group lets its people answer, and a link that stops the
+ * group's emails, since their reason is the group, not this request.
  */
 async function renderCcMail(app: AppServices, row: MailRow, p: Payload): Promise<RenderedMail | null> {
   const cc = await ccById(app.db, String(p.ccId));
   // Taken off since it was queued: they hear nothing more.
   if (!cc || cc.removedAt) return null;
+  // Nor does a group's copy the group no longer shares this request with (D56's revisit).
+  const standing = await copyStanding(app.db, cc);
+  if (!standing.hears) return null;
+  const grouped = standing.group && standing.requesterId ? { ...standing.group, requesterId: standing.requesterId } : null;
+  // Only where its group lets its people answer each other's requests do they get an address to reply to.
+  const answers = !grouped || grouped.sharing === 'comment';
   const [found] = await app.db
     .select({ request: helpdeskRequests, requester: requesters, issue: issues })
     .from(helpdeskRequests)
@@ -166,7 +190,7 @@ async function renderCcMail(app: AppServices, row: MailRow, p: Payload): Promise
   const { request, requester, issue } = found;
   const s = await app.schema.get();
   const project = s.projects.get(issue.projectId);
-  const tr = deskTranslator(app);
+  const tr = deskTranslator(app, await languageOfAddress(app.db, cc.email));
   const desk = project ? tr.t('server.helpdesk.deskOf', { project: project.name }) : tr.t('server.helpdesk.theDesk');
   const asker = requester.name;
 
@@ -185,18 +209,22 @@ async function renderCcMail(app: AppServices, row: MailRow, p: Payload): Promise
     return null; // only what follows: they don't get the requester's acknowledgement
   }
 
-  const stop = await unsubscribeToken(app, 'cc', cc.id);
+  const stop = grouped ? await unsubscribeToken(app, 'group', groupStopSubject(grouped.id, grouped.requesterId)) : await unsubscribeToken(app, 'cc', cc.id);
   const deskMail = await deskAddress(app, issue.projectId);
-  const replyToken = deskMail ? await mintReplyToken(app.db, issue.id, cc.email) : null;
+  const replyToken = deskMail && answers ? await mintReplyToken(app.db, issue.id, cc.email) : null;
   const base = app.config.publicUrl;
   const subject = `Re: ${issue.summary}`;
   const { text, html } = composeMail(subject, {
     lang: langTag(tr.locale),
     lead,
     sections: quote ? [{ head: tr.t('server.helpdesk.theyWrote'), quote }] : [],
-    action: { label: tr.t('server.helpdesk.cc.seeRequest'), url: `${base}/portal?request=${encodeURIComponent(readableId(s, issue))}` },
-    why: replyToken ? tr.t('server.helpdesk.cc.whyAnswer', { desk, requester: asker }) : tr.t('server.helpdesk.cc.whyLink', { desk, requester: asker }),
-    stop: { label: tr.t('server.helpdesk.cc.stop'), url: `${base}/unsubscribe?token=${encodeURIComponent(stop)}` },
+    action: { label: answers ? tr.t('server.helpdesk.cc.seeRequest') : tr.t('server.helpdesk.groupCopy.seeRequest'), url: `${base}/portal?request=${encodeURIComponent(readableId(s, issue))}` },
+    why: grouped
+      ? tr.t('server.helpdesk.groupCopy.why', { group: grouped.name, desk, how: !answers ? 'read' : replyToken ? 'email' : 'portal' })
+      : replyToken
+        ? tr.t('server.helpdesk.cc.whyAnswer', { desk, requester: asker })
+        : tr.t('server.helpdesk.cc.whyLink', { desk, requester: asker }),
+    stop: { label: grouped ? tr.t('server.helpdesk.groupCopy.stop', { group: grouped.name }) : tr.t('server.helpdesk.cc.stop'), url: `${base}/unsubscribe?token=${encodeURIComponent(stop)}` },
   });
   const from = project ? await deskSender(app, project.id, project.name) : undefined;
   return {

@@ -9,9 +9,10 @@ import { ErrorNote, Loading } from '../components/States';
 import { t, tr, inSentence } from '../i18n';
 import type { ReactNode } from 'react';
 
-/** What the link stops, in the page's language (D49): by its kind, and a subscription by what it tells of. */
+/** What the link stops, in the page's language (D49): by its kind, a subscription by what it tells of, and a customer group's copies by its name. */
 function whatWords(d: Unsubscribe): string {
   if (d.subscription) return t('page.unsubscribe.subscription', { tells: subscriptionTells(d.subscription.target, d.subscription.events), name: d.subscription.name });
+  if (d.group) return t('page.unsubscribe.group', { group: d.group.name, desk: d.group.desk });
   return t('page.unsubscribe.what', { kind: d.kind });
 }
 
@@ -27,8 +28,10 @@ export default function UnsubscribePage() {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
-  if (!token || described.error) {
-    const missing = !token || (described.error instanceof ApiError && described.error.status === 404);
+  // A customer group's link whose group is gone stops nothing: nothing comes from it any more.
+  const gone = described.data?.kind === 'group' && !described.data.group;
+  if (!token || described.error || gone) {
+    const missing = !token || gone || (described.error instanceof ApiError && described.error.status === 404);
     return (
       <Lone>
         <h1>{missing ? t('page.unsubscribe.thisLinkDoesnTStop') : t('page.unsubscribe.thisPageDidnTLoad')}</h1>
@@ -65,6 +68,8 @@ export default function UnsubscribePage() {
           <p className="note">{t('page.unsubscribe.yourRequestSPageStill')}</p>
         ) : d.kind === 'cc' ? (
           <p className="note">{t('page.unsubscribe.noLongerCopied')}</p>
+        ) : d.kind === 'group' ? (
+          <p className="note">{t('page.unsubscribe.groupStopped', { group: d.group?.name ?? '' })}</p>
         ) : (
           <p className="note">{tr('page.unsubscribe.changedYourMindChooseWhat', { t0: (c: ReactNode) => <Link to="/me">{c}</Link> })}</p>
         )

@@ -15,7 +15,7 @@
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { HelpdeskSignIn, PortalProvider, PortalSignInMethods } from '@a4a/shared';
-import { langTag } from '@a4a/shared/i18n';
+import { isLocale, langTag, type Locale } from '@a4a/shared/i18n';
 import { and, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { startPortalSaml } from './portal-saml';
 import * as oidc from 'openid-client';
@@ -398,8 +398,11 @@ export async function checkPortalCaptcha(app: AppServices, answer: Parameters<ty
 
 export const wrongPassword = () => unauthorized('Wrong email or password').said('portal.wrongPassword');
 
-/** Email a link that sets their password: a first one, or a new one for one forgotten. Alike for any address, as a sign-in link is. */
-export async function requestPasswordLink(app: AppServices, email: string, desk?: string): Promise<void> {
+/**
+ * Email a link that sets their password: a first one, or a new one for one forgotten. Alike for any address, as a sign-in link is,
+ * and in the asking page's language (`asked`) for an address a4a has none for yet, never kept on the requester (D63's revisit).
+ */
+export async function requestPasswordLink(app: AppServices, email: string, desk?: string, asked?: Locale | null): Promise<void> {
   if (!mailConfigured(app)) {
     throw new AppError(503, 'mail_unavailable', "Signing in needs email, and this server doesn't send any", 'Use the link in an email about your request, or ask the team.').said('portal.noEmail');
   }
@@ -408,22 +411,22 @@ export async function requestPasswordLink(app: AppServices, email: string, desk?
   await enqueueMail(app.db, app, {
     kind: 'portal-password',
     dedupeKey: `portal-password:${requester.id}:${Date.now()}`,
-    payload: { requesterId: requester.id, desk: desk?.trim().toUpperCase() || null },
+    payload: { requesterId: requester.id, desk: desk?.trim().toUpperCase() || null, asked: asked ?? null },
     messageId: `portal.${randomToken('', 12)}`,
   });
   kickMail(app);
 }
 
 export async function renderPortalPassword(app: AppServices, mail: MailRow): Promise<RenderedMail | null> {
-  const p = mail.payload as { requesterId?: string; desk?: string | null };
+  const p = mail.payload as { requesterId?: string; desk?: string | null; asked?: string | null };
   const [requester] = await app.db.select().from(requesters).where(eq(requesters.id, String(p.requesterId ?? '')));
   if (!requester) return null;
   const token = randomToken(PASSWORD_PREFIX, 32);
   await app.db.insert(requesterSignIns).values({ tokenHash: sha256(token), requesterId: requester.id, purpose: 'password', expiresAt: new Date(Date.now() + PASSWORD_LINK_TTL_MS) });
   const s = await app.schema.get();
   const desk = p.desk ? s.projectsByKey.get(p.desk) : undefined;
-  // In the requester's own language when their browser asked for one (D63's revisit); else the desk's (D49).
-  const tr = deskTranslator(app, requester.locale);
+  // Their language (D63's revisit); for an address a4a has none for yet, the asking page's; else the desk's (D49).
+  const tr = deskTranslator(app, requester, p.asked);
   const where = desk ? tr.t('server.portal.deskOf', { project: desk.name }) : tr.t('server.portal.theDesk');
   const has = requester.passwordHash ? 'yes' : 'no';
   const subject = tr.t('server.portalPassword.subject', { where, has });
@@ -448,8 +451,15 @@ export async function renderPortalPassword(app: AppServices, mail: MailRow): Pro
  * A new session's token for a requester, opened the way it says. One opened by what only the
  * mailbox's holder has (an emailed link, a passkey, or the link that set the password: `confirmed`)
  * may add and remove passkeys for ten minutes (D69).
+ *
+ * `chosen` is the language they chose on the page before signing in (D63's revisit): theirs now, if
+ * they had chosen none. Only a sign-in gives it, never asking for a link; and one condition in one
+ * statement, so a choice they made meanwhile, elsewhere, is never overwritten by it.
  */
-export async function startPortalSession(db: Db, requesterId: string, how: PortalSignedIn & { passkeyId?: string; confirmed?: boolean }, ttlMs: number): Promise<string> {
+export async function startPortalSession(db: Db, requesterId: string, how: PortalSignedIn & { passkeyId?: string; confirmed?: boolean; chosen?: string | null }, ttlMs: number): Promise<string> {
+  if (isLocale(how.chosen)) {
+    await db.update(requesters).set({ chosenLocale: how.chosen, updatedAt: new Date() }).where(and(eq(requesters.id, requesterId), isNull(requesters.chosenLocale)));
+  }
   const session = randomToken('hds_', 32);
   const confirmed = how.confirmed ?? (how.method === 'link' || how.method === 'passkey');
   await db.insert(requesterSessions).values({
@@ -468,7 +478,7 @@ export async function startPortalSession(db: Db, requesterId: string, how: Porta
  * Set their password with a link's token, once: every session they had ends (whoever knew the old
  * password, or held a session, is out), as do the other links to set one; a new session starts.
  */
-export async function setPasswordWithLink(app: AppServices, token: string, password: string, ttlMs: number): Promise<{ session: string; requesterId: string }> {
+export async function setPasswordWithLink(app: AppServices, token: string, password: string, ttlMs: number, chosen?: Locale): Promise<{ session: string; requesterId: string }> {
   const hash = await hashPassword(password);
   const now = new Date();
   const done = await app.db.transaction(async (txRaw) => {
@@ -491,7 +501,7 @@ export async function setPasswordWithLink(app: AppServices, token: string, passw
     await tx.delete(requesterSessions).where(eq(requesterSessions.requesterId, r!.id));
     await tx.delete(requesterSignIns).where(and(eq(requesterSignIns.requesterId, r!.id), eq(requesterSignIns.purpose, 'password'), isNull(requesterSignIns.usedAt)));
     // Opened by the link the mailbox's holder had: as recent as a sign-in link, for adding a passkey (D69).
-    const session = await startPortalSession(tx, r!.id, { method: 'password', providerId: null, confirmed: true }, ttlMs);
+    const session = await startPortalSession(tx, r!.id, { method: 'password', providerId: null, confirmed: true, chosen }, ttlMs);
     return { session, requesterId: r!.id, first: !r!.passwordHash };
   });
   await tellOfSignIn(app, done.requesterId, done.first ? 'passwordSet' : 'passwordChanged');
@@ -535,7 +545,7 @@ export async function renderPortalAccount(app: AppServices, mail: MailRow): Prom
   const p = mail.payload as { requesterId?: string; what?: Told; provider?: string | null };
   const [requester] = await app.db.select().from(requesters).where(eq(requesters.id, String(p.requesterId ?? '')));
   if (!requester) return null;
-  const tr = deskTranslator(app, requester.locale);
+  const tr = deskTranslator(app, requester);
   const what = p.what === 'provider' || p.what === 'passwordChanged' ? p.what : 'passwordSet';
   const values = { what, provider: p.provider ?? '', email: requester.email };
   const subject = tr.t('server.portalAccount.subject', values);
@@ -571,14 +581,17 @@ function sameText(a: string, b: string): boolean {
   return timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest());
 }
 
-/** Begin: offered by the desk named (or by some desk), remember what the callback checks, and send the browser to the provider. */
-export async function startPortalSso(app: AppServices, providerId: string, deskKey: string | undefined): Promise<{ url: string; state: string }> {
+/**
+ * Begin: offered by the desk named (or by some desk), remember what the callback checks, and send the browser to the provider.
+ * A language chosen on the page before it (`chosen`) waits with the state, to be theirs once the provider signs them in.
+ */
+export async function startPortalSso(app: AppServices, providerId: string, deskKey: string | undefined, chosen?: Locale): Promise<{ url: string; state: string }> {
   const s = await app.schema.get();
   const [row] = await app.db.select().from(portalProviders).where(eq(portalProviders.id, providerId));
   const desk = openDesk(s.projectsByKey, deskKey);
   const offered = row && (desk ? deskSignIn(desk).providers.includes(row.id) && (row.projectId === null || row.projectId === desk.id) : taking(s.projects.values()).some((p) => deskSignIn(p).providers.includes(row.id) && (row.projectId === null || row.projectId === p.id)));
   if (!row || !offered) throw new PortalSsoError('refused', 'No help desk here signs requesters in through that provider');
-  if (row.kind === 'saml') return startPortalSaml(app, row, desk?.key ?? null);
+  if (row.kind === 'saml') return startPortalSaml(app, row, desk?.key ?? null, chosen ?? null);
   const configuration = await configurationOf(app, row).catch((e: unknown) => {
     console.error(`portal sso: discovery of ${row.issuer} failed: ${e instanceof Error ? e.message : String(e)}`);
     throw new PortalSsoError('failed', `${row.name} can't be reached just now`);
@@ -588,7 +601,7 @@ export async function startPortalSso(app: AppServices, providerId: string, deskK
   const codeVerifier = oidc.randomPKCECodeVerifier();
   const now = Date.now();
   await app.db.delete(portalSsoStates).where(lt(portalSsoStates.expiresAt, new Date(now)));
-  await app.db.insert(portalSsoStates).values({ id: sha256(state), providerId: row.id, desk: desk?.key ?? null, codeVerifier, nonce, expiresAt: new Date(now + PORTAL_SSO_TTL_MS) });
+  await app.db.insert(portalSsoStates).values({ id: sha256(state), providerId: row.id, desk: desk?.key ?? null, locale: chosen ?? null, codeVerifier, nonce, expiresAt: new Date(now + PORTAL_SSO_TTL_MS) });
   const url = oidc.buildAuthorizationUrl(configuration, {
     redirect_uri: portalRedirectUri(app),
     scope: row.scopes,
@@ -650,7 +663,7 @@ export async function finishPortalSso(app: AppServices, query: URLSearchParams, 
   if (!firstTime.length) {
     await app.db.update(requesterIdentities).set({ subject: String(claims.sub), lastAt: new Date() }).where(and(eq(requesterIdentities.requesterId, requester.id), eq(requesterIdentities.providerId, row.id)));
   }
-  const session = await startPortalSession(app.db, requester.id, { method: 'sso', providerId: row.id }, ttlMs);
+  const session = await startPortalSession(app.db, requester.id, { method: 'sso', providerId: row.id, chosen: pending.locale }, ttlMs);
   if (firstTime.length) await tellOfSignIn(app, requester.id, 'provider', row.name);
   return { session, desk: pending.desk };
 }

@@ -93,12 +93,12 @@ export function machineProblems(s: SchemaSnapshot, projectId: string, field: Fie
     if (names.has(key)) at('name', { key: 'rule.transitionNameTwice', values: { name: t.name.trim() } }, `Two transitions are called “${t.name.trim()}”`, t.name);
     names.set(key, i);
     const to = state(t.to);
-    if (!to) at('to', { key: 'rule.noState', values: { field: field.name, state: t.to, states: states.join(', ') } }, `${field.name} has no state “${t.to}”`, t.to, `Its states: ${states.join(', ')}`);
+    if (!to) at('to', { key: 'rule.noState', values: { field: field.name, state: t.to, states } }, `${field.name} has no state “${t.to}”`, t.to, `Its states: ${states.join(', ')}`);
     const from = t.from.map((f) => f.trim()).filter(Boolean);
     if (!from.length) at('from', { key: 'rule.sayFromStates' }, 'Say which states it leaves, or * for any', '');
     for (const f of from) {
       if (f === '*') continue;
-      if (!state(f)) at('from', { key: 'rule.noState', values: { field: field.name, state: f, states: states.join(', ') } }, `${field.name} has no state “${f}”`, f, `Its states: ${states.join(', ')}`);
+      if (!state(f)) at('from', { key: 'rule.noState', values: { field: field.name, state: f, states } }, `${field.name} has no state “${f}”`, f, `Its states: ${states.join(', ')}`);
       else if (to && state(f) === to) at('from', { key: 'rule.leavesForItself', values: { state: to } }, `It leaves ${to} for ${to}`, f, 'A transition goes from one state to another.');
     }
     if (to) {
@@ -251,7 +251,7 @@ export interface Move {
 }
 
 /** A change a state machine refuses, keyed by the way it refuses it, for a page in another language (D49). */
-function refused(message: string, hint: string, details: Record<string, unknown>, key: string, values: Record<string, string | number>): AppError {
+function refused(message: string, hint: string, details: Record<string, unknown>, key: string, values: NonNullable<QueryProblemWords['values']>): AppError {
   return new AppError(422, 'refused_by_state_machine', message, hint, details).said(key, values);
 }
 
@@ -268,11 +268,11 @@ function liveMachine(s: SchemaSnapshot, projectId: string, field: FieldRow): { m
 const named = (s: SchemaSnapshot, v: ResolvedValue[] | undefined) => (v?.[0]?.valueId ? (s.values.get(v[0].valueId)?.name ?? null) : null);
 
 /** Where a state can go, in words: "In Progress (Start work), Won't fix (Decline)". */
-function exits(transitions: StateTransition[], from: string): { words: string; values: { exits: string; where: 'some' | 'nowhere' } } {
+function exits(transitions: StateTransition[], from: string): { words: string; values: { exits: string[]; where: 'some' | 'nowhere' } } {
   const out = transitions.filter((t) => t.to.toLowerCase() !== from.toLowerCase() && (t.from.includes('*') || t.from.some((f) => f.toLowerCase() === from.toLowerCase())));
-  const list = out.map((t) => `${t.to} (${t.name})`).join(', ');
-  // The words the API says; a keyed problem says them in its catalog by the code (D49).
-  return out.length ? { words: list, values: { exits: list, where: 'some' } } : { words: 'nowhere: it is where its machine ends', values: { exits: '', where: 'nowhere' } };
+  const list = out.map((t) => `${t.to} (${t.name})`);
+  // The words the API says; a keyed problem says them in its catalog by the code, the list as its reader's language joins one (D49).
+  return out.length ? { words: list.join(', '), values: { exits: list, where: 'some' } } : { words: 'nowhere: it is where its machine ends', values: { exits: [], where: 'nowhere' } };
 }
 
 /**

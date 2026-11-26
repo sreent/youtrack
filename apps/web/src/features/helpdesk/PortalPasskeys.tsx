@@ -9,7 +9,8 @@ import { ErrorNote, Loading } from '../../components/States';
 import { errorText, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { passkeyCancelled } from '../identity/Passkeys';
-import { t } from '../../i18n';
+import { t, unsavedPortalChoice } from '../../i18n';
+import { RequesterLone } from './PortalLanguage';
 
 /**
  * Requesters' passkeys on the portal (D69): signing in with one, the account page's list, and the
@@ -20,7 +21,7 @@ export const portalPasskeyKeys = { mine: ['portal', 'passkeys'] as const };
 type RequestOptionsJSON = Parameters<typeof startAuthentication>[0]['optionsJSON'];
 type CreationOptionsJSON = Parameters<typeof startRegistration>[0]['optionsJSON'];
 
-async function portalPasskeyAt<T>(path: string, to: string, where: { desk?: string } = {}): Promise<T> {
+async function portalPasskeyAt<T>(path: string, to: string, where: { desk?: string } = {}, also: Record<string, unknown> = {}): Promise<T> {
   const first = await post<PasskeyOptions & { legacyRpIds?: string[] }>(path, where);
   const ids = [first.rpId, ...(first.legacyRpIds ?? [])].filter((id): id is string => Boolean(id));
   let last: unknown;
@@ -28,7 +29,7 @@ async function portalPasskeyAt<T>(path: string, to: string, where: { desk?: stri
     try {
       const options = rpId === first.rpId ? first : await post<PasskeyOptions>(path, { ...where, rpId });
       const response = await startAuthentication({ optionsJSON: options as unknown as RequestOptionsJSON });
-      return await post<T>(to, { response, ...where });
+      return await post<T>(to, { response, ...where, ...also });
     } catch (e) {
       last = e;
       if (!passkeyCancelled(e)) throw e;
@@ -51,10 +52,12 @@ export function usePortalPasskeySignIn(wanted: boolean, desk: string | undefined
   finished.current = done;
   const where = desk ? { desk } : {};
   const ask = async (autofill: boolean) => {
-    if (!autofill) return finished.current(await portalPasskeyAt<PortalMe>('/portal/passkey/options', '/portal/passkey', where));
+    // A language chosen on the page signed out comes with the sign-in: theirs, if they have none (D63's revisit).
+    const chosen = { locale: unsavedPortalChoice() };
+    if (!autofill) return finished.current(await portalPasskeyAt<PortalMe>('/portal/passkey/options', '/portal/passkey', where, chosen));
     const options = await post<PasskeyOptions>('/portal/passkey/options', where);
     const response = await startAuthentication({ optionsJSON: options as unknown as RequestOptionsJSON, useBrowserAutofill: true });
-    finished.current(await post<PortalMe>('/portal/passkey', { response, ...where }));
+    finished.current(await post<PortalMe>('/portal/passkey', { response, ...where, ...chosen }));
   };
   const [armed, setArmed] = useState(0);
   useEffect(() => {
@@ -337,10 +340,10 @@ export function PortalNotMe({ token }: { token: string }) {
   if (described.error) {
     const missing = described.error instanceof ApiError && described.error.status === 404;
     return (
-      <Lone>
+      <RequesterLone>
         <h1>{missing ? t('helpdesk.portalPasskeys.notMeGone') : t('helpdesk.portalPasskeys.notMeDidntLoad')}</h1>
         {missing ? <p className="note">{t('helpdesk.portalPasskeys.notMeGoneAbout')}</p> : <ErrorNote error={described.error} />}
-      </Lone>
+      </RequesterLone>
     );
   }
   if (!described.data) {
@@ -363,7 +366,7 @@ export function PortalNotMe({ token }: { token: string }) {
     }
   };
   return (
-    <Lone>
+    <RequesterLone busy={busy}>
       <h1>{d.done ? t('helpdesk.portalPasskeys.notMeDone') : t(HEADS[d.change])}</h1>
       <p>{t('helpdesk.portalPasskeys.notMeWhat', { name: d.name, email: d.email, date: agoSaid(d.changedAt) })}</p>
       {error ? <ErrorNote error={error} /> : null}
@@ -387,6 +390,6 @@ export function PortalNotMe({ token }: { token: string }) {
           </div>
         </>
       )}
-    </Lone>
+    </RequesterLone>
   );
 }

@@ -32,9 +32,10 @@ import { deskAddress, mintTrackingToken, requestMessageId, requestWithRequester,
 import { readableId } from '../services/issue-refs';
 import { unsubscribeToken } from '../services/notifications';
 import { projectSettings } from '../services/projects';
-import { ccById, ccsToTell } from '../services/request-ccs';
+import { ccById, ccsToTell, copyStanding, groupStopSubject } from '../services/request-ccs';
 import { mintReplyToken, replyAddress } from './addresses';
-import { deskTranslator } from './mails';
+import { deskTranslator, languageOfAddress } from './mails';
+import type { RequesterLanguage } from '../i18n';
 import { untrustedWords, type Untrusted } from './trust';
 
 type IssueRow = typeof issues.$inferSelect;
@@ -221,51 +222,76 @@ export async function renderRelayMail(app: AppServices, row: MailRow): Promise<R
   const words = ownWords(comment.text);
   if (!speaker || !words) return null;
 
-  const tr = deskTranslator(app);
   const base = app.config.publicUrl;
-  const portal = { label: tr.t('server.helpdesk.cc.seeRequest'), url: `${base}/portal?request=${encodeURIComponent(readableId(s, issue))}` };
   const id = String(p.to?.id ?? '');
   let to: string;
+  // What a4a knows of its reader's language (D63's revisit): the requester's own, a colleague's, or, for
+  // someone copied, their address's when it is a requester's. Its words follow it.
+  let reader: RequesterLanguage;
   let replyFor: string | null;
   let whose: 'yours' | 'theirs' = 'theirs';
   let tracking: string | null = null;
-  let action = portal;
-  let stop: { label: string; url: string };
+  let stop: { key: string; values?: Record<string, string>; url: string };
   let oneClick: string;
+  // One of its customer group's people, copied by it (D56's revisit): told why, and an address to reply to only where they may answer.
+  let grouped: { name: string; sharing: string } | null = null;
   if (p.to?.kind === 'requester') {
     if (request.emailMutedAt || id !== requester.id) return null;
     to = requester.email;
+    reader = requester;
     replyFor = null;
     whose = 'yours';
     tracking = await mintTrackingToken(app.db, issue.id);
-    action = { label: tr.t('server.helpdesk.seeRequest'), url: trackingUrl(app, tracking) };
     const token = await unsubscribeToken(app, 'request', issue.id);
-    stop = { label: tr.t('server.helpdesk.stop'), url: `${base}/unsubscribe?token=${encodeURIComponent(token)}` };
+    stop = { key: 'server.helpdesk.stop', url: `${base}/unsubscribe?token=${encodeURIComponent(token)}` };
     oneClick = token;
   } else if (p.to?.kind === 'cc') {
     const cc = await ccById(app.db, id);
     if (!cc || cc.removedAt || cc.issueId !== issue.id) return null;
+    // A group's copy hears only while the group shares this request with them, as its own emails do.
+    const standing = await copyStanding(app.db, cc);
+    if (!standing.hears) return null;
     to = cc.email;
+    reader = await languageOfAddress(app.db, cc.email);
     replyFor = cc.email;
-    const token = await unsubscribeToken(app, 'cc', cc.id);
-    stop = { label: tr.t('server.helpdesk.cc.stop'), url: `${base}/unsubscribe?token=${encodeURIComponent(token)}` };
-    oneClick = token;
+    if (standing.group && standing.requesterId) {
+      grouped = standing.group;
+      const token = await unsubscribeToken(app, 'group', groupStopSubject(standing.group.id, standing.requesterId));
+      stop = { key: 'server.helpdesk.groupCopy.stop', values: { group: standing.group.name }, url: `${base}/unsubscribe?token=${encodeURIComponent(token)}` };
+      oneClick = token;
+    } else {
+      const token = await unsubscribeToken(app, 'cc', cc.id);
+      stop = { key: 'server.helpdesk.cc.stop', url: `${base}/unsubscribe?token=${encodeURIComponent(token)}` };
+      oneClick = token;
+    }
   } else if (p.to?.kind === 'colleague') {
     const [q] = await app.db.select().from(requesters).where(eq(requesters.id, id));
     if (!q) return null;
     const [stopped] = await app.db.select().from(requestRelayStops).where(and(eq(requestRelayStops.issueId, issue.id), eq(requestRelayStops.requesterId, q.id)));
     if (stopped || !(await commentingColleague(app.db, request, q.email, q.name))) return null;
     to = q.email;
+    reader = q;
     replyFor = q.email;
     const token = await unsubscribeToken(app, 'relay', `${issue.id}-${q.id}`);
-    stop = { label: tr.t('server.helpdesk.relay.stop'), url: `${base}/unsubscribe?token=${encodeURIComponent(token)}` };
+    stop = { key: 'server.helpdesk.relay.stop', url: `${base}/unsubscribe?token=${encodeURIComponent(token)}` };
     oneClick = token;
   } else return null;
   // Never their own words back to them.
   if (lower(to) === lower(speaker.email)) return null;
 
+  const tr = deskTranslator(app, reader);
+  // The requester opens it by their tracking link; anyone else, on the portal.
+  const action = tracking
+    ? { label: tr.t('server.helpdesk.seeRequest'), url: trackingUrl(app, tracking) }
+    : {
+        // A group's copy that may only read is offered the request to read, not to answer (D56's revisit).
+        label: tr.t(grouped && grouped.sharing !== 'comment' ? 'server.helpdesk.groupCopy.seeRequest' : 'server.helpdesk.cc.seeRequest'),
+        url: `${base}/portal?request=${encodeURIComponent(readableId(s, issue))}`,
+      };
+
   const deskMail = await deskAddress(app, issue.projectId);
-  const replyToken = deskMail ? await mintReplyToken(app.db, issue.id, replyFor) : null;
+  const answers = !grouped || grouped.sharing === 'comment';
+  const replyToken = deskMail && answers ? await mintReplyToken(app.db, issue.id, replyFor) : null;
   const desk = tr.t('server.helpdesk.deskOf', { project: project.name });
   const name = speaker.name || speaker.email;
   const files = Math.max(0, Math.floor(Number(p.files ?? 0)));
@@ -275,8 +301,12 @@ export async function renderRelayMail(app: AppServices, row: MailRow): Promise<R
     lead: tr.t('server.helpdesk.relay.lead', { name, whose, requester: requester.name }),
     sections: [{ head: tr.t('server.helpdesk.relay.wrote', { name }), quote: words }, ...(files ? [{ head: tr.t('server.helpdesk.relay.files', { count: files }) }] : [])],
     action,
-    why: replyToken ? tr.t('server.helpdesk.relay.whyAnswer', { desk, whose, requester: requester.name }) : tr.t('server.helpdesk.relay.whyLink', { desk, whose, requester: requester.name }),
-    stop,
+    why: grouped
+      ? tr.t('server.helpdesk.groupCopy.why', { group: grouped.name, desk, how: !answers ? 'read' : replyToken ? 'email' : 'portal' })
+      : replyToken
+        ? tr.t('server.helpdesk.relay.whyAnswer', { desk, whose, requester: requester.name })
+        : tr.t('server.helpdesk.relay.whyLink', { desk, whose, requester: requester.name }),
+    stop: { label: tr.t(stop.key, stop.values), url: stop.url },
   });
   const from = await deskSender(app, project.id, project.name);
   return {

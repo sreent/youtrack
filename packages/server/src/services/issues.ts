@@ -74,7 +74,9 @@ import { actsAsAgent, keepAgentChange, textHash, type FieldsUndo } from './agent
 import { afterRequestChange } from './sla';
 import { requestGrouping, writeGrouping } from './customer-groups';
 import {
+  changeLists,
   fieldValueDto,
+  presentEach,
   presentValues,
   resolveFieldInput,
   rowToResolved,
@@ -346,7 +348,7 @@ export function resolveFieldsInput(
  */
 export function noSuchField(s: SchemaSnapshot, project: ProjectRow, name: string): AppError {
   const names = projectFieldList(s, project.id).map((f) => f.name);
-  return badRequest(`Project ${project.key} has no field "${name}"`, `Fields: ${names.join(', ')}`).said('issues.noSuchField', { project: project.key, name, names: names.join(', ') });
+  return badRequest(`Project ${project.key} has no field "${name}"`, `Fields: ${names.join(', ')}`).said('issues.noSuchField', { project: project.key, name, names });
 }
 
 export function resolveLinkPhrase(s: SchemaSnapshot, relation: string): LinkPhrase {
@@ -356,7 +358,7 @@ export function resolveLinkPhrase(s: SchemaSnapshot, relation: string): LinkPhra
     throw badRequest(
       `Unknown link relation "${relation}"`,
       `Use one of: ${[...new Set(s.linkPhrases.map((p) => p.display))].join(', ')}`,
-    ).said('issues.unknownLinkRelation', { relation, relations: [...new Set(s.linkPhrases.map((p) => p.display))].join(', ') });
+    ).said('issues.unknownLinkRelation', { relation, relations: [...new Set(s.linkPhrases.map((p) => p.display))] });
   }
   return found;
 }
@@ -482,14 +484,14 @@ export async function applyChanges(
       await assertPeopleSeeProject(tx, s, project, fs.field, added);
     }
     fieldUpdates.push({ field: fs.field, values: after });
-    changes.push({ field: fs.field.name, from: presentValues(s, fs.field, before), to: presentValues(s, fs.field, after) });
+    changes.push({ field: fs.field.name, from: presentValues(s, fs.field, before), to: presentValues(s, fs.field, after), ...changeLists(presentEach(s, fs.field, before), presentEach(s, fs.field, after)) });
   }
   // An owned field's value given to an issue nobody has: the value's owner takes it, in the same
   // change, unless the change says who does (D41).
   const owned = await ownerAssignment(tx, s, project, spec.fields ?? [], current, fieldUpdates);
   if (owned) {
     fieldUpdates.push(owned);
-    changes.push({ field: owned.field.name, from: null, to: presentValues(s, owned.field, owned.values) });
+    changes.push({ field: owned.field.name, from: null, to: presentValues(s, owned.field, owned.values), ...changeLists([], presentEach(s, owned.field, owned.values)) });
   }
 
   const patch: Partial<typeof issues.$inferInsert> = {};
@@ -517,7 +519,7 @@ export async function applyChanges(
   const toRemove = currentTagRows.filter((t) => removeTagNames.has(t.name.toLowerCase()));
   if (toAdd.length || toRemove.length) {
     const after = [...currentTagNames.filter((n) => !toRemove.some((r) => r.name === n)), ...toAdd];
-    changes.push({ field: 'Tags', from: currentTagNames.join(', ') || null, to: after.join(', ') || null });
+    changes.push({ field: 'Tags', from: currentTagNames.join(', ') || null, to: after.join(', ') || null, ...changeLists(currentTagNames, after) });
   }
 
   // Links (validated before writing anything)
@@ -849,9 +851,9 @@ async function assertPeopleSeeProject(db: Db, s: SchemaSnapshot, project: Projec
   const roles = await projectRolesOf(db, project.id, userIds);
   const outside = userIds.filter((id) => !roles.has(id));
   if (!outside.length) return;
-  const names = outside.map((id) => s.users.get(id)?.name ?? id).join(', ');
+  const names = outside.map((id) => s.users.get(id)?.name ?? id);
   throw badRequest(
-    `${names} can't see ${project.key}, so can't be the value of ${field.name}`,
+    `${names.join(', ')} can't see ${project.key}, so can't be the value of ${field.name}`,
     `Only ${project.key}'s people see it. Add ${outside.length === 1 ? 'them' : 'each of them'} to the project first, or choose someone who is in it.`,
   ).said('issues.cantBeValueOf', { names, project: project.key, field: field.name, n: outside.length });
 }
@@ -919,7 +921,7 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db, carry: Cr
   if (!project || !view.canRead(project.id)) {
     // Only the projects the caller can file in: a hidden project's key is never named.
     const open = [...s.projects.values()].filter((p) => view.allows(p.id, 'create') && !p.archived).map((p) => p.key);
-    throw notFound(`Project ${input.project}`, open.length ? `Projects you can file in: ${open.join(', ')}` : 'You can file issues in no project yet.').said('issues.projectNotFound', { project: input.project, n: open.length, projects: open.join(', ') });
+    throw notFound(`Project ${input.project}`, open.length ? `Projects you can file in: ${open.join(', ')}` : 'You can file issues in no project yet.').said('issues.projectNotFound', { project: input.project, n: open.length, projects: open });
   }
   await assertCanProject(ctx, project.id, 'create', db);
   if (project.archived) throw badRequest(`Project ${project.key} is archived`).said('issues.projectArchived', { project: project.key });

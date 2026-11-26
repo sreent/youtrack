@@ -1,13 +1,15 @@
-import type { BusinessHours, CustomerDirectoryEntry, CustomerGroup, CustomerGroupMember, CustomerSharing, PortalProvider, Project } from '@a4a/shared';
+import type { BusinessHours, CustomerDirectoryEntry, CustomerGroup, CustomerGroupMember, CustomerSharing, GroupCopyStop, PortalProvider, Project } from '@a4a/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { del, get, post, put } from '../../api/client';
 import { useMembers } from '../../api/queries';
 import { isOwnAgent } from '@a4a/shared/constants';
 import { Badge } from '../../components/Badges';
 import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
+import { whenRead } from '../common/format';
 import { formatList, t, tr, weekdayNames } from '../../i18n';
+import { CustomerName } from './CustomerName';
 
 const DAYS = weekdayNames();
 const SHARING: Record<CustomerSharing, string> = {
@@ -34,6 +36,12 @@ function GroupForm({ project, group, onDone }: { project: Project; group?: Custo
   const [provider, setProvider] = useState(group?.provider?.id ?? '');
   // The customers other desks serve, to pick from when naming one (D56's revisit).
   const directory = useQuery({ queryKey: ['customer-directory'], queryFn: () => get<CustomerDirectoryEntry[]>('/customer-directory'), retry: false });
+  // Less this desk's own groups: a name it has already is one it can't take again.
+  const deskGroups = useQuery({ queryKey: groupsKey(project.key), queryFn: () => get<CustomerGroup[]>(`/projects/${project.key}/customer-groups`) });
+  const known = useMemo(() => {
+    const taken = new Set((deskGroups.data ?? []).map((g) => g.name.toLowerCase()));
+    return (directory.data ?? []).filter((c) => !taken.has(c.name.toLowerCase()));
+  }, [directory.data, deskGroups.data]);
   const [own, setOwn] = useState(Boolean(bh));
   const [zone, setZone] = useState(bh?.timeZone ?? project.settings.helpdesk.businessHours?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [days, setDays] = useState<number[]>(bh ? [...new Set(bh.hours.map((x) => x.day))] : [1, 2, 3, 4, 5]);
@@ -68,16 +76,17 @@ function GroupForm({ project, group, onDone }: { project: Project; group?: Custo
       <fieldset className="unframed form" disabled={save.isPending}>
         <FormField label={t('helpdesk.groups.name')}>
           {(id) => (
-            <>
-              <input id={id} required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} list={`${id}-known`} />
-              {(directory.data?.length ?? 0) > 0 ? (
-                <datalist id={`${id}-known`}>
-                  {directory.data!.map((c) => (
-                    <option key={c.name} value={c.name} />
-                  ))}
-                </datalist>
-              ) : null}
-            </>
+            <CustomerName
+              id={id}
+              value={name}
+              onChange={setName}
+              onTake={(c) => {
+                setName(c.name);
+                // Its domains too, where none are written yet: a customer's domains are the same at every desk.
+                if (!domains.trim()) setDomains(c.domains.join(', '));
+              }}
+              directory={known}
+            />
           )}
         </FormField>
         <FormField label={t('helpdesk.groups.domains')} help={t('helpdesk.groups.domainsHelp')}>
@@ -223,6 +232,34 @@ function Members({ project, group, canEdit }: { project: Project; group: Custome
   );
 }
 
+/**
+ * Who of a group stopped its emails (D56's revisit), for the team: why someone isn't hearing of its
+ * requests. Their own choice, which only they turn back on, on the portal.
+ */
+function CopyStops({ project, group }: { project: Project; group: CustomerGroup }) {
+  const stops = useQuery({
+    queryKey: ['customer-group-stops', project.key, group.id, group.stops],
+    queryFn: () => get<GroupCopyStop[]>(`/projects/${project.key}/customer-groups/${group.id}/copy-stops`),
+  });
+  return (
+    <div className="stack tight">
+      <p className="note">{t('helpdesk.groups.stopsHelp')}</p>
+      {stops.data?.length ? (
+        <ul className="list" aria-label={t('helpdesk.groups.stopsCount', { n: stops.data.length })}>
+          {stops.data.map((s) => (
+            <li key={s.requester.id} className="list-row">
+              <span>
+                {s.requester.name} <span className="note">{s.requester.email}</span>
+              </span>
+              <span className="note">{t('helpdesk.groups.stoppedWhen', { when: whenRead(s.stoppedAt) })}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 /** A desk's customer groups (D56): who's in each, what they share, whose hours, and its dedicated agents. */
 export function CustomerGroups({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const qc = useQueryClient();
@@ -271,6 +308,14 @@ export function CustomerGroups({ project, canEdit }: { project: Project; canEdit
                   open: g.openRequests,
                 })}
               </p>
+              {/* Whom its new requests copy by email (D56's revisit): only where it shares them, at most the desk's cap. */}
+              <p className="note">
+                {g.sharing === 'none'
+                  ? t('helpdesk.groups.copiesNone')
+                  : g.people > project.settings.helpdesk.ccsMax
+                    ? t('helpdesk.groups.copiesSome', { max: project.settings.helpdesk.ccsMax, people: g.people })
+                    : t('helpdesk.groups.copiesAll', { people: g.people })}
+              </p>
               {g.provider ? <p className="note">{t('helpdesk.groups.signsInThrough', { name: g.provider.name })}</p> : null}
               {g.agents.length ? (
                 <ul className="chips" aria-label={t('helpdesk.groups.agents')}>
@@ -303,6 +348,12 @@ export function CustomerGroups({ project, canEdit }: { project: Project; canEdit
                 <summary>{t('helpdesk.groups.membersCount', { n: g.members })}</summary>
                 <Members project={project} group={g} canEdit={canEdit} />
               </details>
+              {g.stops ? (
+                <details>
+                  <summary>{t('helpdesk.groups.stopsCount', { n: g.stops })}</summary>
+                  <CopyStops project={project} group={g} />
+                </details>
+              ) : null}
             </li>
           ))}
         </ul>

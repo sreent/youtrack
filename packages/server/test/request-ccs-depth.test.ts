@@ -335,39 +335,47 @@ describe('the requester takes people off', () => {
     expect(gone.body.error.key).toBe('portal.noRequestHere');
     expect((await portalApi('GET', '/portal/requests/BACK-9999', hal.id)).body.error).toEqual(gone.body.error);
     // A colleague of a group that shares to comment reads it, and takes no one off.
-    await createCustomerGroup(w.adminCtx, 'BACK', { name: 'Example', domains: ['example.com'], sharing: 'comment' });
-    await mailIn(message({ from: 'Kim Lee <kim@example.com>', cc: 'lou@example.org', subject: 'Off: the kettle', body: 'Cold.', trusted: true }));
-    const kettle = (await issueOf('Off: the kettle')).id;
-    const colleague = await requesterByEmail(w.app.db, 'max@example.com', 'Max');
-    const refused = await portalApi('DELETE', `/portal/requests/${kettle}/ccs?email=lou@example.org`, colleague.id);
-    expect(refused.status).toBe(403);
-    expect(refused.body.error.key).toBe('portal.onlyTheRequesterChangesCopies');
-    expect((await listCcs(w.adminCtx, kettle)).map((c) => c.email)).toEqual(['lou@example.org']);
-    // Without the portal's own page, or signed out, nothing changes.
-    expect((await http.request(`/api/v1/portal/requests/${kettle}/ccs?email=lou@example.org`, { method: 'DELETE', headers: { origin: BASE } })).status).toBe(401);
+    const example = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'Example', domains: ['example.com'], sharing: 'comment' });
+    try {
+      await mailIn(message({ from: 'Kim Lee <kim@example.com>', cc: 'lou@example.org', subject: 'Off: the kettle', body: 'Cold.', trusted: true }));
+      const kettle = (await issueOf('Off: the kettle')).id;
+      const colleague = await requesterByEmail(w.app.db, 'max@example.com', 'Max');
+      // Whom it copies: the email's Cc, and the group's members (D56's revisit).
+      const copied = (await listCcs(w.adminCtx, kettle)).map((c) => c.email);
+      expect(copied).toContain('lou@example.org');
+      const refused = await portalApi('DELETE', `/portal/requests/${kettle}/ccs?email=lou@example.org`, colleague.id);
+      expect(refused.status).toBe(403);
+      expect(refused.body.error.key).toBe('portal.onlyTheRequesterChangesCopies');
+      expect((await listCcs(w.adminCtx, kettle)).map((c) => c.email)).toEqual(copied);
+      // Without the portal's own page, or signed out, nothing changes.
+      expect((await http.request(`/api/v1/portal/requests/${kettle}/ccs?email=lou@example.org`, { method: 'DELETE', headers: { origin: BASE } })).status).toBe(401);
+    } finally {
+      void example; // kept: the relay tests below read Kim and Max as colleagues through it
+    }
   });
 });
 
 describe('a desk’s own cap', () => {
+  // A requester of no customer group's, so the copies counted are the email's alone.
   it('stops new copies past it at the team’s, the portal’s and the email’s door, saying the cap, and takes no one off', async () => {
-    await mailIn(message({ from: 'Jane Doe <jane@example.com>', cc: 'm1@example.org, m2@example.org, m3@example.org', subject: 'Cap: the blinds', body: 'Stuck.', trusted: true }));
+    await mailIn(message({ from: 'Pat Roe <pat@caps.example>', cc: 'm1@example.org, m2@example.org, m3@example.org', subject: 'Cap: the blinds', body: 'Stuck.', trusted: true }));
     const { id } = await issueOf('Cap: the blinds');
     await deskSettings({ ccsMax: 2 });
     try {
       expect((await listCcs(w.adminCtx, id)).length).toBe(3);
       expect((await requestOf(w.adminCtx, id)).ccsMax).toBe(2);
       await expect(addCc(as(w.anna), id, { email: 'm4@example.org' })).rejects.toMatchObject({ status: 409, words: { key: 'requestCcs.full', values: { max: 2 } }, message: 'A request copies at most 2 people' });
-      const jane = await requester('jane@example.com');
-      const portal = await portalApi('POST', `/portal/requests/${id}/ccs`, jane.id, { email: 'm4@example.org' });
+      const pat = await requester('pat@caps.example');
+      const portal = await portalApi('POST', `/portal/requests/${id}/ccs`, pat.id, { email: 'm4@example.org' });
       expect(portal.status).toBe(409);
       expect(portal.body.error).toMatchObject({ key: 'requestCcs.full', values: { max: 2 } });
-      expect((await portalRequest(w.app, jane, id)).ccsMax).toBe(2);
-      const reply = await replyTo('jane@example.com', 'Cap: the blinds');
-      const mail = await mailIn(message({ from: 'jane@example.com', to: reply, cc: 'm5@example.org', subject: 'Re: Cap', body: 'And five.', trusted: true }));
+      expect((await portalRequest(w.app, pat, id)).ccsMax).toBe(2);
+      const reply = await replyTo('pat@caps.example', 'Cap: the blinds');
+      const mail = await mailIn(message({ from: 'pat@caps.example', to: reply, cc: 'm5@example.org', subject: 'Re: Cap', body: 'And five.', trusted: true }));
       expect(mail.reason).toContain('m5@example.org (the desk copies at most 2 on a request)');
       // Under the cap again, a copy goes in.
-      await portalUncopy(w.app, jane, id, 'm1@example.org');
-      await portalUncopy(w.app, jane, id, 'm2@example.org');
+      await portalUncopy(w.app, pat, id, 'm1@example.org');
+      await portalUncopy(w.app, pat, id, 'm2@example.org');
       expect((await addCc(as(w.anna), id, { email: 'm4@example.org' })).map((c) => c.email)).toEqual(['m3@example.org', 'm4@example.org']);
       // The setting is the desk's managers', from 1 to 50, in the desk's history.
       await expect(updateProject(as(w.anna), 'BACK', { settings: { helpdesk: { ccsMax: 51 } } })).rejects.toBeTruthy();
@@ -471,26 +479,30 @@ describe('everyone on a request hearing each other', () => {
   it('lets a colleague who answered hear the others, until they stop it from its link', async () => {
     await mailIn(message({ from: 'Kim Lee <kim@example.com>', cc: 'nia@acme.example', subject: 'Relay: the group', body: 'Help.', trusted: true }));
     const { id: gid } = await issueOf('Relay: the group');
-    const max = await requester('max@example.com');
-    await portalReply(w.app, max, gid, 'Same here, from Max.');
+    // A colleague a4a meets only after the request came in, so its group's members copied on it
+    // (D56's revisit) don't take her in: she hears it because she answered, as D67's colleague does.
+    await requesterByEmail(w.app.db, 'zoe@example.com', 'Zoe');
+    const max = await requester('zoe@example.com');
+    await portalReply(w.app, max, gid, 'Same here, from Zoe.');
     await flush();
-    // Max's words reach Kim by D56's email, and Nia by a relay; Kim hears no second copy.
-    expect(relayed('nia@acme.example').at(-1)!.text).toContain('Max wrote:');
-    expect(relayed('kim@example.com')).toHaveLength(0);
+    // Zoe's words reach Kim by D56's email, and Nia by a relay; Kim hears no second copy of this
+    // request's (she hears others', copied on them as her group's member, D56's revisit).
+    expect(relayed('nia@acme.example').at(-1)!.text).toContain('Zoe wrote:');
+    expect(relayed('kim@example.com').filter((m) => (m.headers.get('subject') ?? '').includes('Relay: the group'))).toHaveLength(0);
     const nia = newestTo('nia@acme.example');
     await mailIn(message({ from: 'nia@acme.example', to: nia.headers.get('reply-to')!, subject: 'Re: group', body: 'Nia here.', trusted: true }));
     await flush();
-    const toMax = relayed('max@example.com').at(-1)!;
+    const toMax = relayed('zoe@example.com').at(-1)!;
     expect(toMax.text).toContain('Nia here.');
-    // Max answers the relay by its reply address: taken as a colleague's answer.
-    const answer = await mailIn(message({ from: 'max@example.com', to: toMax.headers.get('reply-to')!, subject: 'Re: group', body: 'Max again.', trusted: true }));
+    // Zoe answers the relay by its reply address: taken as a colleague's answer.
+    const answer = await mailIn(message({ from: 'zoe@example.com', to: toMax.headers.get('reply-to')!, subject: 'Re: group', body: 'Zoe again.', trusted: true }));
     expect(answer.reason).toContain('from someone of its customer group');
     const token = decodeURIComponent(/token=([^>\s]+)/.exec(toMax.headers.get('list-unsubscribe')!)![1]!);
     expect(await applyUnsubscribe(w.app, token)).toMatchObject({ kind: 'relay', done: true });
-    const had = relayed('max@example.com').length;
+    const had = relayed('zoe@example.com').length;
     await mailIn(message({ from: 'nia@acme.example', to: nia.headers.get('reply-to')!, subject: 'Re: group', body: 'Nia once more.', trusted: true }));
     await flush();
-    expect(relayed('max@example.com')).toHaveLength(had);
+    expect(relayed('zoe@example.com')).toHaveLength(had);
     await deskSettings({ ccsRelay: false });
   });
 });

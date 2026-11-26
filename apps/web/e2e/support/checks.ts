@@ -27,8 +27,24 @@ async function onlyInitialsMissing(page: Page, selector: string): Promise<boolea
   return contains(words(name), words(shown));
 }
 
+/**
+ * The page's transitions and finite animations played out, so axe reads colours as they settle: a
+ * dialog read half-way through its fade-in has too little contrast. A spinner's never ends, and isn't waited for.
+ */
+async function settled(page: Page): Promise<void> {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => Number.isFinite(Number(a.effect?.getComputedTiming().endTime)))
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
+}
+
 /** axe's findings against WCAG 2.2 AA, each as one line: the rule, what it wants, and where. */
 export async function expectAccessible(page: Page): Promise<void> {
+  await settled(page);
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG_22_AA).analyze();
   const found: string[] = [];
   for (const v of violations) {

@@ -15,7 +15,7 @@ import type {
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, sql, type SQL } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { activities, helpdeskRequests, notificationEvents, notifications, notificationSettings, requestRelayStops, requesters, subscriptions } from '../db/schema';
+import { activities, customerGroups, helpdeskRequests, notificationEvents, notifications, notificationSettings, requestRelayStops, requesters, subscriptions } from '../db/schema';
 import { toEventDto } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
 import { DEFAULT_PREFS, emailPrefs } from '../notify/notifier';
@@ -25,7 +25,7 @@ import { eventFor, eventSeen, goneIssueSql, issueSeenSql, projectAccess, visible
 import { findVisibleIssue } from './issues';
 import type { SchemaSnapshot } from './schema-cache';
 import { aboutInline, aboutSubscriptions } from './subscriptions';
-import { ccById, stopCopy } from './request-ccs';
+import { ccById, groupCopiesStopped, stopCopy, stopGroupCopies } from './request-ccs';
 import { zoneOf } from './time-zones';
 import { requirePersonal } from './watchers';
 import { translatorFor } from '../i18n';
@@ -238,10 +238,10 @@ async function saveSettings(db: Db, userId: string, input: { email?: EmailLevel;
  * A requester's link stops email about their one request. Someone copied on a request (D57) stops
  * being copied: they're told nothing more of it, and their replies by email are refused.
  */
-export type UnsubscribeKind = 'watching' | 'direct' | 'digest' | 'request' | 'subscription' | 'cc' | 'relay';
-const KINDS: UnsubscribeKind[] = ['watching', 'direct', 'digest', 'request', 'subscription', 'cc', 'relay'];
+export type UnsubscribeKind = 'watching' | 'direct' | 'digest' | 'request' | 'subscription' | 'cc' | 'relay' | 'group';
+const KINDS: UnsubscribeKind[] = ['watching', 'direct', 'digest', 'request', 'subscription', 'cc', 'relay', 'group'];
 
-const WORDS: Record<Exclude<UnsubscribeKind, 'subscription'>, string> = {
+const WORDS: Record<Exclude<UnsubscribeKind, 'subscription' | 'group'>, string> = {
   watching: 'Emails about changes and comments on issues you watch. Mentions and assignments still come by email.',
   direct: 'Emails about issues, mentions and assignments too. Your inbox in a4a keeps everything.',
   digest: 'The daily digest.',
@@ -250,12 +250,26 @@ const WORDS: Record<Exclude<UnsubscribeKind, 'subscription'>, string> = {
   relay: 'Emails passing on what others write on this request. The portal still shows every reply.',
 };
 
-/** What a link stops, in words: a subscription's, by what it tells of. */
-async function wordsFor(app: AppServices, kind: UnsubscribeKind, subject: string): Promise<Pick<Unsubscribe, 'what' | 'subscription'>> {
-  if (kind !== 'subscription') return { what: WORDS[kind], subscription: null };
+/** A customer group's stop link names the group and the requester the address is (D56's revisit). */
+async function groupStopOf(db: Db, subject: string): Promise<{ group: typeof customerGroups.$inferSelect; requesterId: string } | null> {
+  const [groupId, requesterId] = subject.split('-');
+  const [group] = await db.select().from(customerGroups).where(eq(customerGroups.id, groupId ?? ''));
+  const [requester] = await db.select({ id: requesters.id }).from(requesters).where(eq(requesters.id, requesterId ?? ''));
+  return group && requester ? { group, requesterId: requester.id } : null;
+}
+
+/** What a link stops, in words: a subscription's, by what it tells of, and a customer group's by its name. */
+async function wordsFor(app: AppServices, kind: UnsubscribeKind, subject: string): Promise<Pick<Unsubscribe, 'what' | 'subscription' | 'group'>> {
+  if (kind === 'group') {
+    const stop = await groupStopOf(app.db, subject);
+    const desk = stop ? (await app.schema.get()).projects.get(stop.group.projectId)?.name : undefined;
+    if (!stop || desk === undefined) return { what: 'Emails from a customer group that no longer copies anyone.', subscription: null, group: null };
+    return { what: `Emails about this request and ${stop.group.name}’s other requests to ${desk}, which copy you as one of its people.`, subscription: null, group: { name: stop.group.name, desk } };
+  }
+  if (kind !== 'subscription') return { what: WORDS[kind], subscription: null, group: null };
   const about = (await aboutSubscriptions(app.db, await app.schema.get(), [subject])).get(subject);
-  if (!about) return { what: 'Emails from a subscription that has ended.', subscription: null };
-  return { what: `Emails about ${aboutInline(about.about)}. Your inbox in a4a still has them.`, subscription: { target: about.target, events: about.events, name: about.name } };
+  if (!about) return { what: 'Emails from a subscription that has ended.', subscription: null, group: null };
+  return { what: `Emails about ${aboutInline(about.about)}. Your inbox in a4a still has them.`, subscription: { target: about.target, events: about.events, name: about.name }, group: null };
 }
 
 /**
@@ -299,6 +313,11 @@ async function isStopped(db: Db, kind: UnsubscribeKind, subject: string): Promis
     const [stop] = await db.select().from(requestRelayStops).where(and(eq(requestRelayStops.issueId, issueId ?? ''), eq(requestRelayStops.requesterId, requesterId ?? '')));
     return Boolean(stop);
   }
+  // Stopped their customer group's emails (D56's revisit), or the group or they are gone: nothing comes.
+  if (kind === 'group') {
+    const stop = await groupStopOf(db, subject);
+    return !stop || (await groupCopiesStopped(db, stop.group.id, stop.requesterId));
+  }
   const prefs = await emailPrefs(db, subject);
   if (kind === 'digest') return !prefs.digest;
   if (kind === 'watching') return prefs.email !== 'all';
@@ -319,6 +338,10 @@ export async function applyUnsubscribe(app: AppServices, token: string): Promise
   } else if (kind === 'cc') {
     // They stop being copied (D57), and the request's history says they did.
     await stopCopy(app, subject);
+  } else if (kind === 'group') {
+    // They stop being copied on the group's requests (D56's revisit): this one, its other open ones, its later ones.
+    const stop = await groupStopOf(app.db, subject);
+    if (stop) await stopGroupCopies(app, stop.group.id, stop.requesterId, 'link');
   } else if (kind === 'relay') {
     // A colleague who answered stops hearing the others' words on it (D67); a request gone stops them already.
     const [issueId, requesterId] = subject.split('-');

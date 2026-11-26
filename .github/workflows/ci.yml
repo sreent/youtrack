@@ -14,6 +14,13 @@ concurrency:
 permissions:
   contents: read
 
+# Bash with pipefail (GitHub's `bash` shell), so a step that pipes its tests into tee fails when they
+# do. Left unset, a step runs as `bash -e` and takes tee's own status: from 21 November until this,
+# a red test run was reported green.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   check:
     name: Typecheck, design check, tests and build (Node ${{ matrix.node }})

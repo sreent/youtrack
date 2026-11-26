@@ -306,7 +306,7 @@ describe('mentions of a limited article', () => {
     const words = `Siehe ${elsewhere.id}, ${limited.id} und ${article}.`;
     const inGerman = { ...ben, locale: 'de' as const };
     expect(await redactUnseenIds(inGerman, words)).toBe(
-      'Siehe ein Vorgang, den Sie nicht sehen können, ein Vorgang, den Sie nicht sehen können und ein Artikel, den Sie nicht sehen können.',
+      'Siehe [Vorgang, den Sie nicht sehen können], [Vorgang, den Sie nicht sehen können] und [Artikel, den Sie nicht sehen können].',
     );
     expect(await redactUnseenIds(ben, `See ${limited.id} and ${article}.`)).toBe('See an issue you can’t see and an article you can’t see.');
     expect(await redactUnseenIds({ ...erin, locale: 'de' as const }, `Siehe ${limited.id} und ${article}.`)).toBe(`Siehe ${limited.id} und ${article}.`);

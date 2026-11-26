@@ -421,6 +421,27 @@
       "when": 1795016143172,
       "tag": "0059_several_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795016144172,
+      "tag": "0060_requester_language",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795016145172,
+      "tag": "0061_group_copy_stops",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795710877609,
+      "tag": "0062_keys_the_schema_declares",
+      "breakpoints": true
     }
   ]
 }

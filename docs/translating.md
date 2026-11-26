@@ -28,7 +28,7 @@ What the code gives a message is never English words to choose by:
 
 - **Counts are the message's own plural.** "Apply to {n, plural, one {# issue} other {# issues}}": inflect the noun as the sentence needs ("von # Vorgängen"), and agree the verb with it.
 - **Choices are codes.** `{who, select, you {…} other {…}}` (you, or a person by `{name}`), `{target, select, resolution {…} other {…}}`, `{joined, select, yes {…} other {…}}`: word each option in your language; `other` takes whatever else comes.
-- **Lists come joined** by the language's own list (Intl.ListFormat: `formatList` on a page, `joinList` on the server): "A, B und C", "A、B、C", or with "or" where any one will do, as a webhook's events are ("A, B oder C"). Don't add "and" or "or" around a `{join}`, `{actions}` or `{states}`. Things a page shows one after another, with no "and", take the comma the language puts between a list's first items (`formatItems`): "BACK-1, BACK-2", 「BACK-1、BACK-2」. Some lists inside the server's problems (the `{values}` a field allows, the `{ids}` a command can't find) still come joined with English's ", ".
+- **Lists come joined** by the language's own list (Intl.ListFormat: `formatList` on a page, `joinList` on the server): "A, B und C", "A、B、C", or with "or" where any one will do, as a webhook's events are ("A, B oder C"). Don't add "and" or "or" around a `{join}`, `{actions}` or `{states}`. Things a page shows one after another, with no "and", take the comma the language puts between a list's first items (`formatItems`, `joinItems` on the server): "BACK-1, BACK-2", 「BACK-1、BACK-2」. So do the lists inside the server's problems (the `{values}` a field allows, the `{ids}` a command can't find, the `{names}` of a project's fields), and a change to a multi-value field or the tags in an issue's history: write the list's placeholder bare, with no comma or 「、」 of your own. A list joined with "and" or "or" comes from Intl, its word chosen by the items, so Spanish's says "Priority e Importancia" (`problem.command.valueOfFields`'s `{fields}`): never write "{first} y {last}".
 - **Quotes are the language's.** Where a page quotes a name or words inside a sentence (a saved search, an app on the consent page, a command the assistant runs), it quotes them with `ui.quoted`: give it your language's marks („…“, « … », 「…」, «…»), and add none around a value that comes quoted.
 - **A role is its name alone** outside English, "ist jetzt {role}": English alone adds "a" or "an". A built-in role's name is a message (`roles.builtin.*`); one people made stays as named. A sentence with a role in it says which it is, `{named, select, yes {…} other {…}}`, so a language that sets a name off and joins its own words can do each: Thai's “คุณเป็นสมาชิก” beside “คุณเป็น Auditor”, Chinese's 「是成员」 beside 「是 Auditor」.
 - **A rule is one sentence** per kind (`rules.words.whenSentence`, `rules.words.scheduleSentence`): put its parts in your order.
@@ -49,7 +49,13 @@ German:
 - **Buttons are infinitives or nouns**: "Speichern", "Änderung speichern", "Abbrechen". A button that names what it changes says it: "Feld löschen", not "Löschen" alone, where English says "Delete the field".
 - **Status lines are passive or perfect**: "Gespeichert.", "Wird gespeichert…", "{name} ist hinzugefügt."
 - **What a page loads is a whole message**, passive, with the noun first: "Der Plan wird geladen…", "Ihre Anfragen werden geladen…", "{name} wird geladen…", and "Wird geladen…" when nothing is named.
-- **Gender**: a4a doesn't guess a person's. It says "die Person", "wer …", "alle, die …" where English says "they". Roles stay as their words, "Administrator", "Manager", "Mitglied", "Betrachter".
+- **Gender**: a4a doesn't guess a person's. It says "die Person", "wer …", "alle, die …" where English says "they", and a whiteboard's owner is "die Person, der es gehört", not "Eigentümer". Roles stay as their words, "Administrator", "Manager", "Mitglied", "Betrachter".
+- **Signing in**: the person signs in with a passkey, a password or a provider; none of them "meldet Sie an". "Mit einem Passkey melden Sie sich per Fingerabdruck an", "Mit ihm kann sich niemand mehr anmelden", "Sie melden sich nur mit Ihrem Passwort an".
+- **Asking for something**: "Geben Sie an, …" asks someone to name or choose something ("Geben Sie an, welches Feld Sie meinen"), "Beschreiben Sie, …" to describe it ("Beschreiben Sie, was passiert ist"). "Sagen" is for telling a person or a bot ("Sagen Sie es dem Team", "Sagen Sie dem Bot „link“") and for the command bar, where you say in words what to do.
+- **Keys** are named as Microsoft's German names them: Eingabetaste, Tabulatortaste, Leertaste, Pfeiltasten, Entf, Strg, Alt, and Umschalttaste, "Umschalt" in a combination ("Strg+Umschalt+Z").
+- **A cap** says what it is: "…; das ist die Höchstzahl pro Person", not "mehr darf eine Person nicht".
+- **A stand-in inside someone's text** (for an id the reader can't see) is a bare noun in brackets, "[Vorgang, den Sie nicht sehen können]", so it reads in whatever case the sentence around it needs.
+- **Another product's menus** are named as that product shows them: in German where its German interface is known (Redmine's "Mein Konto", Zendesk's "Admin Center"), in English where its pages are English or its German labels couldn't be checked (Asana's "My settings", ClickUp's "Settings", YouTrack's "Account Security", Slack's app settings).
 - **Nouns keep their capital** inside a sentence, so a label set into a sentence isn't lower-cased in German (`inSentence()` in the web's `i18n`).
 - **Dates and numbers** come from Intl, never from the catalog: "16. Nov. 2026", "1.234,5", "vor 3 Minuten".
 - Quotation marks are „…“, and the ellipsis is one character, as in English.
@@ -60,15 +66,18 @@ German:
 | English | German |
 |---|---|
 | issue | Vorgang |
+| create (an issue, a whiteboard, a record) | anlegen, in Slack and Teams too, where the catalog's verb stays the same |
 | project | Projekt |
 | board | Board |
 | sprint | Sprint |
 | backlog | Backlog |
+| swimlane | Swimlane (die Swimlane, die Swimlanes), as Jira's German board settings say |
+| the navigation's groups: work, decide, build, oversee | Arbeiten, Entscheiden, Einrichten, Verwalten (the last holds Administration) |
 | help desk | Helpdesk |
 | request (help desk) | Anfrage |
 | requester | anfragende Person |
-| copied on a request (CC), copy, stop copying | in Kopie, in Kopie setzen, aus der Kopie nehmen |
-| customer group, kept from the group | Kundengruppe, vor der Gruppe verborgen |
+| copied on a request (CC), copy, stop copying; a held Cc dropped | in Kopie, in Kopie setzen, aus der Kopie nehmen; Ablehnen. "Cc" as mail programs write it |
+| customer group, its people, kept from the group | Kundengruppe, Mitglieder (those in it by their domain too), vor der Gruppe verborgen |
 | reporter | meldende Person |
 | assignee | Bearbeiter (a column), zugewiesene Person |
 | agent | Agent |
@@ -77,8 +86,10 @@ German:
 | workflow | Workflow |
 | rule | Regel |
 | if (a rule's or a transition's condition) | falls, after a trigger's „Wenn“ |
+| tell (a rule tells people) | benachrichtigen: it sends a Benachrichtigung. Subscriptions, watching and chat channels "informieren" |
 | state machine | Zustandsautomat |
 | transition | Übergang |
+| script library | Skriptbibliothek |
 | knowledge base | Wissensdatenbank |
 | article | Artikel |
 | inbox | Posteingang |
@@ -86,7 +97,8 @@ German:
 | digest | Überblick |
 | subscription, subscribe | Abonnement, abonnieren |
 | watch, watcher | beobachten, Beobachtende |
-| timesheet | Stundenzettel |
+| vote | abstimmen (the button, as Jira's German), dafür stimmen (in a sentence), die Stimme |
+| timesheet; submit, approve, send back a week | Stundenzettel; einreichen, genehmigen, zurückgeben. A week of it is "eine Woche im Stundenzettel" |
 | work logged, log time | erfasste Arbeit, Zeit erfassen |
 | estimate | Schätzung |
 | rate (per hour) | Stundensatz |
@@ -94,39 +106,84 @@ German:
 | levelling | Kapazitätsabgleich |
 | slack (in a plan) | Puffer |
 | baseline | Baseline |
-| earned value, earned | Fertigstellungswert, erbracht |
-| cost and schedule performance (CPI, SPI) | Kosteneffizienz, Termineffizienz |
+| planned value, earned value, earned, actual cost | Planwert, Fertigstellungswert, erbracht, Istkosten, as PMI's German says |
+| cost and schedule variance; cost and schedule performance (CPI, SPI) | Kostenabweichung, Terminabweichung; Kosteneffizienz, Termineffizienz (English says "performance", where PMI's German has the long Kostenentwicklungsindex) |
 | triage | Triage |
 | suggestion | Vorschlag |
-| token | Token |
+| token; its scope | das Token; Berechtigung, as the token form's "Was es darf" says. Slack's and YouTrack's own are "Scopes", as their pages name them |
 | two-factor sign-in | Zwei-Faktor-Anmeldung |
 | passkey | Passkey (der Passkey, die Passkeys) |
+| passkeys required, let off | Passkey-Pflicht, von der Passkey-Pflicht befreien |
+| authenticator (a passkey's maker); authenticator app (for codes) | Authentifikator, Authentifikatoren, as German security writing says; Authenticator-App, as the apps are named |
+| attestation (a maker vouching for a passkey) | Bestätigung: English says "vouch", not "attest" |
+| allow (passkeys, passwords, authenticators, a way to sign in); take (mail, deliveries, requests) | zulassen; annehmen |
+| ways to sign in, another way | Anmeldemethoden, mit einer anderen Methode, as Microsoft's German says |
+| phone (the device) | Smartphone: a passkey or a code needs one, which "Telefon" doesn't say |
+| proof of work (a form's) | Spamschutz des Formulars |
 | sign in, sign out | anmelden, abmelden |
-| login (a person's handle) | der Login |
-| identity provider | Identitätsanbieter |
+| login (a person's handle) | der Login: a4a's own word, as its queries and its API say it. A provider's handle is its "Benutzername" |
+| identity provider; redirect URI | Identitätsanbieter (a SAML one: SAML-Identitätsanbieter); Umleitungs-URI, as Microsoft Entra's German says |
 | single sign-on | Single Sign-on |
 | webhook, delivery | Webhook, Zustellung |
 | secret | Secret |
 | commit, pull request, branch | Commit, Pull Request, Branch |
+| a commit's author | der Autor: git's own field, as git's and GitLab's German say |
+| check run, commit status | Check-Run, Commit-Status, as GitHub's screens (which are English) say. Its German docs' "Überprüfungsausführung" is on no screen |
+| a GitHub account's type | Organisation, Persönliches Konto, as GitHub's German docs say |
 | merge, merged | mergen, gemergt |
 | CI | das CI |
+| homeserver (Matrix) | Homeserver, as Matrix's docs and German admins' guides write it (Element's German says "Heimserver") |
 | field, value | Feld, Wert |
+| state (a value of State) | Status, plural Status, as Duden has it. A list of them is "Mögliche Status: …", so the plural shows |
 | link (between issues) | Verknüpfung |
-| resolve, resolved, resolution | erledigen, erledigt, Erledigung (an SLA's: Erledigungsziel) |
+| limited (to some people) | beschränkt; the badge "Beschränkt" |
+| resolve, resolved, resolution | erledigen, erledigt, Erledigung |
+| an SLA's resolution, its target | Lösung, Lösungsziel, as Zendesk's and Atlassian's German say ("Lösungszeit"); the request itself is erledigt |
+| working hours (a desk's, a group's) | Arbeitszeiten, for the schedule; an amount of it is Arbeitszeit ("3 Std. Arbeitszeit") |
 | dashboard, widget | Dashboard, Widget |
 | report | Bericht |
-| whiteboard; a note, card, section, arrow, an arrow's label, the outline | Whiteboard (das), Notiz, Karte, Bereich, Pfeil, Beschriftung, Gliederung |
-| connect (draw an arrow), make issues (of notes) | verbinden; Vorgänge anlegen |
-| a note's tones: plain, idea, agreed, question, problem, parked | Neutral, Idee, Vereinbart, Frage, Problem, Zurückgestellt |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline, the canvas | Whiteboard (das), Notiz, Karte, Bereich, Pfeil, Beschriftung, Gliederung, Arbeitsfläche |
+| a whiteboard's owner | die Person, der es gehört |
+| connect (draw an arrow), make issues (of notes), check first (its dry run) | verbinden; Vorgänge anlegen; Erst prüfen |
+| a note's tones and their legend: plain, idea, agreed, question, problem, parked | Kennzeichnung (it holds kinds and states alike): Neutral, Idee, Vereinbart, Frage, Problem, Zurückgestellt |
 | writing help; where an issue came from (a chat message) | Schreibhilfe; Herkunft |
 
 ## Checking a language
 
-1. `pnpm --filter @a4a/web check:words` (also in `pnpm test`): every catalog has every English key and no other, every message parses, each has English's placeholders and tags, every key the code says is in English, every English key is said somewhere, no words sit in JSX, in a label map, or in what the server sends people, and a control's name holds the words it shows, in every language.
-2. `pnpm --filter @a4a/server exec vitest run test/translation.test.ts`: a query's words and its count in each language, an email in each recipient's language, the language on `/me`, a problem's key, and Korean's particles.
+1. `pnpm --filter @a4a/web check:words` (also in `pnpm test`): every catalog has every English key and no other, every message parses, each has English's placeholders and tags, every case of English's selects and no other, only its language's plural categories, with `#` kept where English shows the number and the category takes more than one (French's "one" takes 0 and 1), and each tag around the values English's holds; its typography where a machine can tell (a one-character ellipsis, no exclamation mark, no double space, Thai's missing full stop and particles, Spanish's ¿, German's „…“, French's no-break spaces, Japanese's 「…」, Japanese's and Chinese's full-width punctuation); every key the code says is in English, every English key is said somewhere, no words sit in JSX, in a label map, or in what the server sends people, and a control's name holds the words it shows, in every language. The catalogs' rules are in `packages/shared/scripts/catalog-rules.mjs`, which a native speaker's sheet is checked by too.
+2. `pnpm --filter @a4a/server exec vitest run test/translation.test.ts`: a query's words and its count in each language, an email in each recipient's language, the language on `/me`, a problem's key and the list among its values, Korean's particles, French's elision and Chinese's spacing at a value's edge. `pnpm --filter @a4a/shared test` checks the translator itself: each language's lists, French's elision and Chinese's spacing, in plain words and inside tags.
 3. The browser: `pnpm test:e2e german.spec.ts` (the README's [End-to-end tests](../README.md#end-to-end-tests) section says what it needs). `e2e/german.spec.ts` takes a German browser through the issues, an issue, the inbox, the profile, a project's people, a query's problem, a rule's preview and the sign-in page, shoots each in light, in dark and at 390px, and fails if a page spills sideways there. Its shots are in the HTML report (`apps/web/playwright-report`), which CI writes and keeps when a run fails, and `--reporter=html` writes locally. The suite's tour (`e2e/tour.spec.ts`) walks every page, in English.
 4. Read it. Set your profile's language, or your browser's, and walk the pages you know: the inbox, an issue's history, the plan, a rule's sentence, an email (a test server's `SMTP_URL` to a catcher), the help desk's pages signed out. A message that reads wrong in its place is a piece read on its own: find its key with the words beside it, and its prefix's neighbours.
-5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese, Korean, Portuguese, Simplified Chinese, Vietnamese, Indonesian or Thai yet. German, Spanish, French and Japanese have had a second reader; Simplified Chinese, Korean, Vietnamese, Indonesian and Thai have had two rounds by an editor who read them for what gives a translation away, the pages people see most read whole and the rest swept for its patterns, and Portuguese was rewritten whole as Portugal's. [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews and edits couldn't settle.
+5. Settle what's left open. Each language's head in [translation-questions.md](translation-questions.md) says whether a native speaker has read it, how far and when; [A native speaker's read](#a-native-speakers-read) says how to have one read. German, Spanish, French and Japanese have had a second reader; Simplified Chinese, Korean, Vietnamese, Indonesian and Thai have had two rounds by an editor who read them for what gives a translation away, the pages people see most read whole and the rest swept for its patterns, and Portuguese was rewritten whole as Portugal's. [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews and edits couldn't settle.
+
+## A native speaker's read
+
+Models wrote a4a's ten languages and settled their questions; no native speaker has read them. That needs people, and no code supplies them. What a4a does is make a reader's hour count, and make what they send back safe to apply: a sheet that puts first what fixes most, and an import that checks every word of it before writing one.
+
+1. **Make the sheet.** `pnpm i18n:review export th --out sheets` writes `sheets/th.xlsx`, and `export all` one for each language. The sheets are made from the catalogs, so they don't go in the repo. It's XLSX, which Excel, Numbers, LibreOffice and Google Sheets open with every letter in place, where CSV, which Excel saves in the machine's code page unless asked otherwise, turns Thai, Japanese, Korean, Chinese and Vietnamese into question marks. Its four sheets:
+   - **Start here**, in English: what we ask, in what order, how long each part takes, how to write a suggestion, and what to keep as it is (a value such as `{name}`, a plural's `{count, plural, …}` and its `#`, a select's codes, a tag such as `<b>…</b>`), each with an example from the language's own catalog.
+   - **Terms**: the language's table on this page (the word and why, as the table has them), with a column for a better word and one for a note. One term fixed fixes every message that uses it, so terms come first.
+   - **Messages**: every message, by tier, then where it shows ("Portal", "Issue page", "Help desk emails", "Errors"), then key, with its English and its words now, and columns for a suggestion and a note. The head stays in view, the filter shows one tier or one page, and every cell but the reader's is locked, with no password, so a slip can't change one. The language's cells are in a font made for it, with the charset Excel takes as a cell's language, the most XLSX can say of one: Japanese and Chinese, which share Han characters but draw them differently, never share a font.
+   - **Questions**: the language's open items in [translation-questions.md](translation-questions.md), with a column for the answer, and one question about the whole.
+2. **Send it** to the reader, saying what you'd like read. Every message has a tier, from its key's prefix (`packages/shared/scripts/review/tiers.mjs`), so a key added later lands with its neighbours, and the pieces a page joins are read together:
+
+   | Tier | What it holds | Size |
+   |---|---|---|
+   | 1 | What most people see most, and what customers see: the frame and its menus, signing in, the issue list, an issue's page with its comments and history, the inbox and the notification emails, boards, and the help desk's portal, form, tracking page and emails | 776 messages, 4,783 English words: about an hour |
+   | 2 | The rest of the everyday pages, and the problems people meet most | 2,663 messages: about 4 hours |
+   | 3 | Administration, the importers, and the problems people rarely meet | 3,028 messages: about 6 hours |
+
+   An hour is counted in words, since a message is one word or forty: 600 messages of the catalog's average length make 4,500 English words, read beside their translation at about 75 words a minute. A test keeps tier 1 within its budget (`TIER_ONE_BUDGET`). The terms take 20 to 30 minutes more, so the terms and tier 1 are a first read of an hour and a half.
+3. **Bring it back.** `pnpm i18n:review import th.xlsx --dry-run` says what it would do and writes nothing; without `--dry-run` it does it.
+   - Each suggestion is checked as `check:words` checks a catalog, by the same rules: English's placeholders, a select's cases, the language's plural categories (`Intl.PluralRules`) with `#` kept, tags around the same values, a control's name holding the words it shows, and the language's typography where a machine can tell.
+   - It refuses, each with why: a row whose English, or whose words, changed since the sheet was made ("changed since this sheet was made: read it again"); a row whose English or words were edited in the sheet itself (each row carries a fingerprint, in a hidden column); an unknown key; and a suggestion that fails a check, or brings a link, a line break or a character nobody sees.
+   - A space at a message's start or end, which a reader can't see in a cell, is kept as the catalog has it.
+   - It writes the catalog only if every message in it would pass, one import at a time (a lock beside the catalogs), whole or not at all, and only if nobody saved the catalog while it ran. Then it runs `check:words`, and puts the catalog back if that fails.
+   - It prints what it applied and refused, the reader's notes, their answers to the questions, and their better terms, each with the messages that use the old word. It doesn't change a term itself: a term runs through hundreds of messages, with their grammar, so it's a person's or an editor's pass, with its table on this page.
+   - The same sheet brought back twice is the same as once: a suggestion already in the catalog is counted, not refused. It exits 0 when it took everything, 2 when it refused something (and took the rest), and 1 when it could take nothing.
+4. **The read is recorded** in the language's head in [translation-questions.md](translation-questions.md), a sentence per sheet: how far the reader went (they choose it on Start here), when the sheet was made and brought back, and how many messages changed. A name goes there only when the owner gives one, `--reader "Ana Silva"`: whether a reader is named in the repo is the owner's call, and the sheet never asks.
+
+A translation platform is the other way, for an owner who'd rather hire one: Crowdin, Lokalise, Phrase and Weblate import a4a's catalogs as they are (ICU MessageFormat in JSON, a file per language, English the source) and export them the same way. Run `check:words` over what comes back.
 
 ## Adding a language
 
@@ -142,10 +199,12 @@ The web finds a new catalog by itself, and loads only its person's. A right-to-l
 
 ## Spanish
 
-One Spanish for Spain and Latin America: no *vosotros*, and no word only one side uses. Where the two differ, the catalog takes the form most Spanish speakers use and every reader knows: *agregar* (not *añadir*), *costo* (not *coste*), *correo* for email, *PC* where English says computer, *informe* for a report.
+One Spanish for Spain and Latin America: no *vosotros*, and no word only one side uses. Where the two differ, the catalog takes the form most Spanish speakers use and every reader knows: *agregar* (not *añadir*), *costo* (not *coste*), *presionar* (not *pulsar*), *capacitación* (not *formación*), *la terminal*, *correo* for email, *PC* where English says computer, *informe* for a report. Where Microsoft's or Google's Spanish says a thing one way on both sides, the catalog says it so too: *presionar*, *ámbito*, the keys' names.
 
 - **Tú**, always: "Elige un proyecto", "Tu perfil". Spanish software, Jira's and Slack's among them, says *tú* to its people on both sides of the Atlantic; *usted* reads as a form letter there. German's *Sie* is German's own convention.
-- **Buttons are infinitives**: "Guardar", "Guardar los cambios", "Eliminar el campo". Instructions and help are the *tú* imperative: "Elige", "Escribe", "Pulsa".
+- **Buttons are infinitives**: "Guardar", "Guardar los cambios", "Eliminar el campo", "Quitar el límite". So are a checkbox's and a switch's words: "Retener el Cc…", "Ejecutarlo desde la cola…". Instructions and help are the *tú* imperative: "Elige", "Escribe", "Presiona".
+- **Keys** are named as Spanish keyboards print them: Intro (Google's word on both sides), Mayús and Supr (Microsoft's on both sides), Tab, Espacio, Alt, Ctrl ("Ctrl+Mayús+Z"). Before Intro, "y" is "e": "…, e Intro abre la incidencia".
+- **A webhook's event** that follows "cuando" is a clause in lower case, even where English's begins with a capital: "cuando se aprueba la hoja de horas de una semana". Its checkbox's label is the same words with a capital.
 - **What just happened is the present perfect**: "Se ha guardado.", "Se ha creado {name}.". History and notifications, which carry their time, are the preterite: "la movió", "comentó", "te la asignó".
 - **An issue is *incidencia***, feminine, so what refers to one agrees with it: "la notificó", "Notificada por", "resuelta".
 - **Gender**: a4a doesn't guess a person's. It says "la persona", "quien…", "quienes la siguen", and takes nouns that don't change: *responsable* (assignee), *solicitante* (requester), *informante*, *agente*, *miembro*. Where a person's gender would show in an adjective, the sentence turns: "Ya no tienes suscripción a…", not "Ya no estás suscrito". Roles stay as their words, as German's do: *administrador*, *gestor*, *miembro*, *lector*. A role's bare name follows a singular: "{name} es ahora {role}"; after a plural it is "tienen al menos el rol {role}". A guest is "con acceso de invitado", never "como invitado".
@@ -168,11 +227,14 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | reporter | informante; "quien la notificó" in a sentence |
 | report (an issue), reported | notificar, notificada |
 | assignee | responsable |
+| lead (a project's) | responsable, as Jira's Spanish says "responsable del proyecto"; "dirige" in a sentence |
 | agent | agente |
 | workflow | flujo de trabajo |
 | rule | regla |
 | state machine | máquina de estados |
-| transition | transición |
+| transition; a move between two states; its ends | transición; movimiento, as the state machines' page says; Origen, Destino |
+| the worker (where scheduled rules run) | las tareas en segundo plano |
+| script library | biblioteca de scripts |
 | knowledge base | base de conocimientos |
 | article | artículo |
 | inbox | bandeja de entrada |
@@ -180,10 +242,13 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | digest | resumen |
 | subscription, subscribe | suscripción, suscribirse |
 | watch, watchers | seguir, quienes la siguen |
-| timesheet | hoja de horas |
+| timesheet; submit, approve, send back a week; a week of time | hoja de horas (never *parte*); enviar, aprobar, devolver la semana; la hoja de horas de una semana |
+| who approves a week: a manager of every project in it, or of any | quien gestione todos los proyectos con trabajo en la semana, o alguno de ellos |
 | work logged, log time | trabajo registrado, registrar tiempo |
 | estimate | estimación |
 | days away | ausencias |
+| training (a reason for days away) | capacitación |
+| HR calendar | calendario de recursos humanos, spelled out (*RR. HH.* and *RH* differ by country) |
 | levelling | nivelación |
 | slack (in a plan) | holgura |
 | booked (in a plan) | asignado: "Horas asignadas", "quién tiene trabajo asignado" |
@@ -192,30 +257,59 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | earned value | valor ganado |
 | triage | clasificación |
 | suggestion | sugerencia |
+| a suggestion's confidence: sure, fairly sure, unsure | confianza alta, confianza media, confianza baja: nouns, which agree with nothing (*seguro* alone also reads "safe") |
 | token | token |
+| scope (a token's, an app's) | ámbito, as GitHub's and Microsoft's Spanish documentation say |
 | allow (an app), apps you allowed | autorizar, "Aplicaciones que autorizaste" (one doesn't *permitir* an app) |
 | two-factor sign-in | verificación en dos pasos |
 | passkey | llave de acceso |
+| a passkey that may have been copied | Bloqueada, as a bank blocks a card that may have been copied |
+| let off (passkeys) | eximir; "con exención de llave de acceso", a noun, since *exento* would guess a gender |
+| phish | phishing, as banks' warnings say on both sides |
 | sign in, sign out | iniciar sesión, cerrar sesión |
 | identity provider | proveedor de identidad |
+| vouch for (a provider for an address, a person for a subscription); a maker's attestation | responder por; avalar |
+| the proof of work | on the desk's switch, "Comprobar que lo envía una persona"; to a requester, "la comprobación de que no eres un bot" |
 | single sign-on | inicio de sesión único |
 | webhook, delivery | webhook, entrega |
 | post (a4a or a provider sending to an address) | enviar; *publicar* is for chat messages and comments |
 | request (HTTP) | solicitud |
+| an HTTP status in a sentence | "respondió con el código 503" |
 | secret | secreto |
+| kept sealed | se guarda cifrado |
 | commit, pull request, branch | commit, pull request (la), rama |
+| mention (an issue, in a comment, a commit, a pull request, a check or a status) | mencionar |
+| check run; commit status | check run (el, los check runs), as GitHub's interface says it; estado de commit |
+| a GitHub account's type: user, organization | cuenta personal, organización, as GitHub's Spanish documentation says |
 | build (CI) | compilación |
 | field, value | campo, valor |
+| owner; an owned field | propietario; campo con propietario |
 | link (between issues), unlink | enlace, enlazar; quitar el enlace (not *desenlazar*) |
 | link, unlink (a chat account) | vincular, desvincular |
 | resolve, resolved | resolver, resuelta |
 | dashboard, widget | panel, widget |
 | report | informe |
 | role: administrator, manager, member, viewer | administrador, gestor, miembro, lector |
-| whiteboard; a note, card, section, arrow, an arrow's label, the outline | pizarra, nota, tarjeta, sección, flecha, etiqueta, esquema |
+| whiteboard; a note, card, section, arrow, an arrow's label, an arrow's ends, the outline | pizarra, nota, tarjeta, sección, flecha, etiqueta, Origen y Destino, esquema |
+| a drawing, a picture (on a whiteboard) | dibujo, imagen |
 | connect (draw an arrow), make issues (of notes) | conectar; crear incidencias |
-| a note's tones: plain, idea, agreed, question, problem, parked | Normal, Idea, Acordada, Pregunta, Problema, Aplazada |
+| a note's tones: plain, idea, agreed, question, problem, parked | Normal, Idea, Acordada, Pregunta, Problema, Aplazada (*aparcada* leans to Spain) |
 | writing help; where an issue came from (a chat message) | ayuda para escribir; de dónde viene |
+| friendlier (writing help); drafted by the assistant | más cercano; "Este texto lo redactó el asistente." |
+| relay (everyone on a request hearing each other) | reenviar: "Reenviar a cada persona de una solicitud lo que escriben las demás" |
+| hold a new request's Cc; held | retener; pendientes de confirmación |
+| who takes a group's new requests | a quién se asignan sus solicitudes nuevas |
+| a group's people; whoever can see a project | las personas del grupo, sus miembros; quien pueda ver el proyecto |
+| Matrix's homeserver | servidor de Matrix |
+| ClickUp's List | Lista, capitalised as ClickUp writes it |
+| press (a button, a key) | presionar, as Microsoft's Spanish says in Spain and Mexico (*pulsar* leans to Spain) |
+| keys: Enter, Shift, Delete, Tab, Space | Intro, Mayús, Supr, Tab, Espacio, as Spanish keyboards print them (not *Enter*, *Shift*) |
+| terminal | la terminal |
+| the navigation's groups: Work, Decide, Build, Oversee | Trabajo, Decidir, Configurar, Supervisar |
+| forget (a saved search) | eliminar, as a filter is deleted |
+| let everyone see it (a visibility limit's button) | Quitar el límite |
+| a place (in a column, a list or a tree) | posición: "la mueven una posición" |
+| yet | todavía: "Todavía nada", "Todavía no hay…" |
 
 To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person of its own in through a Spanish browser and shoots the issues, an issue, the inbox, the profile and the sign-in page in light, in dark and at 390px; and a read of the pages in a browser that asks for Spanish.
 
@@ -225,8 +319,10 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 
 - **The polite form (です・ます) in sentences**: 「保存しました。」, 「先に保存してください。」. Buttons and labels are short nouns or verb phrases, never sentences: 「保存」, 「変更を保存」, 「フィールドを削除」.
 - **No honorific after a name**: a name takes its particle directly (「Adaがあなたに割り当てました」), since many names are agents' and bots'. The help desk's emails are the one exception: they go to people outside the team, so they address a requester as 「{name}様」, as Japanese customer mail does.
-- **Full-width punctuation**: 、。：（）, and 「」 for quotes. The ellipsis is one character (…), as in English. No space between Japanese and a Latin word or a value: 「BACK-12を開く」.
-- **Plurals**: Japanese has none, so each plural keeps `other` alone, with a counter word: `{n, plural, other {#件の課題}}`. 件 counts issues and things, 人 people, 個 fields, values, files and tokens, 回 times.
+- **Full-width punctuation**: 、。：（）, and 「」 for quotes. The ellipsis is one character (…), as in English. No space between Japanese and a Latin word or a value: 「BACK-12を開く」, 「{home}に接続しました。」, 「1週間」. Two Latin words keep the space between them (「SSO URL」), and the colon is always full-width, even before an explanation: 「キューから実行：…」.
+- **A name people gave is quoted** after the noun that says what it is, as rules, customer groups and whiteboards are: 「ダッシュボード「週報」を削除しますか？」, 「トークン「CI」」, 「フィールド「Priority」が見つかりません。」. Without the quotes a Japanese name runs into its noun. Keys, logins, ids, versions and addresses stay bare (「プロジェクトBACK」, 「{login}のトークン」), and a name standing alone, set off by its particle, needs none: 「{name}を削除」.
+- **Plurals**: Japanese has none, so each plural keeps `other` alone, with a counter word: `{n, plural, other {#件の課題}}`. 件 counts issues and things (records, links, tasks, grants), 人 people, 個 fields, values, files, tokens, groups, roles and passkeys, 回 times. Never つ, which stops at nine (「10つ」 isn't Japanese): what has no counter of its own, such as desks and accounts, takes its number after a colon or in brackets: 「提供中のデスク：2」, 「アプリがインストールされているアカウント（2件）：」.
+- **The issue list's count line** puts what the query asks in brackets, since the query's own reading holds colons: 「4件の課題（プロジェクト：SPR、未解決）」, and the query field's reading 「課題（…）」.
 - **Pieces a page joins**:
   - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase in the polite past, with no subject: 「{issue}を変更しました」, 「報告しました」. A badge is a noun: 「課題の削除」.
   - A webhook's events are joined into 「{join}とき」 by Intl's "or" list (「AまたはB」, 「A、B、またはC」), so each is a clause in the plain past: 「課題が作成された」. The same clauses label the form's checkboxes (`page.webhooks.label.*`).
@@ -236,9 +332,10 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 - **Dates and numbers** come from Intl: 「2026年11月16日」, 「1,234.5」, 「3 分前」.
 - **Field names, states and values** are data, as in every language: the field panel says STATE and PRIORITY as they were named.
 - **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded in Japanese and every case stays: `{state, select, merged {マージ} closed {クローズ} other {再オープン}}`. A field's `{type}` in a problem is such a code too (`enum` 選択リスト, `owned` 担当者付きリスト), with `other` keeping the code.
-- **Problems**: what a page shows when something fails says the problem, then its fix, in です・ます. Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Japanese message, after 「エラー：」, 「理由：」 or 「応答：」, and brings its own punctuation, so no 。 follows it: 「…もう一度お試しください。エラー：{error}」. A problem held in another's values (`{problems}`, `{reasons}`, a parser's `{problem}`) is said whole in Japanese, each sentence with its 。, and Japanese joins them with no gap, so it stays where English puts it: 「…のクエリに問題があります：{problems}クエリを修正するか…」. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`), and a rule's choices are said as the rule form names them (「親課題」, 「1時間ごと」).
+- **Problems**: what a page shows when something fails says the problem, then its fix, in です・ます. Free text from elsewhere (a parser's message, another tracker's own words, a script's or a rule's own refusal) ends the Japanese message, after 「エラー：」, 「理由：」 or 「応答：」, and brings its own punctuation, so no 。 follows it: 「…もう一度お試しください。エラー：{error}」. A problem held in another's values (`{problems}`, `{reasons}`, a parser's `{problem}`) is said whole in Japanese, each sentence with its 。, and Japanese joins them with no gap, so it stays where English puts it: 「…のクエリに問題があります：{problems}クエリを修正するか…」. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`), and a rule's choices are said as the rule form names them (「親課題」, 「1時間ごと」).
 - **You and your**: a label that names the reader's own things says 自分の (「自分のトークン」, 「自分のダッシュボード」, 「自分のリクエスト」), or nothing where the owner is plain (「プロフィール」, 「タイマー」). あなた stays where the reader must be told from someone else: 「あなたとして動作します」, 「あなたではなく{login}として」.
-- **The help desk** says 問い合わせ for asking for help: 「問い合わせました」 in an issue's history and notifications, 「お問い合わせ」 on the form and the portal. Its emails to requesters are a company's to a customer: 「{desk}にお問い合わせいただいたため、このメールをお送りしています。」
+- **The help desk** says 問い合わせ for asking for help: 「問い合わせました」 in an issue's history and notifications, 「お問い合わせ」 on the form and the portal. Its emails to requesters are a company's to a customer: 「{desk}にお問い合わせいただいたため、このメールをお送りしています。」 The people they mention are 方 (「ほかの方」, 「この方々」, 「CCに追加された方」) and what a4a does for them お送りします; the portal's pages, which are a page's words, keep 人. Every message on a request, the team's or a requester's or someone copied, is a 返信: 「{name}様がリクエストに返信しました。」
+- **The chat bot's lines** name the bot a4a, never 私 (「a4aは{channel}に参加していません。」). A command in them stands on its own, set off by a space where Japanese meets it, and one that ends a line takes no 。, so it copies cleanly: 「/invite @a4a で招待して」, 「/a4a help と送ると」, 「…指定してください：subscribe BACK」. A page that tells someone what to send the bot quotes it: 「ボットに「link」と送って」.
 
 | English | Japanese |
 |---|---|
@@ -256,12 +353,16 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | request (help desk) | リクエスト |
 | requester | 依頼者 |
 | copied on a request (CC), copy, stop copying | CC, CCに追加, CCから外す |
-| customer group | 顧客グループ |
+| an email's Cc; whom the requester put there; someone copied (a history badge) | メールのCC; CCに入れた人; CC先 |
+| what people write on a request (the relay's emails, the CC settings) | 返信, as the portal and the team's emails call every message |
+| customer group, kept from the group | 顧客グループ, {group}と共有しない (the portal's button: {group}との共有をやめる), pairing with 共有する |
+| an SLA counted in business hours, its clock | 営業時間で計算, 時間の計測 (computing a target against the time that runs) |
 | reporter | 報告者 |
 | assignee | 担当者 |
 | agent | エージェント |
 | workflow | ワークフロー |
 | rule | ルール |
+| set off (a rule), run from the queue, script library | 起動する, キューから実行, スクリプトライブラリ (発火 is jargon) |
 | state machine | ステートマシン |
 | transition | 遷移 |
 | state | 状態 |
@@ -270,31 +371,44 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | inbox | 受信トレイ |
 | notification | 通知 |
 | digest | ダイジェスト |
-| subscription, subscribe | 購読, 購読する |
+| subscription, subscribe, a search you follow | 購読, 購読する, 購読中の検索 |
 | watch, watcher | ウォッチ, ウォッチャー |
-| timesheet | タイムシート |
-| work logged, log time | 作業記録, 作業時間を記録 |
+| timesheet; submit, approve, send back the week | タイムシート; この週を提出, この週を承認, 差し戻す |
+| a timesheet row of one's own; BAU | 課題以外の作業 (自分の時間 reads as free time); 定常業務 (BAU isn't said in Japanese) |
+| who approves a week: a manager of every project in it, of any | その週に作業記録があるすべてのプロジェクトでマネージャーである人, いずれかのプロジェクトのマネージャー |
+| work logged (a work item), log time | 作業記録, 作業時間を記録 |
+| another tracker's work: YouTrack's work items, worklogs, Redmine's time entries | 作業項目, 作業ログ, 作業時間, each tracker's own Japanese; what an import brings in is 作業記録 |
 | estimate | 見積もり |
-| days away | 不在日 |
+| days away, the HR calendar | 不在日, 人事カレンダー |
+| nothing yet (a person's badge in a plan or a sprint) | 割り当てなし |
 | levelling | 平準化 |
 | slack (in a plan) | 余裕 |
 | what-if (in a plan) | シミュレーション (仮定 is "things a4a assumed") |
 | baseline | ベースライン |
-| earned value | アーンドバリュー（EV） |
+| earned value; earned (an amount) | アーンドバリュー（EV）in headings; 出来高, as Japanese EVM writes the amount |
+| cost and schedule performance (CPI, SPI) | コスト効率指数, スケジュール効率指数 (PMBOK's Japanese) |
 | triage | トリアージ |
 | suggestion | 提案 |
 | token, revoke | トークン, 無効化 |
 | fingerprint (of a token) | フィンガープリント |
-| two-factor sign-in | 2段階認証 |
-| passkey | パスキー |
-| sign in, sign out | ログイン, ログアウト |
+| two-factor sign-in, a second factor | 2段階認証, both |
+| passkey; a synced passkey; one stopped for good | パスキー; 同期パスキー (FIDO's Japanese); 使用停止 |
+| let off (passkeys), ask for a passkey again | 免除する, 免除を取り消す |
+| authenticator, attestation | 認証器 (FIDO's Japanese; an authenticator app is 認証アプリ), メーカーによる証明（アテステーション） |
+| vouch for (an address) | 保証する |
+| sign in, sign out | ログイン, ログアウト (never サインイン) |
+| sign out everywhere | すべてのセッションからログアウト (a4a ends sessions, not devices) |
 | login (a person's handle) | ログインID |
 | identity provider | IDプロバイダー |
 | single sign-on | シングルサインオン |
-| webhook, delivery | Webhook, 配信 |
-| secret | シークレット |
+| webhook, delivery, a webhook's origin | Webhook (never ウェブフック), 配信, オリジン (a URL's, not 起点) |
+| secret; kept sealed | シークレット; 暗号化して保存 |
 | commit, pull request, branch | コミット, プルリクエスト, ブランチ |
+| check run, commit status | チェック実行, コミットステータス (GitHub's Japanese); a check run's titles are noun phrases: 「3件の課題に言及」 |
+| read as a GitHub App | GitHub Appとしてアクセス (the app writes check runs too) |
+| homeserver (Matrix) | ホームサーバー (Element's Japanese) |
 | field, value | フィールド, 値 |
+| field types, as problems name them: enum, string, text, integer, float, owned | 選択リスト, 1行テキスト, テキスト, 整数, 数値, 担当者付きリスト (the field form's words) |
 | link (between issues) | リンク |
 | resolve, resolved | 解決, 解決済み |
 | dashboard, widget | ダッシュボード, ウィジェット |
@@ -302,10 +416,15 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | person, people | ユーザー |
 | role, permission | ロール, 権限 |
 | member, viewer, manager, administrator | メンバー, 閲覧者, マネージャー, 管理者 |
+| who sees it, limit who sees it, those who always see it | 閲覧できる人, 閲覧できる人を限定, 常に閲覧できる人 (the history's badge: 関係者のみ); never 閲覧者, the Viewer role |
+| limited to some (an article's badge) | 閲覧制限 (限定公開 is YouTube's "unlisted") |
+| the navigation's groups: work, decide, build, oversee | 作業, 判断, 構築, 運用 (監督 reads as a director or a coach) |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | ホワイトボード・付箋・カード・セクション・矢印・ラベル・アウトライン |
+| a whiteboard's tools: draw, a drawing, add a picture; a person's own whiteboard | 手書き, 手書きの線, 画像を追加; 自分専用のホワイトボード |
 | connect (draw an arrow), make issues (of notes) | 矢印でつなぐ; 課題にする |
+| just now | 数秒前, worded as a relative time so it takes に: 「数秒前に追加」 |
 | a note's tones: plain, idea, agreed, question, problem, parked | 標準・アイデア・合意済み・質問・問題・保留 |
-| writing help; where an issue came from (a chat message) | 文章作成サポート; 作成元 |
+| writing help; where an issue came from (a chat message) | 文章作成サポート (Google's Japanese calls its own 文書作成サポート; 執筆 reads as a manuscript); 作成元 |
 
 **Why 課題 for issue**: it's what Jira's and Backlog's Japanese say, so Japanese teams already read trackers in it. チケット (Redmine's) reads as a support ticket, and イシュー, GitHub's loanword, is stiff in a sentence.
 
@@ -327,13 +446,21 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Buttons are infinitives**: "Enregistrer", "Annuler", "Supprimer le champ". A status line is a past participle or a short sentence: "Enregistré.", "Enregistrement…".
 - **Gender**: a4a never guesses a person's, and nothing agrees with the reader or the actor: "{who} vous mentionne" (not "vous a mentionné·e"), "Commenté par {them}", "vos abonnements" (not "vous êtes abonné"), "en accès invité" (not "en tant qu’invité"). A person is "la personne", "qui…", "toute personne qui…"; no "·e" endings, which screen readers read badly. The built-in roles are words for anyone: **Admin**, **Gestionnaire**, **Membre**, **Lecture seule**, **Accès invité**; in a sentence a role follows "le rôle", bare ("{name} a maintenant le rôle membre").
 - **Counts**: French's "one" takes in 0 ("0 ticket"), so a message that says "un" or "une" for one takes `=1` beside it: "{n, plural, =1 {Pour le ticket} other {Pour # tickets}}". A participle that agrees with a number the message doesn't count is left out or turned: "bannis : {banned}", "Enregistré : {formatPeriod} sur {issue}".
+- **What's asked for takes the subjunctive**: a relative clause saying what a thing asked for must do is "Demandez … un rôle qui le permette", "donnez à a4a un jeton qui puisse lire le dépôt", "Choisissez une personne qui puisse modifier ses tickets". A label that only describes keeps the indicative: "Un jeton d’accès qui peut écrire des statuts de commit".
 - **Codes, not words**: where a message depends on a kind of thing, the page passes a stable code and the message selects on it, so French words each case whole: a pull request's `{state, select, merged {fusionnée} closed {fermée} …}`, a report's `{interval, select, day {jour} …}`, a sprint's unit, a rule's part, and whom a rule tells, `{who, select, assignee {son responsable} reporter {la personne qui l’a signalé} other {les personnes qui le suivent}}`. A role in a sentence is a select too: `{role, select, admin {Admin} member {Membre} viewer {Lecture seule} guest {Accès invité} other {{role}}}`.
-- **Free text at a sentence's end** (`{message}`, `{said}`, `{problem}`) brings its own full stop: add none after it. Where a date ends a sentence, French ends it otherwise, since its short dates end in a point ("nov."): "{name} est déjà indisponible du {from} au {to} : modifiez plutôt cette absence".
-- **Typography, as France sets it**: a no-break space (U+00A0) before ":", a narrow one (U+202F) before ";", "?" and "!" and inside « », and ’ for the apostrophe. The catalog holds those characters, so edit it with them. A plain ' before "{" would quote the brace in ICU; ’ never does.
+- **Free text at a sentence's end** (`{message}`, `{said}`, `{problem}`) brings its own full stop: add none after it. Where a date ends a sentence, French ends it otherwise, since its short dates end in a point ("nov."): "{name} est déjà indisponible du {from} au {to} : modifiez plutôt cette absence", or puts the date in brackets: "Temps retiré sur BACK-12 (lun. 16 nov.).", "Ajoutée le 3 nov. (dernière utilisation le 16 nov.)."
+- **Typography, as France sets it**: a no-break space (U+00A0) before ":", a narrow one (U+202F) before ";", "?" and "!" and inside « », ’ for the apostrophe, and a narrow no-break space between thousands ("20 000"), as Intl writes them. The catalog holds those characters, so edit it with them. A plain ' before "{" would quote the brace in ICU; ’ never does.
+- **Elision before a value is a4a's**: write "de {name}", "le {field}", "que {login}", and a4a elides the word as it says the value, where the value begins with a vowel's sound: "Jetons d’anna", "Il manque l’Assignee", "en tant qu’Ada", "l’API", "d’iOS". The words that elide are de, le, la, que, ne, se, me, te, jusque, lorsque and puisque, and si before il and ils ("s’il"). It goes by the value's letters, which is all a4a has:
+  - **h** never elides, since a4a can't tell a mute h (most French names: "d’Hélène", "d’Hugo") from an aspirated one (most English names a team uses: "de HubSpot", "de Heroku"); an elided aspirated h reads as a mistake, a mute one kept reads as a hiatus French admits before a name;
+  - **an acronym** goes by its first letter, as French writes them: "l’API", "l’URL", "d’IBM", but "de SQL", "de XML", as "le FMI" and "la SNCF";
+  - **y** elides where it sounds as a vowel, before a consonant ("d’Yves", "d’Yvonne"), not before a vowel ("de Yann", "de YAML");
+  - **a digit** never does: "de 8", "le 11", "de 1 000";
+  - **a value that is one of the catalog's messages** (a role's name, "Accès invité") goes by its first word like any other: "d’Accès invité", "d’une erreur"; before oui and onze it keeps the word, as French does ("de oui", "le onze").
+  Only a value's edge is a4a's: a word of the catalog's own before a vowel is the translator's to elide, and one before a value inside a tag or a select's case is elided all the same ("Builds d’<t0>ACME</t0>").
 - **Accents on capitals**: État, À, Échec.
 - **What a page loads**: each loading line is a whole message (`loadingLine.*`), "Chargement" with its "de": "Chargement du planning…", "Chargement des agents…", "Chargement de vos abonnements…", "Chargement des absences de {name}…".
 - **Data stays as named**, field names included where English gives them as examples: "State et Assignee seulement", "Won't fix exige un commentaire". Examples of the query and command languages stay as they are; examples of plain words for the assistant to read are French ("mettez-les en revue et assignez-les à anna").
-- **The code hosts' own settings** are named as those products show them: Settings, Webhooks, Add webhook.
+- **Other products' settings** are named as their English shows them, as the code hosts' are (Settings, Webhooks, Add webhook), YouTrack's, Zendesk's, Asana's and ClickUp's too: a4a can't tell which language a person's copy of them speaks. Where the catalog has a product's own French labels, it gives those: id.atlassian.com's "Sécurité, Jetons d’API", Redmine's "Mon compte, Clé d’accès API".
 
 | English | French |
 |---|---|
@@ -344,8 +471,9 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | backlog | backlog |
 | help desk | centre d’assistance; after "à", "l’assistance de {project}" |
 | request (help desk) | demande |
-| requester | la personne qui a fait la demande; "Demandé par" in a table |
+| requester | la personne qui a fait la demande; "Demandé par" in a table; several are "les personnes qui font des demandes", and a heading names the portal, where only they sign in: "Connexion au portail", "Fournisseurs d’identité du portail" |
 | copied on a request (CC), copy, stop copying | en copie, mettre en copie, retirer de la copie |
+| the people on a request | participer à la demande ("suivre" is watching) |
 | customer group | groupe de clients |
 | reporter | la personne qui l’a signalé; "Signalé par" in a table |
 | assignee | responsable |
@@ -362,7 +490,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | digest | récapitulatif |
 | subscription, subscribe | abonnement, s’abonner |
 | watch, watcher | suivre, "Suivi par" |
-| timesheet | feuille de temps |
+| timesheet; submit, approve, send back (a week) | feuille de temps (never "semaine de temps"); soumettre, approuver, rouvrir |
 | work logged, log time | temps saisi, saisir du temps |
 | estimate | estimation |
 | days away, away | absences, indisponible |
@@ -378,10 +506,12 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | suggestion | suggestion |
 | tag | étiquette |
 | token | jeton |
-| scope (of a token) | portée: "la portée admin" |
+| scope (of a token) | étendue: "l’étendue admin", as GitHub's and Microsoft's French docs say; Slack's own stay "scopes", as its English-only app settings say |
 | not found | introuvable, after the thing: "Ticket {id} introuvable."; a person's account is "Compte … introuvable" |
 | two-factor sign-in | authentification à deux facteurs |
-| passkey | clé d’accès |
+| passkey | clé d’accès; a copied one's badge, "Bloquée"; passkeys alone, "uniquement avec vos clés d’accès", "Clés d’accès uniquement" |
+| signs you in, signs nobody in | vous connecte; ne permet plus de se connecter |
+| let off (a passkey) | dispenser; among a person's notes, "dispense de clé d’accès" |
 | sign in, sign out | se connecter, se déconnecter |
 | login (the name) | identifiant |
 | identity provider | fournisseur d’identité |
@@ -389,6 +519,10 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | webhook, delivery | webhook, envoi |
 | secret | secret |
 | commit, pull request, branch | commit, pull request, branche |
+| declined (a pull request) | refusée |
+| check run, check (GitHub's) | exécution de vérification, vérification, as GitHub's French docs say; the app's permission keeps GitHub's label, "Checks : Read and write" |
+| commit status (GitLab's, Forgejo's) | statut de commit, as GitLab's French docs say |
+| a pull request names an issue; an id names no issue | mentionne un ticket; ne correspond à aucun ticket |
 | field, value | champ, valeur |
 | link (between issues) | lien |
 | unlink | supprimer le lien (issues); dissocier (a chat account) |
@@ -398,10 +532,22 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | report | rapport |
 | settings | paramètres |
 | app | application |
-| handler (of an app) | gestionnaire |
-| whiteboard; a note, card, section, arrow, an arrow's label, the outline | tableau blanc, note, carte, section, flèche, libellé, sommaire |
+| package (of an app) | paquet |
+| manager (the role); handler (of an app) | Gestionnaire, Google's word for the role; gestionnaire, the French for a handler. A page that shows both names the projects: "les gestionnaires des projets" |
+| administrator | admin: "un admin", "les admins", the role's own name and a word for anyone, where "administrateur" isn't |
+| attachment, attach | fichier joint (they're listed under "Fichiers"), joindre; never "pièce jointe" |
+| upload | envoyer, l’envoi; never "téléverser", which France doesn't say |
+| choose (things to act on: a list's checkboxes, the canvas) | sélectionner, as Windows, macOS and Gmail do: "Sélectionner BACK-1", "Tout désélectionner" |
+| email domain | domaine de messagerie |
+| ways to sign in | façons de se connecter |
+| brainstorm | échanger des idées ("faire du brainstorming" is an anglicism, "réfléchir" too weak) |
+| FIDO's metadata, the FIDO Alliance | les métadonnées FIDO, le BLOB FIDO; l’Alliance FIDO |
+| homeserver, room (Matrix) | serveur d’accueil, salon, as Element says |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | tableau blanc (never "tableau" alone, which is a board), note, carte, section, flèche, libellé, plan (Word's and Google Docs' word for an outline; a4a's plan is "planning") |
 | connect (draw an arrow), make issues (of notes) | relier; créer des tickets |
-| a note's tones: plain, idea, agreed, question, problem, parked | Simple, Idée, Validée, Question, Problème, En attente |
+| the canvas; draw, a drawing, a picture | la zone de dessin; dessiner, un dessin, une image |
+| script library | bibliothèque de scripts |
+| a note's tones: plain, idea, agreed, question, problem, parked | Neutre, Idée, Décision, Question, Problème, En attente ("Validée" would say someone approved it) |
 | writing help; where an issue came from (a chat message) | aide à la rédaction; provenance |
 
 **Checking French.** The checks above, then `e2e/french.spec.ts`: a person of its own signs in through a French browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads French walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
@@ -410,27 +556,27 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 
 `pt.json` is Portugal's Portuguese, as Microsoft's and Google's interfaces in Portugal write it, spelled by the 1990 agreement as Portugal applies it (*facto*, *contacto*, *receção*, *secção*, *ação*). Its code is `pt`, and Intl and the page's `lang` are `pt-PT`. Where Portugal's software has its own word for a thing, a4a takes it: *ficheiro*, *ecrã*, *utilizador*, *equipa*, *palavra-passe*, *guardar*, *eliminar*, *partilhar*, *transferir*, *carregar* (upload), *iniciar sessão*, *terminar sessão*, *definições*, *aplicação*, *registar*, *telemóvel*, *browser*, *separador*.
 
-- **No você.** Portugal's software leaves the reader to the verb: "Pode convidar as outras pessoas depois", "Não tem permissão para fazer isto", "Recebeu este e-mail porque…", "Quis dizer «{guess}»?". Instructions are the third-person imperative: "Introduza", "Selecione", "Indique", "Inicie sessão", "Tente novamente". Where the reader is the object, *lhe* or *si*, which choose no gender: "{who} atribuiu-lhe o item", "{who} fez-lhe uma menção", "itens atribuídos a si", "Também tem acesso". *Você* stays only where the code hands the reader in as a name, and only there: "{who} aplicou" with *Você* (`decide.suggestionCard.you`), the portal's own messages ("<t0>Você</t0> escreveu", `page.track.youAsked`), and "me" in a query's explanation (`server.query.you`, which stands both after a preposition and alone).
-- **A possessive takes its article, and only where it's needed**: "o seu pedido", "as suas subscrições", "Os seus pedidos" beside a group's, but "Perfil", "A carregar a caixa de entrada…", "E-mail", "Nome". A label that names the reader's own thing says it bare when nothing else is near: "Temporizador", not "O seu temporizador".
+- **No você.** Portugal's software leaves the reader to the verb: "Pode convidar as outras pessoas depois", "Não tem permissão para fazer isto", "Recebeu este e-mail porque…", "Quis dizer «{guess}»?". Instructions are the third-person imperative: "Introduza", "Selecione", "Indique", "Inicie sessão", "Tente novamente". Where the reader is the object, *lhe* or *si*, which choose no gender: "{who} atribuiu-lhe o item", "{who} fez-lhe uma menção", "itens atribuídos a si", "Também tem acesso". A line about something the reader did, where the code hands the reader in as a name, turns passive so the name follows *por*: "Aplicada por si.", "Dispensada por si há 3 minutos." (`decide.suggestionCard.you` is *si*). *Você* stays only where one value must stand as a verb's subject, after a preposition and alone, and only there, until the code says whether it's the reader: the portal's thread ("<t0>Você</t0> escreveu", `page.portal.you`, `page.track.you`, `page.track.youAsked`) and "me" in a query's explanation (`server.query.you`).
+- **A possessive takes its article, and only where it's needed**: "o seu pedido", "as suas subscrições", "Os seus pedidos" beside a group's, but "Perfil", "A carregar a caixa de entrada…", "E-mail", "Nome". A label that names the reader's own thing says it bare when nothing else is near: "Cronómetro", not "O seu cronómetro"; "Tempo pessoal" for a row of the reader's own.
 - **Buttons are infinitives**, without an article: "Guardar", "Cancelar", "Guardar alterações", "Eliminar campo", "Iniciar sessão", "Mudar o nome", "Enviar teste". A status line is a participle, or "a" + infinitive while it goes on: "Guardado.", "A guardar…", "Palavra-passe alterada.". An optional field says so in brackets: "Comentário (opcional)".
 - **The progressive is "a" + infinitive**: "A importação está a ler os itens", "continuam a chegar", "o assistente está a trabalhar…". No status line is a bare gerund; a gerund that says how ("avise a equipa respondendo a um e-mail", "desfazendo a ação de um agente") is Portugal's too. A run under way is *em execução*, and what's ongoing *em curso*.
-- **Clitics follow the verb** in an affirmative sentence ("Guarde-o", "Atualize-a", "Verifique-os", "{who} atribuiu-lhe o item"), and come before it after a negation, *que*, *quem*, *porque*, *já*, *só*, *também*, *nenhum*, *alguém* and the like ("não o mostra", "só quem o gere", "porque o item lhe foi atribuído", "Nenhum campo aqui se chama…"); after a preposition, before the infinitive ("para o mover", "para a configurar"). No mesoclisis: the future is "vai" + infinitive, or the present.
+- **Clitics follow the verb** in an affirmative sentence ("Guarde-o", "Atualize-a", "Verifique-os", "{who} atribuiu-lhe o item"), and come before it after a negation, *que*, *quem*, *porque*, *já*, *só*, *também*, *nenhum*, *alguém* and the like ("não o mostra", "só quem o gere", "porque o item lhe foi atribuído", "Nenhum campo aqui se chama…"), and in a clause after *quando* or *se* ("Quando uma regra de fluxo de trabalho o chama"); after a preposition, before the infinitive ("para o mover", "para a configurar"). No mesoclisis: the future is "vai" + infinitive, or the present. No contracted clitics: *lho* and *lha* read literary in a title, so the sentence turns: "{who} atribuiu-lhe o item que reportou".
 - **Portugal's phrases**, where it has one: "Algo correu mal", "Tente novamente daqui a 2 minutos" (*daqui a*, not *em*), "Demasiados pedidos em pouco tempo", "já não" (never "não… mais"), "tem de" and "precisar de", "Mudou de ideias?", "Sem comentários.", "Seguinte", "Largue ficheiros aqui", "num", "numa", "noutro". An empty state is "Ainda não há regras.". A day in a sentence takes *a*: "Reportado por Ana a {date}", "Enviada por {author} a {when}". A server or a service is reached with *ligar-se a* or *aceder a*; a connection is a *ligação*.
 - **"It" is named**: where English says "it" or "its" for something the message hasn't named (a rule, a webhook, an import, a script, an app), Portuguese names it, "A regra ainda não agiu.", "O webhook está em pausa…", or, in a label that lists what something does, leaves it to the verb: "Pede para", "Executa um script". A message doesn't begin with "Ele" or "Ela" pointing back.
 - **Choosing** issues in a list or elements on a whiteboard is *selecionar*: "Selecionar todos os 12 itens", "3 selecionados", "Limpar seleção". *Escolher* is for picking one option among several: "Escolha um projeto".
 - **What just happened** is the *pretérito perfeito*: "O token {name} foi revogado.", "{title} foi instalada.", and, where a4a speaks as "we", "Enviámos" with Portugal's accent, apart from the present "enviamos". History and notifications, which carry their time, say it the same way: "comentou", "atribuiu-lhe o item".
 - **An issue is *item***, masculine: "o item", "Reportado por", "resolvido", "item criado". *Tarefa* stays free for the Task type people name, and the assistant's summary of an issue is a *resumo*, so an issue's summary is its *título*.
-- **Gender**: a4a doesn't guess a person's, and nothing agrees with the reader or the actor. Where Portuguese lets a sentence avoid it, it does: "quem fez o pedido", "a pessoa responsável", "quem reportou o item", "as pessoas que acompanham", "Este pedido só é visível para si e para a equipa"; and where a name is missing, the bare noun: "Requerente". Nouns that don't change are welcome: *responsável*, *requerente*, *agente*, *membro*, *líder*. A participle about the reader or a person named turns into a verb or a noun: "Sessão iniciada como {name}" (not "conectado"), "Já não subscreve {name}" (not "inscrito"), "recebeu uma menção" (not "foi mencionado"). Roles stay as their words, as German's and Spanish's do: *administrador*, *gestor*, *membro*, *leitor*, *convidado*; in a sentence a role follows "a função de", "{name} tem agora a função de {role}", "Aqui, a sua função é {role}", and a guest is "com acesso de convidado". Where a list marks the reader among people, it says "(eu)": "Ana (eu)". Whoever must act is "um administrador": "Peça a um administrador que lhe dê acesso."
-- **Typography**: quotation marks are «…», and “…” inside them, as Portugal's print and the EU's Portuguese style write them; straight quotes stay where a command is typed (`subscribe "My bugs"`). The ellipsis is one character (…). No space before ":", "?", ";" or "%" ("50%"), a space before a unit ("30 s", "3,5 h"). Sentence case in headings, labels and buttons; weekdays and months are lower case, as Intl writes them. "e-mail", with its hyphen; "online"; *o* URL.
+- **Gender**: a4a doesn't guess a person's, and nothing agrees with the reader or the actor. Where Portuguese lets a sentence avoid it, it does: "quem fez o pedido", "a pessoa responsável", "quem reportou o item", "as pessoas que acompanham", "Este pedido só é visível para si e para a equipa"; and where a name is missing, the bare noun: "Requerente". Nouns that don't change are welcome: *responsável*, *requerente*, *agente*, *membro*, *líder*; an owner is "quem o criou" ("Só quem criou este quadro branco decide quem mais o pode ler"), and someone let off passkeys has an *isenção*, not a participle ("com isenção de chave de acesso"). A participle about the reader or a person named turns into a verb or a noun: "Sessão iniciada como {name}" (not "conectado"), "Já não subscreve {name}" (not "inscrito"), "recebeu uma menção" (not "foi mencionado"). Roles stay as their words, as German's and Spanish's do: *administrador*, *gestor*, *membro*, *leitor*, *convidado*; in a sentence a role follows "a função de", "{name} tem agora a função de {role}", "Aqui, a sua função é {role}", and a guest is "com acesso de convidado". Where a list marks the reader among people, it says "(eu)": "Ana (eu)". Whoever must act is "um administrador": "Peça a um administrador que lhe dê acesso."
+- **Typography**: quotation marks are «…», and “…” inside them, as Portugal's print and the EU's Portuguese style write them; straight quotes stay where a command is typed (`subscribe "My bugs"`). The ellipsis is one character (…). No space before ":", "?", ";" or "%" ("50%"), a space before a unit ("30 s", "3,5 h"). Sentence case in headings, labels and buttons; weekdays and months are lower case, as Intl writes them. "e-mail", with its hyphen; "online"; *o* URL. A number a message writes itself is grouped as Intl groups it, with a space: "20 000 caracteres", "50 000 linhas".
 - **Counts**: Portugal's rule (CLDR's for `pt-PT`): `one` is 1 alone, so 0 is plural, "0 itens", as English's is. A message that says "um" or "uma" for one says it in `one`: `{n, plural, one {um item} other {# itens}}`; `=1` is kept only where English has one beside `one` (`{n, plural, =1 {} =2 { duas vezes} other { # vezes}}`). A number the page passes bare ("{banned} banned") takes a plural of its own. A participle that would agree with a number turns: "bloqueados: {banned}". The issue list's count line puts the count last ("Itens no projeto SPR, não resolvidos: 4"), since its "resolvidos" and "ordenados" agree with the issues, not the count.
 - **Pieces a page joins**:
-  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase in the *pretérito perfeito*, with no subject: "criou {issue}", "comentou em {issue}", "reportou o item e atribuiu-lho". A verb that needs an object names the issue, "moveu o item de BACK para WEB", "reportou o item"; one that doesn't drops English's "on it": "registou tempo". The channel after the action is "pela web", "pelo chat", "pela API", and a tool or platform by its name "via {name}" ("via GitHub", "via Slack, como Ana"). A badge is a lower-case noun, as English's is lower case: "eliminação de item". A title that counts several people's changes puts the count first, so its verb needn't agree: "2 alterações de Anna e Ben".
-  - A webhook's events are joined into "Quando {join}" by Intl's "or" list ("A, B ou C"), each a clause in the present: "um item é criado", "um comentário é eliminado", "alguém comenta". The same clauses, with a capital, label the form's checkboxes (`page.webhooks.label.*`): "Um item é criado".
+  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase in the *pretérito perfeito*, with no subject: "criou {issue}", "comentou em {issue}", "eliminou um comentário em {issue}". A verb that needs an object names the issue, "moveu o item de BACK para WEB", "reportou o item"; one that doesn't drops English's "on it": "registou tempo". The channel after the action is "pela web", "pelo chat", "pela API", and a tool or platform by its name "via {name}" ("via GitHub", "via Slack, como Ana"). A badge is a lower-case noun, as English's is lower case: "eliminação de item". A title that counts several people's changes puts the count first, so its verb needn't agree: "2 alterações de Anna e Ben".
+  - A webhook's events are joined into "Quando {join}" by Intl's "or" list ("A, B ou C"), each a clause in the present: "um item é criado", "um comentário é eliminado", "alguém comenta", in lower case even where English's begins with a capital ("uma folha de horas é submetida"). The same clauses, with a capital, label the form's checkboxes (`page.webhooks.label.*`): "Um item é criado".
   - A rule is one sentence: "Quando um item é criado, se corresponder a Type: Bug, então aplicar Assignee anna." Its trigger is the same clause as a webhook's event, its conditions follow "se", and its actions are infinitives after "então"; the rule's own words in `<t0>` are the words that join them.
   - **A loading line is a whole message**, one per thing (`loadingLine.*`), "A carregar" and its article: "A carregar o plano…", "A carregar os agentes…", "A carregar {name}…", and "A carregar…" when nothing is named.
   - **A date in a sentence** may be a day or a part of one ("sexta, 4/12", "a manhã de sexta, 4/12"), so a sentence takes it after *para* or *a*, or in brackets, never after a preposition that would need to contract with it: "Ausência adicionada para {whenWords}: …".
 - **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded whole in Portuguese, with its own article and agreement, and every case stays: `{state, select, merged {integrado} closed {fechado} other {aberto}}`. Where English says nothing for a value, Portuguese keeps it in an empty branch, as Japanese does: `{n, plural, other {}}`.
-- **Problems** say what went wrong, then the fix, in the imperative: "Nome de utilizador ou palavra-passe incorretos.", "Este quadro não usa sprints. Ative os sprints no quadro primeiro." Something not found is the thing, then *não encontrado*: "Item {id} não encontrado. Use um ID legível, como BACK-12." Free text from elsewhere (`{message}`, `{error}`, a parser's `{problem}`, another tracker's words) brings its own full stop: none follows it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`, `tag urgent`).
+- **Problems** say what went wrong, then the fix, in the imperative: "Nome de utilizador ou palavra-passe incorretos.", "Este quadro não usa sprints. Ative os sprints no quadro primeiro." Something not found is the thing, then *não encontrado*: "Item {id} não encontrado. Use um ID legível, como BACK-12." Free text from elsewhere (`{message}`, `{error}`, a parser's `{problem}`, another tracker's words) brings its own full stop: none follows it. A script's error is the exception, a bare phrase that takes English's full stop: "O script parou: {message}.", "A biblioteca tem um erro: {error}.". In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`, `tag urgent`).
 - **The help desk** is the *centro de apoio*, as Portugal's companies name where their customers ask for help; a request is a *pedido* (an HTTP request is a *pedido* too, and the context tells them apart), and whoever asks is the *requerente*, "quem fez o pedido" in a sentence. Its emails to requesters are a company's to a customer: "Recebeu este e-mail porque pediu ajuda ao {desk}. Para responder, basta responder a este e-mail…". A desk's name comes without its article (`server.helpdesk.deskOf`, "centro de apoio de {project}"), so each sentence contracts it: *ao*, *no*, *do*. The portal is the *portal*, and the link a customer signs in with is a *link de acesso*, which "só pode ser usado uma vez e é válido durante 20 minutos".
 - **Data stays as named**, field names included where English gives them as examples ("Só State e Assignee"), and so does a field a page falls back on by name (a report's Priority and State); examples of the query and command languages stay as they are, and examples of plain words for the assistant to read are Portuguese. A time zone given as an example is Portugal's: Europe/Lisbon.
 - **Dates and numbers** come from Intl (`pt-PT`), never from the catalog: "4/12/2026", "sexta, 4/12", "1234,5", "12 345,5", "há 3 minutos".
@@ -443,19 +589,21 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | project | projeto |
 | lead (of a project) | líder do projeto |
 | board | quadro |
-| sprint | sprint, masculine: "o sprint", "um sprint", as Portugal's teams say it |
+| swimlane, lane | raia, as Azure DevOps' Portuguese names a board's lanes |
+| sprint | sprint, masculine: "o sprint", "um sprint", as Portugal's teams say it and Portugal's own Scrum Guide writes it ("o Sprint"); Brazil's says "a Sprint" |
 | committed (a sprint's commitment) | comprometido |
 | goal (a sprint's) | objetivo |
 | blocker | impedimento |
 | backlog | backlog |
-| help desk | centro de apoio |
+| help desk | centro de apoio; *apoio ao cliente* is a company's department, not the desk a project keeps |
 | SLA at risk, breached | em risco, violado |
 | request (help desk; HTTP) | pedido |
 | requester | requerente; "quem fez o pedido" in a sentence |
 | sign-in link (the portal's, for a customer) | link de acesso |
-| copied on a request (CC), copy, stop copying | em cópia (CC), pôr em cópia, tirar da cópia |
+| copied on a request (CC), copy, stop copying | em cópia (CC), pôr em cópia, tirar da cópia; the email's field stays "Cc", as Outlook names it |
+| hold, drop (a new request's Cc); relay (what each person on a request writes) | reter, descartar ("ficou de fora"); transmitir, since the emails aren't forwards |
 | customer group, kept from the group | grupo de clientes, oculto do grupo |
-| reporter, report (an issue), reported | quem reportou, reportar, "Reportado por" |
+| reporter, report (an issue), reported | quem reportou, reportar, "Reportado por", as Portugal's development teams say it of an issue; *comunicar* is the platforms' one-off "Comunicar um problema", and "Comunicado por" reads wrong under an issue |
 | assignee | responsável; "a pessoa responsável" in a sentence |
 | agent | agente |
 | assistant (its name), the assistant | assistente, o assistente |
@@ -463,6 +611,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | workflow | fluxo de trabalho; a CI's own (GitHub Actions') stays *workflow* |
 | rule | regra |
 | if (a rule's or a transition's condition) | se |
+| parent, subtask (issues) | item pai, subtarefa: a rule acts "no item pai", never "no pai" alone, which reads as a father |
 | state machine | máquina de estados |
 | transition | transição |
 | state | estado |
@@ -473,12 +622,14 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | digest | resumo diário |
 | subscription, subscribe, unsubscribe | subscrição, subscrever, cancelar a subscrição |
 | watch, watcher | acompanhar, "quem acompanha" |
-| timesheet | folha de horas |
+| timesheet, an entry in it | folha de horas, lançamento; a week's sheet is "uma folha de horas", never "uma semana de tempo" |
+| submit, approve, send back (a week of time) | submeter, aprovar, devolver: "Submeter semana", "Semana submetida", as Microsoft's Portuguese submits timesheets |
+| a row of one's own (in the timesheet), BAU | pessoal: "Tempo pessoal", "Nova linha pessoal"; BAU stays, as a4a names a row it makes |
 | work logged, log time, work item | trabalho registado, registar tempo, registo de trabalho |
-| timer | temporizador |
+| timer | cronómetro, which counts up while one works, as Portugal's clocks name it; a *temporizador* counts down (a script's timers) |
 | estimate | estimativa |
 | rate (per hour) | valor por hora |
-| days away, away, sick, training | ausências, ausente, baixa médica, formação |
+| days away, away, sick, training; HR calendar | ausências, ausente, baixa médica, formação; calendário de RH |
 | levelling | nivelamento |
 | slack (in a plan) | folga |
 | booked (hours in a plan) | alocado: "horas alocadas" |
@@ -495,27 +646,34 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | scope (of a token) | âmbito: "o âmbito admin" |
 | fingerprint (of a token) | impressão digital |
 | not found | não encontrado, after the thing: "Item {id} não encontrado." |
-| two-factor sign-in | verificação em dois passos |
-| sign in, sign out, signed in | iniciar sessão, terminar sessão, com sessão iniciada; "o início de sessão" |
+| two-factor sign-in | verificação em dois passos, never shortened: "Repor verificação em dois passos", "com verificação em dois passos" |
+| passkey; passkey provider | chave de acesso, as Microsoft's and Google's Portuguese say it (Apple's is *chave-passe*), apart from a *token de acesso* and the portal's *link de acesso*; gestor de chaves de acesso, as a password manager is a *gestor de palavras-passe*. One that may have been copied is "Bloqueada"; an account without a password signs in "só com chaves de acesso" |
+| let off (passkeys); require (of someone) | isentar, "com isenção de chave de acesso"; exigir, pedir. Never *dispensar*, which is dismiss here and, said of a person, lays them off |
+| dismiss (a suggestion, a notice) | dispensar: "Dispensada por si" (Microsoft's Portuguese) |
+| authenticator, attest (its maker), vouch for (a provider, an email) | autenticador, atestar; confirmar: "Esse fornecedor de identidade não confirma endereços como o seu"; FIDO is feminine, as its alliance is: "os metadados da FIDO" |
+| sign in, sign out, signed in | iniciar sessão, terminar sessão, com sessão iniciada; "o início de sessão"; sign out everywhere: "Terminar todas as sessões". Never *entrar* for signing in |
+| sign in through (a provider) | "Iniciar sessão com {name}" on a button, "através de {name}" in settings and sentences |
 | login (a person's handle) | nome de utilizador |
 | user, password | utilizador, palavra-passe |
-| identity provider | fornecedor de identidade |
+| identity provider; issuer, client ID, client secret, redirect URI, discovery document (OpenID Connect) | fornecedor de identidade; emissor, ID do cliente, segredo do cliente, URI de redirecionamento, documento de descoberta |
 | provisioning (SCIM), tenant | aprovisionamento, inquilino (Microsoft's Portuguese) |
 | single sign-on | início de sessão único (SSO); "SSO" where a sentence already says *iniciar sessão* |
 | webhook, delivery | webhook, entrega |
 | post (a4a or a provider sending to an address) | enviar; *publicar* is for chat messages and comments |
 | secret | segredo |
 | commit, pull request, branch | commit, pull request, branch ("o commit", "o pull request", "o branch") |
+| check run, commit status; name (an issue, in a commit or a check) | check run ("o check run"), as GitHub names it; estado de commit; citar: "Cita 3 itens" |
 | merge, merged | integrar, integrado |
-| CI, build | CI, build ("o build") |
+| CI, build | CI; build, feminine: "a build", "as builds", as Portugal's teams and press say it and as its translation, *compilação*, is (Microsoft's rule for a borrowed word's gender) |
 | field, value | campo, valor |
 | default | predefinição, predefinido |
 | choose, chosen (issues in a list, elements on a whiteboard) | selecionar, selecionado: "3 selecionados", "Limpar seleção"; *escolher* for one option among several |
 | link (between issues), unlink | ligação, ligar; remover a ligação |
 | link, unlink (a chat account) | associar, desassociar |
 | link (a commit or a pull request to an issue) | associar: "associou o pull request #12" |
-| connect, disconnect (an account, a workspace, a server) | ligar, desligar; *ligar-se a* a server |
-| link (a URL) | link |
+| connect, disconnect (an account, a workspace, a server) | ligar, desligar; *ligar-se a* a server; never *conectar* |
+| homeserver, room (Matrix) | homeserver ("o homeserver"), as Matrix names it; sala |
+| link (a URL) | link, the editor's tool too: "Link", "Link para", "Adicionar link" |
 | duplicate | duplicado |
 | resolve, resolved, resolution | resolver, resolvido, resolução |
 | dashboard, widget | painel, widget |
@@ -523,15 +681,18 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | settings | definições; *configurar* for setting a thing up |
 | file, upload, download | ficheiro, carregar, transferir |
 | save, delete, share, rename | guardar, eliminar, partilhar, mudar o nome |
-| app, allow (an app), apps you allowed | aplicação ("a aplicação"), autorizar, "Aplicações que autorizou"; a GitHub App by its name |
+| app, allow (an app), apps you allowed | aplicação ("a aplicação"), autorizar, "Aplicações que autorizou"; a GitHub App by its name, and Forgejo's and Gitea's settings by their Portuguese pages' ("em Aplicações") |
 | handler (of an app) | handler |
 | person, people, team | pessoa, pessoas, equipa |
-| role, permission | função, permissão (as Microsoft's and Google's Portuguese say a role) |
+| role, permission | função, permissão (as Microsoft's and Google's Portuguese say a role), never *papel* |
 | administrator, manager, member, viewer, guest | administrador, gestor, membro, leitor, convidado |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | quadro branco, never shortened, since *quadro* is a board; nota, cartão, secção, seta, rótulo, estrutura |
+| draw, a drawing, a picture (on a whiteboard) | desenhar, desenho, imagem |
+| a whiteboard of one's own, its owner, shared with you | pessoal, quem o criou, "Partilhado consigo"; who reads it: "Quem o pode ler", "Toda a gente com sessão iniciada", "Só algumas pessoas" |
 | connect (draw an arrow), make issues (of notes) | ligar; criar itens |
 | a note's tones: plain, idea, agreed, question, problem, parked | Simples, Ideia, Acordada, Pergunta, Problema, Em espera |
-| writing help; where an issue came from (a chat message) | ajuda na escrita; origem |
+| writing help; where an issue came from (a chat message); drafted (by the assistant) | ajuda na escrita; origem; redigido: "O assistente redigiu estas palavras" |
+| script library; fire (a rule); queue | biblioteca de scripts; acionar: "quando a regra foi acionada"; fila |
 | browser, tab, screen, phone | browser, separador, ecrã, telemóvel |
 
 **Why *item* for issue**: it's what Portuguese teams read in a tracker, in Jira (whose only Portuguese is Brazil's: "Criar item", "Tipo de item") and in Azure DevOps ("itens de trabalho"), and it's short enough for a badge. *Problema* would collide with a4a's problems and a note's tone, *tarefa* with the Task type, *questão* reads as a question, *ocorrência* as a service desk's incident, and *issue*, said in many teams, is English.
@@ -543,13 +704,16 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 `ko.json`, Korean as South Korea writes it, as Korean teams read a tracker. Where a tracker's Korean is settled, it's Jira's, which most Korean teams have worked in: 이슈, 담당자, 보고자, 요약, 해결, 전환, 하위 작업. Where Jira's Korean and what developers say part (GitHub's Korean says 끌어오기 요청 and 웹후크), the catalog takes what developers say: 풀 리퀘스트, 웹훅.
 
 - **합니다체 in sentences**: "저장했습니다.", "이슈 {id}이(가) 없거나 볼 수 없습니다." What a sentence asks of the reader is "-세요", as Korean software asks it, beside 합니다체: "먼저 저장하세요.", "다시 시도하세요." "-십시오" reads as an official notice, and 해요체 ("저장했어요") as a chat app's.
-- **Buttons and labels** are short nouns or verb phrases, never sentences: "저장", "변경 사항 저장", "필드 삭제", "취소". A status line is a short sentence: "저장했습니다.", "저장하는 중…".
+- **Buttons and labels** are short nouns or verb phrases, never sentences: "저장", "변경 사항 저장", "필드 삭제", "취소". A checkbox is a label too ("패스키 로그인 허용"), unless English words it as sentences. A status line is a short sentence: "저장했습니다.", "저장하는 중…". What was done needs no subject; what happened to a thing with no doer named is passive ("3분 전 설치되었습니다").
+- **Choosing is 선택**, as Microsoft's, Google's and Apple's Korean say it: "프로젝트를 선택하세요", "선택한 이슈". 고르다 isn't said.
+- **Seeing is 보다**: what a person may open in a4a (a project, its issues, a whiteboard) "볼 수 있습니다", the permission is 보기, and who may see a thing is its 공개 대상, as Google's Korean gives access (보기 가능, 뷰어). 읽다 is for a4a, an app or an agent reading data (an API, a mailbox, an app's "문서 읽기"), and read-only stays 읽기 전용, as Korean software says it of a token or an account.
 - **A particle after a value** depends on how the value ends. So the catalog writes it both ways, consonant's first, as Korean software writes it: 을(를), 이(가), 은(는), 과(와), (으)로, (이)나, (이)라는. "{name}을(를) 삭제했습니다.", "{field}이(가) 필수입니다." a4a then chooses the one the value needs wherever it can hear the value's end: after Hangul, by its last syllable's final consonant, and after a digit, as Korean reads it ("BACK-12를", "민준이", "서울로", "이슈 3개를"; `koreanParticles`). After a Latin word ("Anna을(를)") both ways stay. After a4a's own words, whose end is known, write the one it needs: "로그인 ID를", "콜론(:)이", "닫는 괄호 “)”가". Where a value is itself a message of the catalog's (the sign-in form's name, "a4a 계정"), let it end in the catalog's Hangul, so a4a hears it: "a4a 계정을 사용하세요". A field set or cleared on a board is its value ("Priority 값을 지웁니다"), and a column is named with 열 ("Done 열로"), as Korean says them. This is the one way: a sentence isn't reworded to dodge one. The subject's is 이(가), not (이)가, since it's 이 or 가, never 이가. A value followed by a noun ("{key} 프로젝트") needs none, nor one that never changes (에, 에서, 의, 도, 만, 까지, 부터, 에게).
 - **No honorific after a name**: a name takes its particle directly ("{who}이(가) 나에게 할당했습니다"), since many names are agents' and bots'. The help desk's emails are the one exception: they go to people outside the team, so they address a requester as "{name}님", as Korean customer mail does.
 - **Spacing**, as Korean writes it: words apart, a particle or an ending joined to its word, a counter joined to its digits ("3개", "이슈 3개"). A particle joins a value or a Latin word directly: "{id}을(를) 다른 프로젝트로 이동".
+- **Lines break between words**, at the spaces Korean writes, as Korean is read: a page in Korean never splits a word across two lines (Ocean's `:lang(ko)`, `word-break: keep-all`), and a word longer than its line still breaks where it must (`overflow-wrap: break-word`). It's `break-word`, not `anywhere`: `anywhere` lets a flex item shrink below a word, and a tight row would split its words again. Emails are left unstyled, as every a4a email is (D23), so a mail client breaks their lines by its own rules; their `lang="ko"` lets one that knows Korean break them as Korean does. So keep a word that must not break, a counter with its digits, joined ("이슈 3개").
 - **Typography**: ASCII punctuation, . , : ? !, with no space before it; “” for quotes, and straight ones only where they're code (a JSON key, a form part's name, a chat command's argument); the ellipsis is one character (…), as in English; half-width Latin letters and digits, never full-width forms. Two sentences said one after the other take a space between them.
-- **Two clauses are two sentences, or one joined by a connective**, never English's colon: "꺼져 있어 아무것도 하지 않습니다.", "삭제되었을 수 있으니 헬프데스크 설정을 다시 불러오세요.", "연결을 해제했습니다. 이제부터 그 계정의 커밋은 내 것이 아닙니다." A colon follows a label or a status ("역할: 관리자", "꺼짐:", "일시 중지됨:"), an example ("예: acme.com") or the lead of a list, and comes before free text from elsewhere ("오류:"). A menu path is written with ">": "Asana의 My settings > Apps > Manage developer apps".
-- **Plurals**: Korean has none, so each plural keeps `other` alone, with a counter where Korean uses one, after the noun: `{n, plural, other {이슈 #개}}`. 개 counts issues and things (fields, values, files, tokens), 건 cases and events (changes, requests, deliveries, notifications), 명 people, 번 times. A plural that English words differently for one keeps `=1` where Korean does too.
+- **Two clauses are two sentences, or one joined by a connective**, never English's colon: "꺼져 있어 아무것도 하지 않습니다.", "삭제되었을 수 있으니 헬프데스크 설정을 다시 불러오세요.", "연결을 해제했습니다. 이제부터 그 계정의 커밋은 내 것이 아닙니다." A colon follows a label or a status ("역할: 관리자", "꺼짐:", "일시 중지됨:"), an example ("예: acme.com") or the lead of a list, and comes before free text from elsewhere ("오류:"). When something happened goes first, with 에, not in parentheses after the verb: "{when}에 마지막 체크를 작성하지 못했습니다. 오류: {problem}". A menu path is written with ">": "Asana의 My settings > Apps > Manage developer apps".
+- **Plurals**: Korean has none, so each plural keeps `other` alone, with a counter where Korean uses one, after the noun: `{n, plural, other {이슈 #개}}`. 개 counts issues and things (fields, values, files, tokens), 건 cases and events (changes, requests, deliveries, notifications, a timesheet's entries), 명 people, 번 times. A plural that English words differently for one keeps `=1` where Korean does too, and `=0` where Korean says nothing rather than a count ("아무것도 만들지 않았습니다", "이슈 3개를 만들었습니다", never "링크 0개"); a nested plural's `#` is its own, so the outer count's `#` goes before it ("이슈 #개{links, plural, …}").
 - **Pieces a page joins**:
   - The activity ledger, an issue's history and notifications show who in bold, with their mark, then what was done. A name a page draws can't take a particle, so an action is a verb phrase in the polite past with no subject: "{issue}을(를) 변경했습니다", "보고했습니다". A badge is a noun: "이슈 삭제".
   - A webhook's events are nouns, joined into "{join} 시" by Intl's "or" list (" 또는 "): "이슈 생성 또는 댓글 작성 시". The same nouns label the form's checkboxes (`page.webhooks.label.*`).
@@ -560,7 +724,8 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Dates and numbers** come from Intl: "2026년 11월 16일", "1,234.5", "3분 전". Intl's `ko` writes them as `ko-KR` does.
 - **Problems**: what a page shows when something fails says what went wrong, then the fix, in 합니다체 with the fix in "-세요": "로그인 ID 또는 비밀번호가 올바르지 않습니다." A guess it offers is "혹시 “{guess}”인가요?". Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Korean message, after "오류:", "이유:" or "응답:", and brings its own punctuation, so no full stop follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its full stop, and stays where English puts it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`).
 - **You and your**: Korean software rarely says "you". A label that names the reader's own things says 내 ("내 토큰", "내 대시보드", "내 요청"), or nothing where the owner is plain ("프로필", "타이머"); a sentence leaves the reader out ("이슈 {id}이(가) 없거나 볼 수 없습니다."), and a query's, a list's or a notification's "you" is 나 ("나에게 할당됨", "Ada이(가) 나에게 할당했습니다"). 본인 stays where the reader must be told from someone else: "본인으로 동작합니다", "본인과 관리자, 입력한 사람만 볼 수 있습니다". 당신 is never said. Acting as the reader is "내 계정으로" ("내 계정으로 동작하는 Teams와 Slack 계정"), never "나로", which reads as the speaker, and a token acting as someone else is "내 계정이 아니라 {login} 계정으로"; an agent or a token acting as itself is "자체 계정으로", and one acting for someone "{name} 대신". The chat bot says 본인, since its "I" is a4a: "본인에게 할당했습니다". A name a4a can't show is "알 수 없는 사용자", not 누군가.
-- **The help desk** says 문의 for asking for help: "문의했습니다" in an issue's history and notifications, "문의하기" on the form and the portal. Its emails to requesters are a company's to a customer: "{desk}에 문의하셔서 이 메일을 보내 드립니다." What its form, portal and request page ask of a customer is "-어 주세요" where Korean support writes it ("한 줄로 적어 주세요", "스팸함을 확인해 주세요"), still a -세요; "What do you need?" is "어떤 도움이 필요하신가요?".
+- **The help desk** says 문의 for asking for help: "문의했습니다" in an issue's history and notifications, "문의하기" on the form and the portal. Its emails to requesters are a company's to a customer: "{desk}에 문의하셔서 이 메일을 보내 드립니다." Everything a requester or someone copied reads (the help form, the portal and its passkeys, a request's page, the portal's problems, the desk's emails) asks with "-어 주세요", as Korean customer service writes: "한 줄로 적어 주세요", "다시 로그인해 주세요", "위 링크를 이용해 주세요". A prohibition stays "-지 마세요" and leaving something "-어 두세요" ("비밀번호는 적지 마세요", "비워 두세요"). The desk's emails also take the honorific for the reader's own acts ("문의하셔서", "직접 추가하셨다면", "본인이 요청하지 않으셨다면 이 메일은 무시하셔도 됩니다"), as Korean service mail addresses its customer; the portal's pages state what happened plainly ("비밀번호로 로그인했습니다"), as a page's status lines do. The team's pages, and problems the team meets, keep "-세요". "What do you need?" is "어떤 도움이 필요하신가요?".
+- **Signing in through a provider** is "{name} 계정으로 로그인", as Google's Korean button says "Google 계정으로 로그인": the provider is named as an account (the terms table's "{name} 계정"), so a4a hears the particle after 계정 rather than leaving "Okta(으)로" both ways. Acting as an account is "{login} 계정으로" too.
 - **An email's footer** says why it came as a sentence: each reason (`server.notify.because.*`) is a clause, and the footer ends it: "이슈를 지켜보고 있어서 받는 메일입니다." A stop link is "… 수신 중지".
 
 | English | Korean |
@@ -577,7 +742,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | blocker | 블로커 |
 | backlog | 백로그 |
 | subtask, parent | 하위 작업, 상위 이슈 |
-| help desk | 헬프데스크 |
+| help desk | 헬프데스크, never 데스크 alone |
 | SLA at risk, breached | 위험, 위반 |
 | request (help desk) | 요청; asking for help is 문의 |
 | requester | 요청자 |
@@ -600,13 +765,15 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | inbox | 수신함 |
 | notification | 알림 |
 | digest | 요약 메일 |
-| subscription, subscribe | 구독, 구독하다 |
+| subscription, subscribe; follow (a saved search) | 구독, 구독하다; "구독한 검색" |
 | watch, watcher | 지켜보기, 지켜보는 사람 |
-| timesheet | 타임시트 |
+| timesheet; a week's, submit, approve, send back, its approver | 타임시트, never 근무표; 주간 타임시트, 제출, 승인, 반려, 타임시트 승인자 |
+| a row of one's own (on the timesheet) | 개인 활동 |
 | work logged, log time | 작업 기록, 시간 기록 |
 | estimate | 추정치 |
 | rate (per hour) | 시간당 단가 |
 | days away, away | 부재일, 부재 중 |
+| HR calendar, its event | HR 캘린더, 일정 (Google's and Outlook's Korean) |
 | levelling | 평준화 |
 | slack (in a plan) | 여유 시간 |
 | booked (in a plan) | 배정: "배정된 시간" |
@@ -618,23 +785,31 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | cost and schedule performance (CPI, SPI) | 원가 성과(CPI), 일정 성과(SPI) |
 | triage | 트리아지 |
 | suggestion | 제안 |
+| the menu's groups: work, decide, build, oversee | 작업, 검토, 구성, 운영 (Decide holds Suggestions, which a person reviews) |
+| choose | 선택: "선택하세요", "선택한 이슈"; 고르다 isn't said |
 | tag | 태그 |
 | token, revoke | 토큰, 폐기 |
 | scope (of a token) | 범위 |
 | fingerprint (of a token) | 지문 |
 | not found | 찾을 수 없음: "이슈 {id}을(를) 찾을 수 없습니다." |
 | two-factor sign-in | 2단계 인증 |
-| sign in, sign out | 로그인, 로그아웃 |
+| passkey, authenticator, attestation, passkey provider, let off (a passkey's requirement) | 패스키, 인증자 (인증 앱 is the code app), 증명, 패스키 공급자, 면제 |
+| sign in, sign out; sign out everywhere | 로그인, 로그아웃; 모든 기기에서 로그아웃 |
 | login (a person's handle) | 로그인 ID |
 | a4a login, {name} login (the credentials a form takes) | a4a 계정, {name} 계정 |
-| identity provider | ID 공급자 |
-| single sign-on | SSO |
+| sign in with or through a provider, act as an account | {name} 계정으로 로그인, {login} 계정으로 |
+| identity provider | ID 공급자; a provider is 공급자, never 제공자 |
+| single sign-on | SSO, never Single Sign-on |
+| sealed (a secret kept encrypted) | 암호화해 보관 |
 | webhook, delivery | 웹훅, 전송 |
 | post (a4a or a provider sending to an address) | 보내다; 게시 is for chat messages and comments |
 | secret | 시크릿 |
 | commit, pull request, branch | 커밋, 풀 리퀘스트, 브랜치 |
+| check run, commit status, report (to a pull request) | 체크, 커밋 상태, 보고 |
 | merge, merged | 병합, 병합됨 |
 | CI, build | CI, 빌드 |
+| script library, its shared code | 스크립트 라이브러리, 공유 코드 |
+| Matrix: homeserver, room | 홈서버 (Element's Korean), 방 |
 | field, value | 필드, 값 |
 | link (between issues), unlink | 링크, 링크 해제 |
 | link, unlink (a chat account) | 연결, 연결 해제 |
@@ -648,13 +823,24 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | handler (of an app) | 핸들러 |
 | person, people | 사용자; 사람 in a sentence |
 | role, permission | 역할, 권한 |
-| administrator, manager, member, viewer, guest | 관리자, 매니저, 멤버, 뷰어, 게스트 |
+| see, read (a person's access), the read permission; read-only | 보다, 볼 수 있다, 보기; 읽기 전용 |
+| visible to, who else sees it | 공개 대상, 이 외에 볼 수 있는 사람 |
+| administrator, manager, member, viewer, guest | 관리자, 매니저, 멤버, 뷰어, 게스트; a project's or a desk's manager is 매니저 in every sentence, 관리자 the administrator alone |
+| a team group's members | 구성원 (a customer group's are 멤버) |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | 화이트보드, 메모, 카드, 섹션, 화살표, 레이블, 개요 |
+| a whiteboard's picture, drawing; draw | 이미지, 그림; 그리기 |
+| undo, redo (buttons); what was undone | 실행 취소, 다시 실행; "이동을 되돌렸습니다" |
 | connect (draw an arrow), make issues (of notes) | 연결; 이슈로 만들기 |
 | a note's tones: plain, idea, agreed, question, problem, parked | 기본, 아이디어, 합의됨, 질문, 문제, 보류 |
 | writing help; where an issue came from (a chat message) | 글쓰기 도움; 출처 |
+| newer, older (a list's pages) | 이전 페이지, 다음 페이지 |
+| created, updated, resolved (date fields) | 생성일, 업데이트일, 해결일 |
 
-**Why 이슈 for issue**: it's what Jira's Korean and Korean developers say, so Korean teams already read trackers in it. 티켓 reads as a support ticket, and 과제 as homework or a funded project.
+**Why 이슈 for issue**: it's what Jira's Korean and Korean developers say, so Korean teams already read trackers in it, and GitHub's and GitLab's Korean say it too. Jira Cloud's newer 업무 항목 renames Jira's own work items, which a4a's English doesn't. 티켓 reads as a support ticket, and 과제 as homework or a funded project.
+
+**Why 지켜보기 for watch**: it's plain Korean that reads in a sentence ("지켜보는 이슈", "이슈를 지켜보고 있어서"), as Redmine's Korean says it. Jira's 주시 is stiff there, and 관심 등록 is a shopping site's.
+
+**Why 인증자 for authenticator**: it's WebAuthn's Korean (플랫폼 인증자, 로밍 인증자) and Microsoft's, what an administrator looks it up by.
 
 **Why 매니저 beside 관리자**: 관리자 is the administrator, as Korean software has it, so a project's manager is 매니저, as Google's and Slack's Korean give roles their loanwords (뷰어, 멤버).
 
@@ -672,28 +858,29 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 
 `zh.json` is Simplified Chinese as mainland China writes it, in the words Chinese teams read a tracker in. Where Jira's Simplified Chinese has a word for a tracker's thing, a4a takes it (问题, 经办人, 报告人, 冲刺, 看板, 待办事项, 仪表板, 转换), since most teams there met a tracker through it.
 
-- **你, not 您.** Chinese software for teams says 你 today: Feishu, DingTalk and WeCom, Notion's and Slack's Chinese, Microsoft's and Apple's. 您 is a bank's or a form letter's, and a4a speaks to a team plainly: 「你已离线」, 「你没有权限执行此操作。」. The help desk's words to requesters are the one exception: its emails, the portal and the public form speak to customers outside the team, so they say 您, as Chinese customer service does: 「您收到这封邮件，是因为您向“{desk}”提交了请求。」
-- **请 where a sentence asks the reader to act**, as Chinese software asks: a problem's fix and a notice's request (「请稍后重试。」, 「请联系管理员。」, 「请先保存，之后才能插入图片和文件。」). A bare imperative after what went wrong reads as an order in Chinese, though English's has no "please". A sentence that only says how something works needs none (「保存前，系统按计划的工作日和你的可用工时计算。」), and one sentence asks with 请 once. Buttons and labels are short verb phrases or nouns, never sentences, and never 请: 「保存」, 「保存更改」, 「删除字段」, 「确认新密码」. A status line is short: 「已保存。」, 「正在保存……」, 「已创建 {name}。」
-- **Name the thing; don't point back with 它, and say who did it rather than 被.** Where English says "it" or "this", Chinese names it again or leaves it out: 「把此问题指派给了你」, 「此文章位于 … 之下」, 「按钮会显示在适用的问题上」, not 「它的按钮…」. Where English uses the passive, Chinese says who acted: 「其他人已更改了 BACK-1」, 「有人刚刚删除了它」, 「可能刚刚有人把它从白板上移除了」. Passives Chinese itself says stay: 已被占用, 已被封禁, 被提及. 进行 goes where the verb says it: 「执行管理操作」, not 「进行管理」.
+- **你, not 您.** Chinese software for teams says 你 today: Feishu, DingTalk and WeCom, Notion's and Slack's Chinese, Microsoft's and Apple's. 您 is a bank's or a form letter's, and a4a speaks to a team plainly: 「你已离线」, 「你没有权限执行此操作。」. The help desk's words to requesters are the one exception: its emails, the portal and the public form speak to customers outside the team, so they say 您, as Chinese customer service does: 「您收到这封邮件，是因为您向“{desk}”提交了请求。」 So does the unsubscribe page, which anyone reaches signed out from an email, customers and team members alike, as Chinese mail's unsubscribe pages say 「您已退订」.
+- **请 where a sentence asks the reader to act**, as Chinese software asks: a problem's fix and a notice's request (「请稍后重试。」, 「请联系管理员。」, 「请先保存，之后才能插入图片和文件。」), and a form's own hint, as Chinese forms ask (「请至少选择一个项目。」). A bare imperative after what went wrong reads as an order in Chinese, though English's has no "please". A sentence that only says how something works needs none (「保存前，系统按计划的工作日和你的可用工时计算。」), and one sentence asks with 请 once. Buttons and labels are short verb phrases or nouns, never sentences, and never 请: 「保存」, 「保存更改」, 「删除字段」, 「确认新密码」. A status line is short: 「已保存。」, 「正在保存……」, 「已创建 {name}。」
+- **Name the thing; don't point back with 它, and say who did it rather than 被.** Where English says "it" or "this", Chinese names it again or leaves it out: 「把此问题指派给了你」, 「此文章位于 … 之下」, 「按钮会显示在适用的问题上」, not 「它的按钮…」. A sentence that has named its thing leaves it out after: 「放下即可将 BACK-1 移到 Done（设为 Fixed），并指派给 anna」. Where English uses the passive, Chinese says who acted: 「其他人已更改了 BACK-1」, 「有人刚刚删除了它」, 「可能刚刚有人把它从白板上移除了」. Passives Chinese itself says stay: 已被占用, 已被封禁, 被提及. 进行 goes where the verb says it: 「执行管理操作」, not 「进行管理」.
 - **The owner goes where Chinese leaves it out**: 「使用 a4a 账号登录。」, 「主邮箱，a4a 会把邮件发到这里。」, 「代表 Ada 处理问题、看板和计划」. A person's is 其 or 此人, never 他们 for one person: 「其 GitHub 用户名。」
 - **Typography, as mainland China sets it**:
   - full-width punctuation: ，。、：；？！（）;
   - quotes are “…”, and ‘…’ inside them (「」 is Taiwan's and Japan's);
   - the ellipsis is ……, two of …, as Chinese sets it: 「正在加载……」;
   - no space between Chinese characters;
-  - **one half-width space where Chinese meets a Latin word or a digit**, on either side: 「在 GitHub 上」, 「3 个问题」, 「打开 {id}」, 「最近 {d} 天」. A placeholder is spaced as the name, id, number or date it holds: 「由 {name} 创建」, 「{n} 天」. One that holds a4a's own Chinese words (a built-in role's name, a piece of another message) joins without one. Never a space beside full-width punctuation: 「（{id}）」, 「：{name}」, 「“{name}”」;
+  - **one half-width space where Chinese meets a Latin word or a digit**, on either side: 「在 GitHub 上」, 「3 个问题」, 「打开 {id}」, 「最近 {d} 天」. A placeholder is spaced as the name, id, number or date it holds: 「由 {name} 创建」, 「{n} 天」. a4a drops the space as it says the value, on a side where the value begins or ends in Chinese and the words beside the space are Chinese too: 「由 Ada 创建」 but 「由王芳创建」, 「以 Ada 王身份」, 「王芳 3 天」. It hears Han, kana and Hangul, and full-width punctuation and quotes (「已添加“王芳”。」), so a value that is a4a's own Chinese words (有人, a piece of another message) loses it too, and a name's own spaces stay. Space a placeholder as Latin text wants it; never leave one out for a name you expect in Chinese. Where the code passes a4a's own Chinese words and nothing else (a built-in role's name), join without one. Never a space beside full-width punctuation: 「（{id}）」, 「：{name}」, 「“{name}”」;
   - a placeholder that holds a name or a4a's own words by turns (a tracker's name or 「文件」) goes after full-width punctuation where the sentence allows, so neither gets a stray space: 「来源：{from}」, 「{name} 将接收：{what}。」. Where the code says which a value is, the message selects on it and words each case whole: 「在所有项目中运行。」 and 「运行范围：BACK和WEB。」 (`apps.appsSection.runsIn`);
-  - what Intl writes keeps its own spacing: 「2026年11月16日」, 「2.5小时」, 「3分钟前」;
+  - what Intl writes keeps its own spacing: 「2026年11月16日」, 「2.5小时」, 「3分钟前」, as Chinese software prints them (its lists are another matter: [translation-questions.md](translation-questions.md));
+  - **a name people gave a whole thing is quoted inside a sentence**: a whiteboard's, a dashboard's, a rule's, an action's, a saved search's, a baseline's (「删除仪表板“{name}”？」, 「与基线“{baselineName}”对比的挣值」), so a name in Chinese doesn't run into the words around it. A field's, a value's, a state's, a tag's, a group's or a role's name stays bare, as the query language writes it. The desk is quoted in its emails, 「您向“BACK 的服务台”提交了请求」, as Chinese service mail quotes a shop's or a service's name, and bare on the portal's pages, which name it by its project;
   - " · " between the parts of a line, and code, ids, queries and keyboard keys stay as English writes them.
-- **Plurals**: Chinese has none, so each plural keeps `other` alone, and counts with a measure word: `{n, plural, other {# 个问题}}`. 个 counts issues, projects, fields, values, files, tokens and most things; 人 people (「3 人」), and 位 before a noun (「2 位抄送人」); 项 items, changes and tasks; 条 comments, notifications, rules and messages; 篇 articles; 次 times, builds and deliveries; 天, 小时 and 分钟 are their own words. A plural English words differently for one keeps `=1` where Chinese does too: `{n, plural, =1 {该问题} other {# 个问题}}`.
+- **Plurals**: Chinese has none, so each plural keeps `other` alone, and counts with a measure word: `{n, plural, other {# 个问题}}`. 个 counts issues, projects, fields, values, files, tokens and most things; 人 people (「3 人」), and 位 before a noun (「2 位抄送人」); 项 items, changes and tasks; 条 comments, notifications, rules and messages; 篇 articles; 次 times, builds and deliveries; 天, 小时 and 分钟 are their own words. A plural English words differently for one keeps `=1` where Chinese does too: `{n, plural, =1 {该问题} other {# 个问题}}`. Zero is a count, as Chinese software tallies it (「已导入 0 条记录」): 「创建了 0 个问题和 2 个链接」, where English says "no issues".
 - **Selects and plurals the English doesn't need**: a message keeps every placeholder English has. Where Chinese says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`.
 - **Pieces a page joins**:
-  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase with 了 and no subject: 「创建了 {issue}」, 「评论了 {issue}」, 「在分支 main 上提交了 abc1234」; a notification's names the issue, 「把此问题指派给了你」, 「删除了此问题」. A badge is a noun or a short verb phrase: 「新问题」, 「删除问题」.
-  - A webhook's events are each an active clause, joined into 「{join}时」 by Intl's "or" list (或, with 、 before it in a longer list): 「创建问题或有人发表评论时」, 「从项目中移除成员时」. The same clauses label the form's checkboxes (`page.webhooks.label.*`).
+  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase with 了 and no subject: 「创建了 {issue}」, 「评论了 {issue}」, 「在分支 main 上提交了 abc1234」; a notification's names the issue, 「把此问题指派给了你」, 「删除了此问题」, and so does an issue's history where leaving it out would misread: 「将此问题加入了 Sprint 3」, since 「加入了 Sprint 3」 says the person joined it. A badge is a noun or a short verb phrase: 「新问题」, 「删除问题」.
+  - A webhook's events are each an active clause, with no subject and no 被, joined into 「{join}时」 by Intl's "or" list (或, with 、 before it in a longer list): 「创建问题或有人发表评论时」, 「从项目中移除成员时」, 「提交工时表或批准工时表时」. The same clauses label the form's checkboxes (`page.webhooks.label.*`).
   - A rule is one sentence, in Chinese order: 「<t0>当</t0>{trigger}<t0>时</t0>，<t0>如果</t0>问题匹配 {query}，<t0>则</t0>{actions}。」 Its trigger is a clause (「创建问题」, 「问题的 {field} 发生变更」), its conditions say 如果, and its actions are verb phrases (「应用 Assignee anna」, 「通知经办人“{short}”」). Issues it reaches by a link are 「通过“{phrase}”链接的问题」. The rule's words in `<t0>` are 当…时, 如果 and 则.
-  - A time in a sentence goes before its verb, as Chinese says it: 「3分钟前更新」, 「11月16日报告」, 「3 个元素，3分钟前更改」, not 更新于 {when}. A clock time or a date from `whenRead` (「14:05」) keeps 更新于, so no digit touches a Chinese character.
+  - A time in a sentence goes before its verb, as Chinese says it: 「3分钟前更新」, 「11月16日报告」, 「3 个元素，3分钟前更改」, not 更新于 {when}. A clock time or a date from `whenRead` (「14:05」) keeps 更新于, so no digit touches a Chinese character. A part of a card's line that says when something last happened is a label and its time, as Chinese consoles show it beside the line's other labels (「来源：GitHub」): 「上次登录：3分钟前」, 「上次投递：3分钟前」, 「上次构建：…」, 「上次使用：…」.
 - **A loading line is a whole message**, one per thing (`loadingLine.*`): 「正在加载计划……」. It names the thing with no owner (「正在加载收件箱……」 for "Loading your inbox…"); a thing's own name or id reads 「正在加载 {name}……」, and nothing, 「正在加载……」.
-- **Dates and numbers** come from Intl, `zh`, which writes them as `zh-CN` does: 「2026年11月16日」, 「1,234.5」, 「3分钟前」, lists as 「A、B和C」.
+- **Dates and numbers** come from Intl, `zh`, which writes them as `zh-CN` does: 「2026年11月16日」, 「1,234.5」, 「3分钟前」. Lists are Intl's too, 「A、B 和 C」, its 和 and 或 spaced from an item in Latin letters or digits and joined to one in Chinese (「Anna Schmidt 和 Vera Viewer」, 「Ben Okafor 和另外 3 人」, 「王芳和李明」), and things one after another, a problem's list among them, are 「A、B、C」.
 - **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded in Chinese and every case stays: `{state, select, merged {已合并} closed {已关闭} other {已重新打开}}`. A field's `{type}` in a problem is such a code too (`enum` 选项列表, `owned` 带负责人的列表), with `other` keeping the code.
 - **Field names, states and values** are data, as in every language: 「State 和 Assignee」 stay as they were named, and so do examples of the query and command languages (`for: me`, `#Unresolved`). Examples of plain words for the assistant to read are Chinese.
 - **Problems** say what went wrong, then ask for the fix: 「找不到问题 {id}。请使用可读的编号，例如 BACK-12。」 A parser's says what's missing or out of place, as Chinese tools do: 「“sort by”后面缺少“:”」, 「此处不应出现“)”」, 「没有名为“X”的字段。」 问题 is an issue here, never what went wrong: a problem says 无法…, 出错, 不能… or 有误. Free text from elsewhere (a parser's message, another tracker's words, a script's refusal) ends the message after 「错误：」, 「原因：」 or 「回复：」 and brings its own punctuation, so no 。 follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its 。, and Chinese joins them with no gap.
@@ -711,7 +898,7 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | project | 项目 |
 | lead (of a project) | 负责人 |
 | board | 看板 |
-| sprint | 冲刺 |
+| sprint | 冲刺, as Jira's, Azure DevOps' and the Scrum Guide's Chinese say it (迭代 is domestic tools' word) |
 | committed (a sprint's commitment) | 承诺 |
 | blocker | 阻碍; to block is 阻塞: 「是什么阻塞了 {issue}？」 |
 | backlog | 待办事项 |
@@ -724,7 +911,7 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | reporter | 报告人 |
 | report (an issue), reported | 报告, 「{v} 于 {date} 报告」 |
 | assignee | 经办人 |
-| agent | 智能体 |
+| agent | 智能体, as GitHub's Chinese and Chinese AI products say it; 代理 reads as a proxy |
 | assistant (its name), the assistant | 助手 |
 | conversation (with the assistant) | 对话 |
 | workflow | 工作流 |
@@ -744,17 +931,17 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | work logged, log time | 已记录工时, 记录工时 |
 | estimate | 预估 |
 | rate (per hour) | 小时费率 |
-| days away, away | 休假 for both: 「添加休假」, 「下午休假」 |
-| levelling | 资源平衡 |
+| days away, away | 休假 for both: 「添加休假」, 「下午休假」, whatever the reason, as Microsoft Teams' Shifts calls all time off 休假, with a 休假原因 |
+| levelling | 资源平衡, as PMP courses teach it, like the plan's other words (浮动时间, 基线, 关键路径, 挣值) |
 | slack (in a plan) | 浮动时间 |
 | booked (hours in a plan) | 已安排: 「已安排工时」 |
 | critical path | 关键路径 |
-| what-if (in a plan) | 模拟 |
+| what-if (in a plan) | 模拟; its button and panel 「模拟分析」, Excel's word for What-If Analysis |
 | milestone | 里程碑 |
 | baseline | 基线 |
 | earned value, earned | 挣值 |
 | cost and schedule performance (CPI, SPI) | 成本绩效指数, 进度绩效指数 |
-| triage | 分诊 |
+| triage, and how far it goes | 分诊: it reads and sorts new issues, as a hospital's 分诊台 does (GitHub's 分类 names a role, and 会审 a meeting); 「关闭」, 「仅建议」, 「自动执行」 |
 | suggestion | 建议 |
 | tag | 标签 |
 | token, revoke | 令牌, 撤销 |
@@ -762,16 +949,16 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | scope (of a token) | 权限范围: 「admin 权限范围」 |
 | allow (an app), apps you allowed | 授权, 「你授权的应用」 |
 | not found | 找不到: 「找不到问题 {id}。」 |
-| two-factor sign-in | 两步验证 |
-| sign in, sign out | 登录, 退出登录 |
+| two-factor sign-in | 两步验证, as Google and Microsoft accounts say it |
+| sign in, sign out; everywhere | 登录, 退出登录; 在所有设备上退出登录, and the portal's 退出门户登录 |
 | login (a person's handle) | 登录名 |
-| identity provider | 身份提供商 |
+| identity provider | 身份提供商, never 提供者; the requesters' 供请求人使用的身份提供商, which vouch for an email by 确认 |
 | single sign-on | 单点登录 |
-| webhook, delivery | Webhook, 投递 |
-| post (a4a or a provider sending to an address) | 发送; 发布 is for chat messages and comments |
-| secret | 密钥 |
+| webhook, delivery | Webhook, 投递; how deliveries work 投递说明: 签名, 至少送达一次, 重试, 其他请求头 |
+| post (a4a or a provider sending to an address) | 发送; 发布 is for chat messages and comments: a chat post is a 消息, 「发布消息」, never 帖子 |
+| secret; kept sealed | 密钥; 加密保存 |
 | commit, pull request, branch | 提交, 拉取请求, 分支 |
-| merge, merged | 合并, 已合并 |
+| merge; a pull request open, merged, closed | 合并; 开放中 (GitLab's Chinese), 已合并, 已关闭 |
 | build (CI) | 构建 |
 | CI | CI |
 | field, value | 字段, 值 |
@@ -783,18 +970,53 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | report | 报告 |
 | settings | 设置 |
 | app, handler (of an app) | 应用, 处理程序 |
-| key (a project's) | 项目键: 「重命名项目键」; an issue's key in another tracker is its 编号 |
+| key (a project's) | 项目键, as Chinese writing on Jira says it: 「重命名项目键」; an issue's key in another tracker is its 编号 |
 | attach a file, attaching | 添加附件; a file being sent is 上传: 「正在上传 {name}」, 「{name} 上传失败」 |
 | unsubscribe (from an email's link) | 退订 |
 | person, people | 用户; 人 in a count |
 | role, permission | 角色, 权限 |
-| administrator, manager, member, viewer, guest | 管理员, 经理, 成员, 查看者, 访客 |
+| administrator, manager, member, viewer, guest | 管理员, 经理, 成员, 查看者, 访客; a project's or a desk's managers are its 经理, 「项目经理」 where the sentence names no project, never 管理者, which sits beside 管理员 |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | 白板、便签、卡片、分区、箭头、标注、大纲 |
-| connect (draw an arrow), make issues (of notes) | 连接; 转为问题 |
+| connect (draw an arrow), make issues (of notes) | 连接; 转为问题, as the notes become issues; an issue made from a chat message is 从消息创建问题 |
 | a note's tones: plain, idea, agreed, question, problem, parked | 普通、想法、已商定、疑问、痛点、暂缓 |
 | writing help; where an issue came from (a chat message) | 写作辅助; 来源 |
 | another tracker (where an import comes from) | 其他工具 |
-| provisioning (SCIM) | 预配: 「用户预配」 |
+| provisioning (SCIM) | 预配, Microsoft's word: 「用户预配」, 「已预配」; a provisioned account is 预配的账号 |
+| action (a workflow's), run it | 操作, 执行操作, as Microsoft's (Power Automate's), GitHub's and Atlassian's Chinese say it; 动作 reads as a motion or a recorded macro |
+| the navigation's groups: work, decide, build, oversee | 工作, 决策, 配置, 系统, as an admin console groups such pages |
+| age, velocity (in reports) | 时长, whose report says it counts from creation; 速度, Jira's velocity chart's |
+| thread (of a chat message) | 话题, as Feishu says it |
+| someone (an author whose name is gone; a notification's actor) | 未知用户; 有人 |
+| the editor's modes | 富文本 and Markdown |
+| newer, older (pages of issues, newest first) | 上一页, 下一页 |
+| an account's state: allowed, banned | 「账号状态」: 正常, 已封禁 |
+| who vouches for a chat subscription | 订阅人 |
+| a field's types: a line of text, text | 单行文本, 多行文本, in the field form and in problems |
+| group, account | 组 (a customer group is a 客户组), never 群组; 账号, never 账户 |
+| read (what a role or a sharing lets someone do) | 查看: 「谁能查看」, 「仅可查看」 |
+| passkey | 通行密钥, counted with 个, as Apple's, Google's and Microsoft's Chinese say it |
+| ways to sign in | 「…登录」: 密码登录, 邮件链接登录, 「通过 {name} 登录」 |
+| OpenID Connect's fields | 颁发者（Issuer）, 客户端 ID, 客户端密钥 (Google Cloud's), 重定向 URI, 发现文档 |
+| a copied passkey | 已停用, and 「可能已被复制」 |
+| face (a device's check) | 人脸, as Android and Windows say it |
+| portal | 门户; 服务台门户 where requesters read it |
+| lane, a lane's own order | 泳道, 「每个泳道单独排序」 |
+| check run, check; commit status | 检查运行, 检查, as GitHub's Chinese docs say them; 提交状态, Gitea's and GitLab's |
+| held (a Cc), drop it; the acknowledgement | 「等待 {requester} 确认」, 不抄送; 自动回复邮件, since 回执 reads as a read receipt |
+| relay; what anyone writes on a request | 转发; 回复 |
+| authenticator; attestation, maker; revoked | 认证器 (身份验证器应用 is the app that shows codes); 证明, 厂商; 已撤销 |
+| let off (passkeys), ask again | 豁免, 取消豁免 |
+| passkeys alone; a passkey provider; the setup link | 仅限通行密钥; 通行密钥管理器; 添加通行密钥的链接 |
+| homeserver (Matrix), room, access token | 家服务器, as Element's Chinese says it (「家服务器（Homeserver）」 on the form), 房间, 访问令牌 |
+| a week of time: submit, approve, send back; a row of your own | 工时表: 「提交工时表」, 「批准工时表」, 退回; 个人事项, and BAU is 「日常工作（BAU）」 |
+| who approves a project's weeks | 「须是该周工时涉及的每个项目的经理」, 「该周工时涉及的任一项目的经理即可」 |
+| script library, its shared code | 脚本库, 共享代码 |
+| HR calendar | 人事日历 |
+| draw, a drawing, a picture (on a whiteboard) | 手绘, 手绘线条, 图片 |
+| a person's own whiteboard; yours, shared with you | 个人白板; 我的, 与我共享 |
+| nothing yet (in a table's cell) | 暂无 |
+| streamed (a draft); drafted (by the assistant) | 流式输出; 起草 |
+| report (a run's result to GitHub) | 上报, as 「CI 上报构建」 |
 
 **Why 问题 for issue**: it's what Jira's Simplified Chinese says, so teams who have used a tracker read it already. 议题 (GitHub's and GitLab's) reads as a topic for discussion, 事项 and 工作项 (Feishu's, PingCode's) are less known to them, and 工单 is a help desk's ticket. 问题 also means "problem", so a4a's problems never use it for what went wrong.
 
@@ -815,17 +1037,17 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 `vi.json`, as teams in Vietnam read a tracker. Intl's `vi` writes dates, numbers and lists as `vi-VN` does, so the code passes `vi` as it is.
 
 - **"Bạn", always**, where a sentence speaks to its reader, the help desk's emails and portal included: "Bạn đã bình chọn.", "Token của bạn". Vietnamese pronouns carry age and rank (anh, chị, em, quý khách); software for teams, Google's, Microsoft's and Trello's Vietnamese among them, says "bạn", which is polite to anyone and assumes neither. "Quý khách" is a bank's or a carrier's word to its customers: on the portal it would read as a form letter beside the pages. In emails to a requester the team speaks as "chúng tôi", and the chat bot, which says "I" in English, says "tôi".
-- **Sentences are plain and polite**, with no exclamation marks. A fix is a bare imperative after the sentence that says what went wrong, as Microsoft's and Google's Vietnamese give one: "Không tìm thấy nhãn “x”. Dùng một trong: …", "Thử lại sau một phút.". "Hãy" goes only after a leading clause, where a bare verb would read curt ("Nếu vẫn không được, hãy báo quản trị viên.", "Để đọc lại từ đầu, hãy nhập lại."), and "vui lòng" (please) only where English asks something of someone.
+- **Sentences are plain and polite**, with no exclamation marks. An instruction to the reader takes "hãy", as Google's Vietnamese gives one ("Đã xảy ra lỗi. Hãy thử lại.") and Microsoft's Vietnamese style guide asks of an imperative: the fix after the sentence that says what went wrong ("Không tìm thấy nhãn “x”. Hãy dùng một trong: …", "Dịch vụ AI đang bận. Hãy thử lại sau một phút."), a fix after a colon or a leading clause ("…: hãy bỏ quyền admin", "Nếu vẫn không được, hãy báo quản trị viên."), and a line that is only an instruction ("Hãy chọn ít nhất một dự án."). Given bare there, an instruction reads curt. Buttons, links, menu items, labels, placeholders and a field's own hint stay bare ("Lưu", "Thử lại", "Mô tả điều đã xảy ra …"). Where two instructions follow one another, the second is turned so two sentences in a row don't open with "Hãy": "Nếu chưa có, hãy thêm tích hợp GitHub trước", "Bạn có thể tạo token trong mục Tác nhân và token." "Vui lòng" (please) goes only where English asks something of someone: "Vui lòng thử lại" is a bank's or a shop's voice, not a4a's.
 - **Buttons and labels are short verb phrases or nouns**, never sentences: "Lưu", "Lưu thay đổi", "Hủy", "Xóa trường". A button that names what it changes says it, as English's does. A label, a legend or a column names what it holds, as a Vietnamese form does, where English describes it: "Quyền" for "What it may do", "Áp dụng cho" for "Where it may", "Nguồn" for "From", "Mô tả" for "What it's for", "Kiểu dữ liệu" for "What it holds"; a table's column of several buttons is "Thao tác", and one of a single button names it ("Thu hồi"). A heading over a preview asks, as Vietnamese software does: "Quy tắc sẽ làm gì lúc này", "Trợ lý đã làm gì", not "Những gì quy tắc sẽ làm". An option or a kind stands without English's article: "lựa chọn từ danh sách", "số nguyên", "Mốc", not "một lựa chọn …".
 - **Status lines** are "Đã …" for what happened and "Đang …" for what is under way: "Đã lưu.", "Đang lưu…", "Đã thêm {name}.". What someone did is said as done, by whom, not in English's passive: "Đã đổi mật khẩu và đăng xuất mọi phiên.", "Người khác đã thay đổi BACK-12 (…)", not "Mật khẩu của bạn đã được đổi", "BACK-12 đã được người khác thay đổi". A line after a toggle or a removal says what was done, then what follows from it: "Đã tắt: …", "Đã bật lại: …", "Đã thu hồi token {name}. …", "Đã gỡ token. …", not English's "{name} is revoked", "It's off"; what changes from then on is "Từ giờ, …".
 - **The passive** is "được" for what is neutral or welcome and "bị" for what befalls a thing: "một vấn đề được tạo", "bình luận bị xóa", "thay đổi bị từ chối". It stays for a state ("Kênh đã bị xóa.") and in the clauses a page joins (a webhook's events, a rule's trigger). Whoever did it goes between "được" and the verb, "vấn đề được Ada báo cáo", and a byline puts them first, "Ada báo cáo ngày …"; "bởi" (by) is English's order, and a4a doesn't use it.
-- **Gender**: Vietnamese nouns and verbs have none, but its pronouns do (anh ấy, chị ấy), so a4a never gives a person one: it says "người đó", "người này", "những người theo dõi", or the name again. A thing is named again rather than called "nó", which reads as spoken: "vấn đề này", "quy tắc này"; "chính nó" (itself) is the exception.
+- **Gender**: Vietnamese nouns and verbs have none, but its pronouns do (anh ấy, chị ấy), so a4a never gives a person one: it says "người đó", "người này", "những người theo dõi", or the name again, and "họ" for one person only where a sentence can't say "người đó", as Microsoft's style guide allows. A thing is named again rather than called "nó", which reads as spoken: "vấn đề này", "quy tắc này", "token này"; "chính nó" (itself) is the exception. Where naming it again weighs a sentence down, the sentence is turned: "lịch sử ghi lại việc dời do cân bằng nguồn lực", not "… đã dời công việc đó".
 - **Roles** are words for anyone: "Quản trị viên", "Quản lý", "Thành viên", "Người xem", "Khách". In a sentence a role is bare and a page lower-cases it (`inSentence()`): "{name} giờ là thành viên của BACK".
 - **Typography**:
   - Sentence case: only a sentence's first word and names take a capital ("Lưu thay đổi", "Hộp thư đến", never "Hộp Thư Đến"). "a4a" stays lower case, first in a sentence too.
   - Quotation marks are “…”, and the ellipsis is one character (…). No space before a colon or a %.
   - Letters are precomposed (NFC): ế is U+1EBF, not e with two combining marks. The catalog is NFC throughout; edit it with a Unicode keyboard (Telex or VNI typing in Unicode), never a legacy encoding.
-  - Tone marks sit the traditional way in oa, oe and uy: "xóa", "hủy", "hòa", "thủy", as Microsoft's and Google's Vietnamese write them, not "xoá", "huỷ".
+  - Tone marks sit the traditional way in oa, oe and uy: "xóa", "hủy", "hòa", "thủy", as Microsoft's Windows and Office and Facebook write them, not "xoá", "huỷ", which Google's and Apple's Vietnamese have moved to. Both are right; the catalog keeps the one placement throughout, and a message added later keeps it too.
   - Fonts: Ocean draws Vietnamese in IBM Plex Sans's and Plex Mono's Vietnamese faces, from Ocean dd43c90 on. With an Ocean from before them, whose Plex files carry Latin-1 and no more, a page draws ă, đ, ĩ, ũ, ơ, ư and every letter with a dot below or a hook (ạ, ả, ế, ộ, ữ…) from the system's font, mid-word, while à, é, ê, ô and the plain letters stay Plex.
 - **Plurals**: Vietnamese doesn't inflect for number, so each plural keeps `other` alone: `{n, plural, other {# vấn đề}}`. A noun after a number takes no marker; "các" or "những" marks a plural where no number is said ("các vấn đề đã chọn"). Where English says one differently ("this issue", "One issue matches") and Vietnamese does too, the plural keeps `=1`: `{total, plural, =1 {Một vấn đề khớp.} other {# vấn đề khớp.}}`.
 - **Pieces a page joins**:
@@ -852,6 +1074,7 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | lead (of a project) | trưởng dự án |
 | board, card | bảng, thẻ |
 | column, swimlane | cột, làn |
+| a lane's own order | thứ tự riêng |
 | sprint | sprint |
 | committed (a sprint's commitment) | cam kết |
 | blocker | trở ngại |
@@ -861,15 +1084,19 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | request (help desk) | yêu cầu |
 | requester | người yêu cầu |
 | copied on a request (CC), copy, stop copying | được CC, CC, bỏ CC |
+| an email's Cc, a desk's rules for copies, relay (what people write) | dòng Cc, quy định CC ("quy tắc" is a4a's rule), chuyển tiếp |
 | customer group, kept from the group | nhóm khách hàng, ẩn với nhóm |
+| group requesters (by company or team) | phân nhóm |
 | reporter | người báo cáo |
 | report (an issue), reported | báo cáo, đã báo cáo |
 | assignee | người được giao |
 | assign | giao |
 | agent | tác nhân |
+| an agent of its own (its badge) | tài khoản riêng |
 | assistant (its name), the assistant | assistant, trợ lý |
 | conversation (with the assistant) | cuộc trò chuyện |
 | workflow, script | workflow, script |
+| script library, its shared code | thư viện script, mã dùng chung |
 | rule, guard (a rule that refuses) | quy tắc, quy tắc chặn |
 | if (a rule's or a transition's condition) | nếu, after the trigger's "Khi" |
 | state machine | máy trạng thái |
@@ -883,20 +1110,27 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | subscription, subscribe | đăng ký, đăng ký nhận |
 | watch, watcher | theo dõi, người theo dõi |
 | comment | bình luận |
+| reaction, react | biểu cảm, bày tỏ cảm xúc (Facebook's and Teams' verb) |
 | mention | nhắc đến |
 | tag | nhãn |
 | vote | bình chọn |
 | timesheet | bảng chấm công |
+| submit (a week of time), approve, send back | gửi duyệt, duyệt, trả lại; a week of time is "bảng chấm công của một tuần" |
+| BAU (a timesheet's own row) | việc thường ngày |
 | work logged, log time | thời gian đã ghi, ghi thời gian |
-| a time entry, a worklog, a work item (another tracker's) | bản ghi thời gian, bản ghi công việc, mục công việc |
+| map (an import's columns and values) | ghép, its step "Ghép dữ liệu", as Vietnamese import wizards say it; "ánh xạ" is the technical word |
+| a time entry, a worklog, a work item (another tracker's, and a4a's own) | bản ghi thời gian, all three; what an import brings of them, "Thời gian đã ghi". None of those trackers speaks Vietnamese, and "mục công việc" read as a task |
+| ClickUp's List, a task (Asana's, ClickUp's) | List, as ClickUp names it ("danh sách" is any list); công việc |
 | estimate | ước tính |
 | rate (per hour) | đơn giá theo giờ |
 | days away, away | ngày vắng mặt, vắng mặt |
+| HR calendar | lịch nhân sự |
 | levelling | cân bằng nguồn lực |
 | slack (in a plan) | thời gian dự trữ |
 | booked (in a plan) | đã phân bổ |
 | critical path | đường găng |
 | milestone | mốc |
+| every weekday (a rule's schedule) | từ Thứ Hai đến Thứ Sáu; "ngày làm việc" is the plan's working days |
 | baseline | đường cơ sở |
 | what-if | mô phỏng |
 | earned value, earned | giá trị thu được (EV), thu được |
@@ -905,16 +1139,26 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | suggestion | gợi ý |
 | token, revoke | token, thu hồi |
 | fingerprint (of a token) | dấu vân tay |
-| scope (of a token) | phạm vi; on the page, where English says "What it may do" and "Where it may": "Quyền", "Áp dụng cho" |
+| scope (of a token) | quyền, on its page and in its problems ("Token này thiếu quyền …"); where English says "What it may do" and "Where it may", "Quyền" and "Áp dụng cho". "Phạm vi" is a report's or a sprint's scope |
 | two-factor sign-in | xác thực hai yếu tố |
+| passkey, a passkey provider, a security key | khóa truy cập, as Google's and Microsoft's Vietnamese say it; trình quản lý mật khẩu, as Google's is named; khóa bảo mật |
+| authenticator, an authenticator app, attestation | trình xác thực, ứng dụng xác thực, chứng thực |
+| require (a passkey) of, let off | yêu cầu … đối với, miễn |
+| sign out everywhere | đăng xuất mọi phiên |
 | sign in, sign out | đăng nhập, đăng xuất |
 | login (a person's handle) | tên đăng nhập |
 | identity provider | nhà cung cấp danh tính |
 | single sign-on | đăng nhập một lần (SSO) |
+| directory accounts | tài khoản từ dịch vụ thư mục; "thư mục" alone is a folder |
+| vouch (a provider, for an address), verify | xác nhận, xác minh |
+| an OpenID provider's Issuer, Client ID, Client secret, public client; the redirect URI | kept as the providers' consoles name them; URI chuyển hướng, as Google's and Microsoft's consoles say it |
 | webhook, delivery | webhook, lượt gửi |
 | post (a4a or a provider sending to an address) | gửi; "đăng" is for chat messages and comments |
+| a Slack thread; Matrix's homeserver, a room | chuỗi tin nhắn; homeserver, as Matrix names it, phòng |
 | secret | khóa bí mật |
+| kept sealed | lưu ở dạng mã hóa |
 | commit, pull request, branch | commit, pull request, nhánh |
+| check run, commit status | check run, as GitHub names it; trạng thái commit |
 | merge, merged | hợp nhất, đã hợp nhất |
 | build (CI) | bản build |
 | CI | CI |
@@ -930,21 +1174,25 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | query, command, saved search | truy vấn, lệnh, tìm kiếm đã lưu |
 | attachment, file | tệp đính kèm, tệp |
 | settings | cài đặt |
+| the navigation's groups: Work, Decide, Build, Oversee | Làm việc, Quyết định, Thiết lập, Giám sát (Administration under it too) |
 | app, handler (of an app) | ứng dụng, trình xử lý |
 | allow (an app) | cho phép |
 | person, people | người, mọi người; "người dùng" in administration |
+| instance (of a4a), its worker | máy chủ ("Máy chủ này" as a heading, "một máy chủ khác"), and "a4a này" where a sentence speaks of this one; tiến trình chạy |
 | for {name} (acting on their behalf), as {name} | thay mặt {name}, với tư cách {name}; an integration reads "với tư cách GitHub App" |
 | table (a screen reader's name for one) | danh sách; "bảng" is a board |
 | role, permission | vai trò, quyền |
-| take out (of a project, a group) | gỡ … khỏi; the ledger says "đã xóa … khỏi" |
+| People and access (a project's) | Người dùng và quyền truy cập |
+| take out (of a project, a group) | xóa … khỏi, as Teams', Facebook's and Zalo's "Xóa khỏi nhóm" say it; the button names where from: "Xóa khỏi dự án", "Xóa khỏi nhóm" |
 | administrator, manager, member, viewer, guest | quản trị viên, quản lý, thành viên, người xem, khách |
 | problem (what went wrong) | lỗi |
-| whiteboard; a note, card, section, arrow, an arrow's label, the outline | bảng trắng, ghi chú, thẻ, khu vực, mũi tên, chú thích, dàn ý |
+| whiteboard; a note, card, section, arrow, an arrow's label, an element, the outline | bảng trắng, never shortened to "bảng", which is a board; ghi chú, thẻ, khu vực, mũi tên, chú thích, đối tượng (Office's word for what sits on a slide or a canvas; "phần tử" is a programmer's), dàn ý |
 | connect (draw an arrow), make issues (of notes) | nối; tạo vấn đề |
+| draw, a drawing, a picture (on a whiteboard) | vẽ, nét vẽ, hình ảnh |
 | a note's tones: plain, idea, agreed, question, problem, parked | Thường, Ý tưởng, Đã thống nhất, Câu hỏi, Khó khăn, Tạm gác |
 | writing help; where an issue came from (a chat message) | hỗ trợ viết; nguồn gốc |
 
-**Why vấn đề for issue**: it's Redmine's Vietnamese, and the word Vietnamese-speaking teams use when they don't say "issue". "Phiếu" (ticket) reads as a form or a support desk's, "sự cố" as an incident, and "công việc" (task) leaves out bugs and requests. As far as this catalog's writer knows, neither Jira nor YouTrack has a Vietnamese interface, so the catalog leans on Redmine's and Trello's Vietnamese (bảng, thẻ and nhãn are Trello's), on Vietnamese project management's own terms (đường găng, đường cơ sở, giá trị thu được, thời gian dự trữ), and, where Vietnamese teams say the English word, on that: sprint, backlog, commit, pull request, webhook, token, workflow.
+**Why vấn đề for issue**: it's Redmine's Vietnamese, and the word Vietnamese-speaking teams use when they don't say "issue". "Phiếu" (ticket) reads as a form or a support desk's, "sự cố" as an incident, and "công việc" (task) leaves out bugs and requests. Jira Cloud offers Tiếng Việt only in part, YouTrack and GitHub not at all, and GitLab's Vietnamese is a translation project with nothing translated, so the catalog leans on Redmine's and Trello's Vietnamese (bảng, thẻ and nhãn are Trello's), on Vietnamese project management's own terms (đường găng, đường cơ sở, giá trị thu được, thời gian dự trữ), and, where Vietnamese teams say the English word, on that: sprint, backlog, commit, pull request, webhook, token, workflow.
 
 **Checking Vietnamese**: the checks above, and `e2e/vietnamese.spec.ts`. It signs a person of its own in, through the sign-in page of a Vietnamese browser, opens the issues, an issue, the inbox and the profile, and shows a problem on the sign-in page; each is shot in light, in dark and at 390px, into the HTML report and beside the test in `apps/web/test-results`. A reader of Vietnamese then reads those shots, sets a profile's language to Tiếng Việt and walks the pages, and reads the pieces of one prefix together, as a page joins them: `activity.ledgerEntry.*`, `issues.issueHistory.*`, `server.notify.*`, `rules.words.*`.
 
@@ -954,9 +1202,9 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 
 - **Anda**, with its capital, where the reader must be named, as Indonesian software addresses its reader; never "kamu", "kau" or "-mu". English says "you" and "your" on nearly every line, and Indonesian doesn't: what the page plainly is about needs no owner ("Profil", "Memuat kotak masuk…", "Ponsel hilang? Masukkan salah satu kode pemulihan."), and a sentence about what can be done takes the di- passive or the passive with "Anda" before the verb rather than "Anda dapat …" ("Pengguna lain dapat diundang setelahnya.", "isu yang Anda pantau"). A sentence says "Anda" once, not two or three times, and "memiliki", never "Anda punya". "Silakan" and "mohon" are for where English says "please", where something is asked of someone; a line doesn't open with them.
 - **Buttons and labels are short verb phrases or nouns**, never sentences: "Simpan", "Simpan perubahan", "Hapus bidang", "Batal". An instruction is the plain imperative, without "-lah" or "mohon": "Pilih proyek", "Ketik namanya". A label is a noun, not "-nya" pointing back as English's "its" does: "Nama", "Nilai (3)", "Posisi sekarang", "Kegunaan". An optional field says "(opsional)" after its name ("Komentar (opsional)", "Catatan (opsional)") where English says "if you want one", and a form's labels are those of Indonesian forms: "Nama lengkap", "Konfirmasi kata sandi baru", "Perihal". A field's help says what to type, "Kosongkan untuk branch apa pun", not English's "Empty: any". A choice of all of something is "Semua proyek", not "Setiap proyek"; a table's columns are what Indonesian tables head them with ("Waktu", "Hasil", "Sumber", "Keterangan", "Status"), and a report's rows go "per hari", "per minggu", never "hari demi hari", which reads as "little by little".
-- **Someone acting for someone** is "atas nama": an agent or a script "atas nama Ada", an agent with its own token "atas nama sendiri", in the history's and the ledger's lines, the notifications and the profile. A rule or an app acting by itself is "otomatis" ("· otomatis ·"); `ui.who.onItsOwn` keeps "dengan sendirinya", since the name before it may be "otomatisasi".
+- **Someone acting for someone** is "atas nama": an agent or a script "atas nama Ada", an agent with its own token "atas nama sendiri", in the history's and the ledger's lines, the notifications and the profile. A rule or an app acting by itself is "otomatis", wherever it shows ("· otomatis ·", "workflow otomatis": `ui.who.onItsOwn` follows an agent's own name, never "otomatisasi"), and a change an agent made by itself is one it made "secara mandiri".
 - **Plain words for the assistant** are "kalimat biasa": "Tanya dengan kalimat biasa", "Tulis perintah dengan kalimat biasa", and its button "Ubah jadi perintah".
-- **Status lines are passive**: "Tersimpan.", "{name} ditambahkan.", "Dihapus."; what is under way is the active form, with the ellipsis: "Menyimpan…", "Mengirim…". The copy button's line, which a screen reader hears while the button itself says "Disalin", puts the word first, "Disalin: token." (`common.copyButton.copied`), since a copied thing's name begins in lower case.
+- **Status lines are passive**: "Tersimpan.", "{name} ditambahkan.", "Dihapus."; what is under way is the active form, with the ellipsis: "Menyimpan…", "Mengirim…". The copy button's line, which a screen reader hears while the button itself says "Disalin", is "Berhasil menyalin token." (`common.copyButton.copied`), the pair of its failure's "Gagal menyalin token.", since a copied thing's name begins in lower case and can't open the line.
 - **Verbs carry no tense.** A line whose place says it happened (the history, a notification) needs no "telah" or "sudah": "mengubah status". "Sudah" is English's "already", "masih" its "still", "belum" its "not yet", and "akan" its "will".
 - **Pronouns have no gender**: "dia", "ia" and "-nya" are anyone's, so a4a never guesses a person's. "-nya" also stands for a thing ("mengubahnya"); where it could be read as either, the sentence names the thing.
 - **Typography**: sentence case, as English's; quotation marks “…”, ‘…’ inside them, in problems too, where English writes straight ones; JSON a script sends keeps its straight quotes (`"all": true`). The one-character ellipsis (…); no space before ":", "?" or "!". A time in prose is written with a point, as Indonesia writes it ("Senin 09.00–17.00"); what a parser reads keeps its colon ("tomorrow 09:30"). An Indonesian prefix on an English word takes a hyphen, as EYD writes it ("di-merge"), and an Indonesian verb is taken where there is one ("diunggah", not "di-upload"). A noun needs no "sebuah" or "seorang" where English's "a" stood before it ("Uji pada isu", "Gambar").
@@ -964,21 +1212,23 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 - **Pieces a page joins**:
   - The activity ledger, an issue's history and notifications show who, in bold, then what was done. So an action is an active verb phrase, with its meN- prefix and no subject: "membuat {issue}", "mengomentari", "melaporkan", "menugaskannya kepada Anda". A ledger's badge says what its kind of event does, the same way and as English's do: "berkomentar", "menghapus isu".
   - A webhook's events are joined into "Ketika {join}" by Intl's "or" list, "A atau B", "A, B, atau C", so each is a clause, passive where something is done to a thing: "Ketika isu dibuat atau seseorang berkomentar". The same clauses, with a capital, label the form's checkboxes (`page.webhooks.label.*`).
-  - A rule is one sentence, in English's order, which Indonesian shares: its trigger and conditions are clauses, its actions are imperatives, and the words in `<t0>` are "Saat", "jika" and "maka": "<t0>Saat</t0> isu dibuat, <t0>jika</t0> cocok dengan Type: Bug, <t0>maka</t0> terapkan Assignee anna". An action that does nothing says so without an order: "tidak ada tindakan", "beri tahu “…” (tanpa penerima)".
+  - A rule is one sentence, in English's order, which Indonesian shares: its trigger and conditions are clauses, its actions are imperatives, and the words in `<t0>` are "Saat", "jika" and "maka": "<t0>Saat</t0> isu dibuat, <t0>jika</t0> cocok dengan Type: Bug, <t0>maka</t0> terapkan Assignee anna". An action that does nothing says so without an order: "tidak ada tindakan", "beri tahu “…” (tanpa penerima)". A link's phrase is data, which Indonesian can't turn into a clause about the issues it reaches ("isu yang depends on" reads as the issues that depend), so it names the link in brackets: "semua isu tertaut (depends on) cocok dengan #Unresolved", and "isu tertaut (jenis apa pun)" where the rule takes every link.
   - A board's drop announcements join a lane's piece after "untuk" or "dan", so each piece is a meN- verb: "Lepaskan untuk memindahkan BACK-1 ke Done dan menugaskannya kepada Ada".
   - A loading line is a whole message, one per thing (`loadingLine.*`): "Memuat" and the thing, "Memuat rencana…", "Memuat permintaan Anda…", "Memuat {name}…", and "Memuat…" where nothing is named.
 - **Selects and plurals the Indonesian doesn't need**: a message keeps every placeholder English has. Where Indonesian says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`. Where English selects on a code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`), each case is whole Indonesian, and `other` keeps the code where English's does.
-- **Problems** say what went wrong, then the fix, each a plain sentence: "Nama pengguna atau kata sandi salah.", "Nama itu sudah dipakai. Pilih nama lain." Something a4a can't find is "tidak ditemukan", an unknown project too; what failed is "gagal …" ("{name} gagal dilampirkan."); asking an administrator is "Hubungi administrator". A value to type is asked for with "Masukkan" or "Isi", not English's "Give" ("Masukkan alamat https-nya", "Isi “issue”, misalnya BACK-12"), and a missing one is "wajib diisi" ("Nama wajib diisi."). Someone's change in between is "baru saja diubah orang lain. Muat ulang, lalu ulangi perubahan Anda." Free text from elsewhere (another tracker's words, a script's refusal, a parser's message) stays where English puts it and brings its own full stop. In the query, command and rule problems, the languages' keywords and the fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`).
+- **Problems** say what went wrong, then the fix, each a plain sentence: "Nama pengguna atau kata sandi salah.", "Nama itu sudah dipakai. Pilih nama lain." Something a4a can't find is "tidak ditemukan", an unknown project too; what failed is "gagal …" ("{name} gagal dilampirkan."); asking an administrator is "Hubungi administrator". A value to type is asked for with "Masukkan" or "Isi", not English's "Give" ("Masukkan alamat https-nya", "Isi “issue”, misalnya BACK-12"), something to add to a setting with "Tambahkan" ("Tambahkan GitHub App ke integrasi ini"), and a missing value is "wajib diisi" ("Nama wajib diisi."). Someone's change in between is "baru saja diubah orang lain. Muat ulang, lalu ulangi perubahan Anda." Free text from elsewhere (another tracker's words, a script's refusal, a parser's message) stays where English puts it and brings its own full stop. In the query, command and rule problems, the languages' keywords and the fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`).
 - **You and your**: "Anda" after what it owns, where the owner must be told ("Token Anda", "Permintaan Anda"), and nothing where it's plain: a page's heading is "Profil", not "Profil Anda".
-- **The help desk** is for people outside the team: they send a "permintaan", and are its "pemohon". Its emails and its portal are a company's words to its customers: "Anda", courteous and plain, with no "Yth." or "Bapak/Ibu", since a4a doesn't know who reads them. The first email greets as a service desk does, "Halo {name}, permintaan Anda sudah kami terima.", and the portal asks "Ada yang bisa kami bantu?" over a request's summary.
+- **The help desk** is for people outside the team: they send a "permintaan", and are its "pemohon", never "peminta"; the desk itself is a "layanan bantuan", never "desk", on the team's pages as on the customers'. Its emails and its portal are a company's words to its customers: "Anda", courteous and plain, with no "Yth." or "Bapak/Ibu", since a4a doesn't know who reads them. The first email greets as a service desk does, "Halo {name}, permintaan Anda sudah kami terima.", and the portal asks "Ada yang bisa kami bantu?" over a request's summary.
 - **Data stays as named**: projects, fields and their values, states and tags, inside Indonesian sentences too ("Won't fix memerlukan komentar"). Examples of the query and command languages stay as they are; examples of plain words for the assistant to read are Indonesian.
+- **A whiteboard is seen**, "melihat", as Google Drive's viewers see a file; a project, its issues and its articles are read, "membaca": "Siapa pun yang dapat membaca proyek dapat melihat papan tulisnya", "Siapa yang dapat melihatnya".
+- **Another product's own words** are its interface's: where it speaks only English, as GitHub, Slack, ClickUp and Asana do, its English as it shows it ("lalu klik Add webhook", "List", "personal access token"); where it speaks Indonesian, its Indonesian: an identity provider's "ID klien", "Rahasia klien" and "URI pengalihan", as Google's and Microsoft Entra's consoles name them, and Gitea's and Forgejo's "Aplikasi". OpenID's "Issuer" stays, the discovery document's own key.
 - **Dates and numbers** come from Intl, as Indonesia writes them: "16 Nov 2026", "14.05", "1.234,5", "3 menit yang lalu", and lists "A, B, dan C". Intl reads `id` as `id-ID`, so a4a passes it as it is.
 
-Indonesian teams mostly read their trackers in English, and this catalog found no Indonesian Jira or YouTrack to lean on. So the trackers' own words stay as those teams say them (sprint, backlog, commit, pull request, branch, build, webhook, token, widget), and the everyday ones are those Indonesian software has settled, Google's and Microsoft's: Simpan, Batal, Masuk, Keluar, Pengaturan, Kotak masuk, Notifikasi, Dasbor, Unggah, Unduh.
+Indonesian teams mostly read their trackers in English, and this catalog found no Indonesian Jira or YouTrack to lean on. So the trackers' own words stay as those teams say them (sprint, backlog, story point, velocity, burndown, baseline, milestone, commit, pull request, branch, merge, build, run, check run, webhook, token, widget, timer, secret), and the everyday ones are those Indonesian software has settled, Google's and Microsoft's: Simpan, Batal, Masuk, Keluar, Pengaturan, Kotak masuk, Notifikasi, Dasbor, Unggah, Unduh.
 
 | English | Indonesian |
 |---|---|
-| issue | isu |
+| issue | isu, as GitLab's Indonesian says it ("Isu", "Papan isu") |
 | summary (an issue's title) | ringkasan |
 | description | deskripsi |
 | project | proyek |
@@ -988,16 +1238,16 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | committed (a sprint's commitment) | komitmen |
 | blocker | penghambat |
 | backlog | backlog |
-| help desk | layanan bantuan |
+| help desk | layanan bantuan, on the team's pages as on the customers'; never "desk" |
 | SLA at risk, breached | berisiko, terlampaui |
 | due, due date | tenggat ("tenggat 2 jam lagi", "Tanpa tenggat"), not "jatuh tempo", a bill's |
 | request (help desk) | permintaan |
-| requester | pemohon |
+| requester | pemohon, as Indonesian request forms' "Nama pemohon"; never "peminta" |
 | copied on a request (CC), copy, stop copying | penerima tembusan, tambahkan ke tembusan, hapus dari tembusan |
 | customer group, kept from the group | grup pelanggan, dirahasiakan dari grup |
 | reporter | pelapor |
 | report (an issue), reported | melaporkan, dilaporkan |
-| assignee, assign | penerima tugas, tugaskan |
+| assignee, assign | penerima tugas, tugaskan, as GitLab's Indonesian says it |
 | agent | agen |
 | assistant (its name), the assistant | assistant, asisten |
 | for (acting for someone), as itself, on its own | atas nama {name}, atas nama sendiri, otomatis |
@@ -1018,10 +1268,15 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | who subscribed a chat channel | pembuat langganan, its column "Penanggung jawab"; not "pelanggan", a customer |
 | watch, watcher | pantau, pemantau |
 | timesheet | lembar waktu |
+| submit, approve, send back (a timesheet); submitted, approved | ajukan, setujui, kembalikan; diajukan, disetujui, as Indonesian offices submit leave. Its buttons name the timesheet ("Ajukan lembar waktu"), since "Minggu ini" is the page's "This week" |
+| a week of time (in an event, a notification, a webhook) | lembar waktu mingguan |
+| week | minggu, never "pekan" (but "akhir pekan") |
+| your own row (a timesheet's, not an issue's) | "Waktu Anda sendiri", "BAU, atau kegiatan lain yang Anda catat" |
 | work logged, log time | waktu tercatat, catat waktu |
 | estimate | estimasi |
 | rate (per hour) | tarif per jam |
-| days away, away | ketidakhadiran, tidak hadir |
+| days away, away | ketidakhadiran, tidak hadir: HR's word, which takes in a sick day or a training as "cuti" doesn't |
+| HR calendar, its feed | kalender SDM, umpan kalender |
 | levelling | perataan beban |
 | slack (in a plan) | kelonggaran |
 | booked (hours in a plan) | dialokasikan: "jam yang dialokasikan" |
@@ -1034,6 +1289,8 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | cost and schedule performance (CPI, SPI) | kinerja biaya, kinerja jadwal |
 | what-if | simulasi |
 | triage | triase |
+| a guard rule, a state machine's moves | aturan penjaga, langkah |
+| script library, shared code; queue (a scripted rule's) | pustaka skrip, kode bersama; antrean |
 | suggestion | saran |
 | tag | tag |
 | token, revoke | token, cabut |
@@ -1045,34 +1302,47 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | not found | tidak ditemukan, after the thing: "Isu {id} tidak ditemukan." |
 | two-factor sign-in | autentikasi dua faktor |
 | sign in, sign out | masuk, keluar |
-| login (a person's handle) | nama pengguna |
+| login (a person's handle) | nama pengguna, beside "Nama lengkap" on a form |
 | identity provider | penyedia identitas |
+| client ID, client secret, redirect URI, issuer (an identity provider's) | ID klien, rahasia klien, URI pengalihan, as Google's and Microsoft Entra's Indonesian consoles name them; Issuer, the discovery document's key |
+| passkey stopped (a copied one) | Dinonaktifkan |
 | single sign-on | single sign-on (SSO) |
 | webhook, delivery | webhook, pengiriman ("Pengiriman terbaru", "pengiriman terakhir"); never "kiriman", a social post |
-| post (a4a or a provider sending to an address) | mengirim |
+| post (a4a or a provider sending to an address) | mengirim; what a provider posts, "pengiriman" or "apa pun yang dikirim penyedia" |
+| origin (of a webhook's address) | asal |
 | secret | secret, as the code hosts' forms name it |
 | commit, pull request, branch | commit, pull request, branch |
 | merge, merged | merge, di-merge |
 | build (CI), CI | build, CI |
+| run, check run, commit status | run, check run, status commit |
+| a paused source's builds, refused politely | diabaikan tanpa pesan kesalahan |
 | field, value | bidang, nilai |
 | link (between issues), unlink | tautan, tautkan; hapus tautan |
+| the issues it {phrase} (in a rule's sentence), any link | isu tertaut ({phrase}), isu tertaut (jenis apa pun) |
 | link, unlink (a chat account) | hubungkan, putuskan |
+| channel, room (Matrix's), homeserver, a post (in a channel) | saluran, ruangan, homeserver, pesan |
+| thread (a chat's), an issue's own | utas, as GitLab's and Discord's Indonesian say it; diskusi |
 | duplicate | duplikat |
 | resolve, resolved, resolution | selesaikan, selesai, penyelesaian |
 | dashboard, widget | dasbor, widget |
 | report | laporan |
 | settings | pengaturan |
-| app, handler (of an app) | aplikasi, penangan |
+| app, handler (of an app) | aplikasi, penangan; Gitea's and Forgejo's Applications settings, "Aplikasi", as their Indonesian names them |
 | allow (an app), apps you allowed | izinkan, "Aplikasi yang Anda izinkan" |
 | person, people | orang (counted: "3 orang"), pengguna (accounts) |
 | role, permission | peran, izin |
 | administrator, manager, member, viewer, guest | administrator, manajer, anggota, pelihat, tamu |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | papan tulis, catatan, kartu, bagian, panah, label, kerangka |
+| see (a whiteboard), who sees it, a whiteboard of your own | melihat, akses ("Simpan akses"), papan tulis pribadi |
+| a picture, a drawing (on a whiteboard); Draw, Picture (its tools) | gambar, not "foto"; gambar tangan; Menggambar, Tambahkan gambar |
 | connect (draw an arrow), make issues (of notes) | hubungkan; jadikan isu |
 | a note's tones: plain, idea, agreed, question, problem, parked | Biasa, Ide, Disepakati, Pertanyaan, Masalah, Ditunda |
 | writing help; where an issue came from (a chat message) | bantuan menulis; asal isu |
+| drafted with the assistant | "Draf teks ini disusun oleh asisten." |
+| undo, redo | batalkan, ulangi, as Microsoft's style guide gives them beside "Batal" for Cancel; "membatalkan perubahan" in the history |
+| acknowledgement (a help desk's first email) | email konfirmasi; not "tanda terima", Outlook's read and delivery receipts |
 
-**Why isu for issue**: it is the word Indonesian developers already say, in KBBI's spelling, and it covers a bug, a task and a request alike. "Masalah" is a problem, which a feature request isn't; "tiket" reads as a help desk's or a train's; "tugas" is a task, one kind of issue among others.
+**Why isu for issue**: it is the word Indonesian developers already say, in KBBI's spelling, and GitLab's Indonesian interface's ("Isu", "Papan isu"), and it covers a bug, a task and a request alike. "Masalah" is a problem, which a feature request isn't; "tiket" reads as a help desk's or a train's; "tugas" is a task, one kind of issue among others.
 
 **Checking Indonesian**: the checks above, then `e2e/indonesian.spec.ts`: a person of its own signs in through an Indonesian browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads Indonesian walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), an issue's history (`issues.issueHistory.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
 
@@ -1080,20 +1350,21 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 
 `th.json`, as Thai teams read a tracker, for Thailand: Thai script, Gregorian years, Arabic digits.
 
-- **Polite and plain, with no speaker in it.** Sentences are whole and polite, as Thai software for teams writes them, and carry no particle: never ครับ or ค่ะ, which say the speaker's gender, nor นะ, which is talk. คุณ is the reader, where a sentence must address them: “คุณเข้าสู่ระบบด้วย {login}”. Thai leaves out whom it has already named, so a sentence never says เขา or เธอ (either can read as one gender): it leaves the person out, or names them again.
+- **Polite and plain, with no speaker in it.** Sentences are whole and polite, as Thai software for teams writes them, and carry no particle: never ครับ or ค่ะ, which say the speaker's gender, nor นะ, which is talk. คุณ is the reader, where a sentence must address them: “คุณเข้าสู่ระบบด้วย {login}”. Thai leaves out whom it has already named, so a sentence never says เขา or เธอ (either can read as one gender): it leaves the person out, or names them again. Nor does it call a thing, a bot or a script มัน, which reads as rude in writing: “สคริปต์เรียก {name}”, “สคริปต์ของเวิร์กโฟลว์เรียกเว็บฮุกนี้”.
 - **Buttons and labels are short verb phrases or nouns**, never sentences: “บันทึก”, “บันทึกการเปลี่ยนแปลง”, “ลบฟิลด์”. A status line says what's done with แล้ว and what's going on with กำลัง: “บันทึกแล้ว”, “กำลังบันทึก…”, “เพิ่ม {name} แล้ว”.
-  - A label or a column's head is the noun a Thai form uses, never English's question or bare word: “ใช้สำหรับ” for "What it's for", “ผู้ใช้” for "Whose" and "Person", “ขอบเขต” over a token's scopes, “เวลา” or “ช่วงเวลา” for "When", and a "From" says what it chooses (“นำเข้าจาก”, “ผู้ให้บริการ”). "{v} only" is “เฉพาะ {v}”.
+  - A label or a column's head is the noun a Thai form uses, never English's question or bare word: “ใช้สำหรับ” for "What it's for", “ผู้ใช้” for "Whose" and "Person", “ขอบเขต” over a token's scopes, “เวลา” or “ช่วงเวลา” for "When", “ผู้ที่อ่านได้” for a whiteboard's "Who reads it", “ผู้อนุมัติใบลงเวลา” for "Who approves its weeks of time", and a "From" says what it chooses (“นำเข้าจาก”, “ผู้ให้บริการ”). "{v} only" is “เฉพาะ {v}”.
+  - A radio button or a select's option is a whole choice, even under a legend it goes on from, as English's "Of administrators" does: “ไม่ขอจากใคร”, “ขอจากผู้ดูแลระบบ” under “ขอพาสคีย์เมื่อเข้าสู่ระบบ”.
   - A confirm button names what it removes: “ลบไวต์บอร์ด”, a field's “ลบฟิลด์” and a value's “ลบค่า” (`page.fields.deleteIt`, `page.fields.deleteTheValue`), an integration's “นำการเชื่อมต่อออก” and its token's “นำโทเค็นออก” (`page.integrations.removeIt`, `page.integrations.removeTheToken`). "Nobody can bring it back" is “กู้คืนไม่ได้”.
 - **The chat bot names itself a4a**, as its handle reads in Slack and Teams (“a4a ไม่ได้อยู่ใน {channel} เชิญด้วย /invite @a4a”), or leaves itself out (“ยังไม่รู้ว่าคุณเป็นใครใน a4a”); never บอต for itself, nor ผม or ฉัน. Its help lists “คำสั่งที่ใช้ได้”.
 - **Instructions are bare verbs**, as Thai apps give them: “เลือกโปรเจกต์”, “ลองอีกครั้ง”. โปรด only where English says please, where something is asked of someone; never กรุณา, which reads as a notice.
 - **Typography:**
-  - No space between words. A space between phrases, clauses and sentences, where Thai pauses, and on each side of a value, a number, an id or a Latin word: “เปิด {issue}”, “อิชชู {n} รายการ”, “ตาม Type: Bug”. None before `:` or `)`, or inside “”. A value that is itself Thai, a piece the page translates, joins as a word does: “ใช้{formName} ของคุณ” reads “ใช้ชื่อผู้ใช้ a4a ของคุณ”.
-  - **No full stop.** Thai ends a sentence with a space, and its last with nothing. A message of two sentences has a space between them; sentences a page joins (`sentences()`, a problem's list of problems) are joined by a space (`SENTENCE_GAP`), so no Thai message ends in a full stop and none needs one. A question ends in `?` after its question word (“ลบ {name} ไหม?”), as Thai's ปรัศนี does. `.` stays only inside abbreviations (พ.ย.) and code.
+  - No space between words. A space between phrases, clauses and sentences, where Thai pauses, and on each side of a value, a number, an id or a Latin word: “เปิด {issue}”, “อิชชู {n} รายการ”, “ตาม Type: Bug”. None before `:` or `)`, or inside “”. A value that is itself Thai, a piece the page translates, joins as a word does: “ใช้{formName} ของคุณ” reads “ใช้ชื่อผู้ใช้ a4a ของคุณ”, and the timesheet's “ในวัน{dayName} แล้ว” reads “ในวันจันทร์ 16 พ.ย. แล้ว”, since Intl's Thai day begins with its weekday's name. Where a message spaces a value that may be a4a's own word or a Latin one, a4a joins it as it says it when it's one of the catalog's own one-word messages, on either side: “คัดลอก {what} แล้ว” reads “คัดลอกโทเค็นแล้ว” and “คัดลอก Redirect URI แล้ว”, and “{who} ตอบกลับ…” “ทีมงานตอบกลับ…”. A name keeps the spaces you give it, since a space after a name is often where Thai pauses (“ยังไม่ได้ตั้งงบประมาณให้ {name} ตั้งได้ใน…”): space a name as a Latin one.
+  - **No full stop.** Thai ends a sentence with a space, and its last with nothing. A message of two sentences has a space between them; sentences a page joins (`sentences()`, a problem's list of problems) are joined by a space (`SENTENCE_GAP`), so no Thai message ends in a full stop and none needs one. A question asks with ไหม, as Google's Thai does, where Microsoft's หรือไม่ would sound like a form, and ends in `?` after it (“ลบ {name} ไหม?”, “หมายถึง “{guess}” ใช่ไหม?”), as Thai's ปรัศนี does. `.` stays only inside abbreviations (พ.ย.) and code.
   - Quotation marks are “…”, the ellipsis is one character (…), and digits are Arabic, never Thai ones (๑๒๓).
   - **A colon introduces** a list, a value, code, or a help text's “ว่างไว้: …”; it never joins a statement to its reason or its consequence, as English's does. Thai says the link, or pauses: “ปิดอยู่ จึงไม่มีใครเห็นปุ่มนี้”, “{name} เป็นฟิลด์ส่วนตัวไม่ได้ เพราะ…”, not “ปิดอยู่: ไม่มีใครเห็นปุ่มนี้”.
 - **Line breaks and badges.** A Thai line breaks only at a space or where the browser's dictionary finds a word's end, and a transliterated word it doesn't know can't break at all. So badges and buttons are a word or two (“ปิดแล้ว”, “เกินกำหนด”), and the pages the browser spec shoots were looked at at 390px, where none spills.
 - **Font.** Ocean sets Thai in IBM Plex Sans Thai, which it bundles for Thai's letters alone (`unicode-range`), after IBM Plex Sans for Latin (`--font-sans`): the two share their weights and x-height, so a Latin id inside a Thai sentence sits level with it. Plex Sans Thai is loopless, the modern style of Thai screens. `e2e/thai.spec.ts` asks the browser which font drew the Thai on each page (Chromium's `CSS.getPlatformFontsForNode`), and fails unless it's Plex Sans Thai; the container's shots show Plex Sans Thai, served from Ocean's own files, not a system font.
-- **Plurals**: Thai has none, so each plural keeps `other` alone and counts as Thai counts: the noun, the number, then its classifier: `{n, plural, other {อิชชู # รายการ}}`. รายการ counts issues, requests, comments, changes and things; คน people; ครั้ง times; ข้อ rules and points; ตัว agents and bots; ไฟล์, วัน, ชั่วโมง, โปรเจกต์, บอร์ด, กลุ่ม, แอป count themselves (“3 ไฟล์”). A plural English words otherwise for none or one keeps `=0` or `=1` where Thai does too: `{n, plural, =0 {ไม่มีเวลาเหลือ} other {มีเวลาเหลือ # วัน}}`. A plain count of none stays a count: “อิชชู 0 รายการ”.
+- **Plurals**: Thai has none, so each plural keeps `other` alone and counts as Thai counts: the noun, the number, then its classifier: `{n, plural, other {อิชชู # รายการ}}`. รายการ counts issues, requests, comments, changes and things; คน people; ครั้ง times; ข้อ rules and points; ตัว agents and bots; ราย providers (“ผู้ให้บริการ 3 ราย”); รุ่น an authenticator's models; แห่ง help desks, as Thai counts offices and service points (“เฮลป์เดสก์ 2 แห่ง”); ไฟล์, วัน, ชั่วโมง, โปรเจกต์, บอร์ด, กลุ่ม, แอป count themselves (“3 ไฟล์”). Passkeys and a whiteboard's elements are รายการ, as items in a list are. A plural English words otherwise for none or one keeps `=0` or `=1` where Thai does too: `{n, plural, =0 {ไม่มีเวลาเหลือ} other {มีเวลาเหลือ # วัน}}`; two counts in one sentence nest, so a none is said, not counted: “ไม่ได้สร้างอิชชู แต่สร้างลิงก์ 2 รายการแล้ว”. A plain count of none stays a count: “อิชชู 0 รายการ”.
 - **Selects and plurals the English doesn't need**: a message keeps every placeholder English has. Where Thai says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`.
 - **Pieces a page joins.** Thai's order is English's, subject, verb, object, so the pieces join as English's do:
   - The activity ledger, an issue's history and notifications show who in bold, then what they did: a verb phrase with no subject, and no tense, since its time is shown beside it: “สร้าง {issue}”, “แสดงความคิดเห็นใน {issue}”, “มอบหมายอิชชูนี้ให้คุณ”. A badge is a short verb phrase, as a Thai label is: “ลบอิชชู”. Who acted for someone is “ในนาม {name}”, never สำหรับ.
@@ -1106,11 +1377,11 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 - **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is whole Thai, and every case stays: `{state, select, merged {เมิร์จแล้ว} closed {ปิดแล้ว} other {เปิดอีกครั้ง}}`. A field's `{type}` in a problem is such a code too, with `other` keeping the code.
 - **Problems** say what went wrong, then the fix, a space between and no full stop: “ไม่พบอิชชู {id} ใช้รหัสที่อ่านได้ เช่น BACK-12”. Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Thai message, after “ข้อผิดพลาด: ”, “เหตุผล: ” or “คำตอบ: ”, and brings its own punctuation. A problem held in another's values (`{problems}`, `{reasons}`, a parser's `{problem}`) is said whole in Thai, and Thai joins sentences with a space, so it stays where English puts it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`), and a rule's choices are said as the rule form names them.
 - **You and your**: ของคุณ where English's "your" tells the reader's things from others' (“คำขอของคุณ” on the portal, “โทเค็นของคุณ”), and nothing where the owner is plain: “โปรไฟล์”, “ตัวจับเวลา”, “กำลังโหลดกล่องจดหมาย…”. A button the reader presses for themself, which English words with "my" (“Save my week”), says ของฉัน, as Thai apps name the reader's own (“บันทึกสัปดาห์ของฉัน”). คุณ stays where the reader must be told from someone else: “ทำงานในนามของคุณ”, “ในนาม {login} ไม่ใช่ในนามของคุณ”.
-- **The help desk** is a company's to its customers. A request is คำขอ: “ส่งคำขอ” in an issue's history and notifications, “ขอความช่วยเหลือ” on the form and the portal. Its emails to requesters are polite as Thai customer mail is, and name the requester with คุณ before the name, a space between, since a name may be Thai or Latin: “คุณ {name}”. They say why they came: “คุณได้รับอีเมลนี้เนื่องจากคุณส่งคำขอถึง {desk}”, and tell rather than email: “จะแจ้งให้คุณทราบทางอีเมล”. Wherever a customer reads it (the portal, the public form, the tracking page, the emails), the team is ทีมงาน, as Thai support writes it; the team's own pages say ทีม.
+- **The help desk** is a company's to its customers. A request is คำขอ: “ส่งคำขอ” in an issue's history and notifications, “ขอความช่วยเหลือ” on the form and the portal. Its emails to requesters are polite as Thai customer mail is, and name the requester with คุณ before the name, a space between, since a name may be Thai or Latin: “คุณ {name}”. The name sits in the sentence, with no เรียน or vocative before it: “เราได้รับคำขอของคุณ {name} แล้ว”. They say why they came: “คุณได้รับอีเมลนี้เนื่องจากคุณส่งคำขอถึง {desk}”, and tell rather than email: “จะแจ้งให้คุณทราบทางอีเมล”. Wherever a customer reads it (the portal, the public form, the tracking page, the emails), the team is ทีมงาน, as Thai support writes it; the team's own pages say ทีม.
 
 | English | Thai |
 |---|---|
-| issue | อิชชู |
+| issue | อิชชู, never ตั๋ว or ทิกเก็ต |
 | summary (an issue's title) | หัวเรื่อง |
 | description | คำอธิบาย |
 | subtask, parent | งานย่อย, อิชชูหลัก |
@@ -1121,11 +1392,14 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | committed (a sprint's commitment) | ที่ตกลงไว้ |
 | blocker | อุปสรรค |
 | backlog | แบ็กล็อก |
-| help desk | เฮลป์เดสก์ |
+| help desk | เฮลป์เดสก์, never เดสก์ alone; counted แห่ง (“เฮลป์เดสก์ 2 แห่ง”) |
 | SLA at risk, breached | เสี่ยง, เกินกำหนด |
 | request (help desk) | คำขอ |
-| requester | ผู้ร้องขอ |
+| requester | ผู้ร้องขอ, never ผู้ร้อง |
+| an HTTP request (in the API's problems) | คำขอ too, as Microsoft's and Google's Thai say it: “คำขอใหญ่เกินไป” |
 | copied on a request (CC), copy, stop copying | สำเนา, ส่งสำเนาถึง, เลิกส่งสำเนา |
+| an email's Cc; held (a CC), drop it | Cc, in Latin letters, apart from a4a's copy (สำเนา); รอการยืนยัน, ไม่ส่งสำเนา |
+| relay (a desk passing its people's words on) | ส่งต่อ, Gmail's word for forwarding |
 | customer group, kept from the group | กลุ่มลูกค้า, ซ่อนจากกลุ่ม |
 | reporter; report (an issue), reported | ผู้รายงาน; รายงาน, รายงานโดย |
 | assignee; assign | ผู้รับผิดชอบ; มอบหมาย |
@@ -1133,6 +1407,9 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | assistant (its name), the assistant | assistant, ผู้ช่วย |
 | conversation (with the assistant) | บทสนทนา |
 | comment, mention | ความคิดเห็น, กล่าวถึง |
+| someone a4a can't name | ผู้ใช้ไม่ทราบชื่อ, as Thai says ชายไม่ทราบชื่อ |
+| on its own (an automation, an app; the assistant) | โดยอัตโนมัติ; ลงมือเอง, as its Acts mode is ลงมือ |
+| in words (plain language for the assistant); asked in words | เป็นประโยค: “ถามเป็นประโยค”; “สั่งเป็นประโยค” in the history |
 | attachment | ไฟล์แนบ |
 | workflow | เวิร์กโฟลว์ |
 | rule | กฎ |
@@ -1147,57 +1424,92 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | digest | สรุป |
 | subscription, subscribe | การสมัครรับ, สมัครรับ |
 | watch, watcher | ติดตาม, ผู้ติดตาม |
-| timesheet | ใบลงเวลา |
+| timesheet; submit, approve, send back (a week's) | ใบลงเวลา, never ใบบันทึกเวลา; ส่ง, อนุมัติ, ส่งกลับ: “ส่งใบลงเวลา”, not “ส่งสัปดาห์” |
+| an activity (a timesheet's row of one's own) | กิจกรรม |
 | work logged, log time | เวลาที่บันทึก, บันทึกเวลา |
 | estimate | ประมาณการ |
 | rate (per hour) | อัตราต่อชั่วโมง |
-| days away, away | วันที่ไม่อยู่, ไม่อยู่ |
+| days away, away | วันที่ไม่อยู่ (an absence may be a conference, so not วันลา), ไม่อยู่ |
+| holiday, sick, training (days away) | ลาพักร้อน, ลาป่วย, ฝึกอบรม |
+| a remark (an absence's, an internal one, a dashboard's) | หมายเหตุ, where a whiteboard's sticky note is โน้ต |
 | levelling | การปรับระดับทรัพยากร |
 | slack (in a plan) | เวลาลอยตัว |
 | booked (hours in a plan) | ที่ลงแผนไว้: “ชั่วโมงที่ลงแผนไว้”, never จอง |
 | critical path | เส้นทางวิกฤต |
 | milestone | ไมล์สโตน |
 | what-if | จำลองสถานการณ์ |
-| baseline | แผนฐาน |
+| baseline; its default name | แผนฐาน; “แผน ณ {when}” |
 | earned value, earned | มูลค่าที่ได้รับ (EV), ได้รับ |
 | cost and schedule performance (CPI, SPI) | ดัชนีต้นทุน (CPI), ดัชนีกำหนดการ (SPI) |
 | triage | คัดกรอง |
-| suggestion | คำแนะนำ |
+| suggestion; dismiss (it), ignore | คำแนะนำ; ปฏิเสธ, Google Docs' word for rejecting a suggestion; ละเว้น where English means ignore |
+| undo, redo | เลิกทำ, ทำซ้ำ, Microsoft's and Google Docs' words |
 | tag | แท็ก |
-| token, revoke | โทเค็น, เพิกถอน |
+| token, access token, revoke | โทเค็น (not โทเคน), โทเค็นการเข้าถึง, เพิกถอน |
+| kept sealed (a token, a secret) | เก็บแบบเข้ารหัส |
 | scope (of a token) | ขอบเขต |
 | fingerprint (of a token) | ลายนิ้วมือ |
 | allow (an app) | อนุญาต: “แอปที่คุณอนุญาต” |
 | not found | ไม่พบ, before the thing: “ไม่พบอิชชู {id}” |
 | two-factor sign-in | การยืนยันแบบ 2 ขั้นตอน |
-| sign in, sign out | เข้าสู่ระบบ, ออกจากระบบ |
+| passkey; a security key; a passkey provider; the setup link | พาสคีย์ (counted รายการ); คีย์ความปลอดภัย, Google's Thai; ผู้ให้บริการพาสคีย์; ลิงก์เพิ่มพาสคีย์ |
+| a passkey's badges: stopped, synced; a requester's passkey | ระงับแล้ว, ซิงค์แล้ว; พาสคีย์เฮลป์เดสก์ |
+| authenticator, vouch, metadata | ตัวยืนยันตัวตน, counted by model (รุ่น); รับรอง; ข้อมูลเมตา |
+| passkeys alone; require a passkey; let someone off, ask for a passkey again | พาสคีย์เท่านั้น; กำหนดให้ต้องใช้พาสคีย์; ยกเว้น, ขอพาสคีย์ |
+| sign out everywhere | ออกจากระบบทุกเซสชัน, as the profile says it |
+| sign in, sign out | เข้าสู่ระบบ, ออกจากระบบ; never ลงชื่อเข้าใช้ |
 | login (a person's handle) | ชื่อผู้ใช้ |
-| identity provider | ผู้ให้บริการข้อมูลประจำตัว |
-| single sign-on | การเข้าสู่ระบบครั้งเดียว (SSO) |
-| webhook, delivery | เว็บฮุก, การส่ง |
+| identity provider; its fields Issuer, Client ID, Client secret, Redirect URI | ผู้ให้บริการข้อมูลประจำตัว, counted ราย; the fields in Latin letters, as a provider's console names them (issuer in Thai letters would read as อิชชู) |
+| offer (a way to sign in, a provider) | เปิดให้ใช้ |
+| single sign-on | การเข้าสู่ระบบครั้งเดียว (SSO), never Latin “single sign-on” in a sentence |
+| directory account | บัญชีจากไดเรกทอรี, as Thai IT says of Active Directory and LDAP |
+| webhook, delivery; on, paused (what takes deliveries); send a test | เว็บฮุก, การส่ง; ใช้งานอยู่, หยุดชั่วคราว; ส่งทดสอบ |
 | post (a4a or a provider sending to an address) | ส่ง; โพสต์ is for chat messages |
 | secret | รหัสลับ |
 | commit, pull request, branch | คอมมิต, พูลรีเควสต์, แบรนช์ |
 | merge, merged | เมิร์จ, เมิร์จแล้ว |
-| build (CI), CI | บิลด์, CI |
+| build (CI), CI, a run (of a CI workflow) | บิลด์, CI, การรัน |
+| commit status | สถานะคอมมิต: a plain description, where GitHub's check run keeps its name |
+| check run (GitHub's); it fails | check run; ไม่ผ่าน, as Thai developers say a check does |
+| a GitHub App's installation: gone, suspended | ไม่มีแล้ว (gone may not be uninstalled), ถูกระงับ |
 | field, value | ฟิลด์, ค่า |
 | link (between issues), unlink | ลิงก์, ยกเลิกลิงก์ |
 | link, unlink (a chat account) | เชื่อมบัญชี, ยกเลิกการเชื่อมบัญชี |
+| a Slack thread | เธรด |
+| connect, disconnect (a chat, a provider) | เชื่อมต่อ, ยกเลิกการเชื่อมต่อ |
+| homeserver, room (Matrix) | โฮมเซิร์ฟเวอร์, ห้อง |
+| share (an issue, in chat) | แชร์: “แชร์อิชชูนี้” |
 | duplicate | ซ้ำ |
+| unknown (a field, a value, a command) | ไม่รู้จัก, as Thai tools say a word isn't recognised; an unknown issue, project, user, tag, group or build is ไม่พบ |
 | resolve, resolved, resolution | ปิด, ปิดแล้ว, การปิด (an SLA's: เป้าหมายการปิด) |
-| dashboard, widget | แดชบอร์ด, วิดเจ็ต |
+| dashboard, widget; a copy of one, make a copy | แดชบอร์ด, วิดเจ็ต; “สำเนาของ {name}”, ทำสำเนา, as Google Drive names copies |
 | report | รายงาน |
 | settings | การตั้งค่า |
+| the navigation's groups: Work, Decide, Build, Oversee | งาน, ตัดสินใจ, สร้าง, กำกับดูแล |
 | app, handler (of an app) | แอป, ตัวจัดการ |
 | person, people | ผู้ใช้; คน counts them |
+| the team (where customers read it; on its own pages) | ทีมงาน; ทีม |
+| waiting on someone | รอผู้อื่น |
 | role, permission | บทบาท, สิทธิ์ |
-| member, viewer, manager, administrator, guest | สมาชิก, ผู้ดู, ผู้จัดการ, ผู้ดูแลระบบ, ผู้เยี่ยมชม |
-| whiteboard; a note, card, section, arrow, an arrow's label, the outline | ไวต์บอร์ด, โน้ต, การ์ด, ส่วน, ลูกศร, ป้ายกำกับ, เค้าร่าง |
-| connect (draw an arrow), make issues (of notes) | เชื่อม; สร้างอิชชู |
+| member, viewer, manager, administrator, guest | สมาชิก, ผู้ดู, ผู้จัดการ, ผู้ดูแลระบบ (never ผู้ดูแล alone), ผู้เยี่ยมชม |
+| canvas, an element, a text block | แคนวาส, องค์ประกอบ (counted รายการ), ข้อความ |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | ไวต์บอร์ด (the Royal Institute's spelling, as คอมมิต and เว็บไซต์ are; not ไวท์บอร์ด), โน้ต, การ์ด, ส่วน, ลูกศร, ป้ายกำกับ, เค้าร่าง |
+| draw, a drawing, a picture (on a whiteboard) | วาด, เส้นที่วาด, รูปภาพ |
+| a whiteboard of one's own; who reads it; shared with you | ไวต์บอร์ดส่วนตัว; ผู้ที่อ่านได้; แชร์กับคุณ |
+| connect (draw an arrow), make issues (of notes), check first (a dry run) | เชื่อม; สร้างอิชชู; ตรวจสอบ, as the import's |
 | a note's tones: plain, idea, agreed, question, problem, parked | ธรรมดา, ไอเดีย, ตกลงแล้ว, คำถาม, ปัญหา, พักไว้ |
-| writing help; where an issue came from (a chat message) | ช่วยเขียน; ที่มา |
+| writing help; where an issue came from (a chat message), wrote the message it came from | ช่วยเขียน; ที่มา, “เขียนข้อความที่เป็นที่มาของอิชชู” |
+| friendlier, more formal (writing help) | เป็นมิตรขึ้น (friendly, not casual เป็นกันเอง), เป็นทางการขึ้น |
+| summary (what the assistant writes of a thread) | สรุป, beside an issue's หัวเรื่อง |
+| Visual (the editor's mode, beside Markdown) | จัดรูปแบบ |
+| just now | ไม่กี่วินาทีที่แล้ว, worded as a relative time so it follows เมื่อ |
+| a lane (a board's swimlane), its own order | แถว, as the board says; ลำดับของตัวเอง |
+| ClickUp's List | List, in Latin letters, as ClickUp shows it; a list of tasks is รายการงาน |
+| drafted by the assistant | ร่างโดยผู้ช่วย: “ข้อความนี้ร่างโดยผู้ช่วย” |
+| script library, its shared code; run from the queue | ไลบรารีสคริปต์, โค้ดที่ใช้ร่วมกัน; รันจากคิว |
+| HR calendar | ปฏิทิน HR |
 
-**Where the words come from.** Jira and YouTrack have no Thai interface, so Thai teams read both in English and say their words as Thai loanwords: อิชชู, สปรินต์, แบ็กล็อก, บอร์ด, คอมมิต, เมิร์จ. The catalog writes those in Thai script, spelled by the Royal Institute's rules for loanwords, and takes Thai's own word where teams use one: ผู้รับผิดชอบ for the assignee, คำขอ for a request, ความคิดเห็น and กล่าวถึง as Facebook's and YouTube's Thai say them, เข้าสู่ระบบ as every Thai sign-in page does.
+**Where the words come from.** Jira and YouTrack have no Thai interface, so Thai teams read both in English and say their words as Thai loanwords: อิชชู, สปรินต์, แบ็กล็อก, บอร์ด, คอมมิต, เมิร์จ. The catalog writes those in Thai script, spelled by the Royal Institute's rules for loanwords, and takes Thai's own word where teams use one: ผู้รับผิดชอบ for the assignee, คำขอ for a request, ความคิดเห็น and กล่าวถึง as Facebook's and YouTube's Thai say them, เข้าสู่ระบบ as every Thai sign-in page does. Thai developers often type commit, merge or pull request in Latin letters, but a Thai interface writes a term in daily use in Thai letters, as Microsoft's Thai style guide does by the Royal Institute's rules; Latin stays for what a product names itself, as its screens show it: a check run and an App ID on GitHub, an identity provider's Issuer, Client ID and Redirect URI, ClickUp's List, Forgejo's and Gitea's Applications. A thing every tracker has is Thai's: โปรเจกต์ for Asana's project, สถานะคอมมิต for a commit status.
 
 **Why อิชชู for issue.** It's what Thai teams say for what Jira and YouTrack call an issue. ปัญหา, Redmine's and Mantis's Thai, makes "create issue" สร้างปัญหา, Thai for making trouble, and "this issue has a problem" ปัญหานี้มีปัญหา, while a4a's problems are its own word; and a feature isn't one. ทิกเก็ต reads as a support ticket, the help desk's, and งาน is taken by work: work logged, working hours, a plan's booked work.
 

@@ -107,6 +107,8 @@ describe('two-factor sign-in over HTTP', () => {
   });
 
   let patSecret = '';
+  /** The code that confirmed Pat's setup, kept to replay: recomputed later, a step may have turned over. */
+  let setupCode = '';
   let recovery: string[] = [];
 
   it('is set up from the profile with a QR code, and a code from the app turns it on', async () => {
@@ -134,7 +136,8 @@ describe('two-factor sign-in over HTTP', () => {
     const wrong = await call('POST', '/me/two-factor/confirm', { cookie: session, body: { code: codeNow(patSecret, 5) } });
     expect(wrong.status).toBe(400);
     expect(wrong.body.error).toMatchObject({ code: 'wrong_code' });
-    const on = await call('POST', '/me/two-factor/confirm', { cookie: session, body: { code: codeNow(patSecret, -1) } });
+    setupCode = codeNow(patSecret, -1);
+    const on = await call('POST', '/me/two-factor/confirm', { cookie: session, body: { code: setupCode } });
     expect(on.status).toBe(200);
     recovery = on.body.recoveryCodes;
     expect(recovery).toHaveLength(10);
@@ -154,9 +157,10 @@ describe('two-factor sign-in over HTTP', () => {
     expect(pw.res.headers.getSetCookie().find((c) => c.startsWith('a4a_2fa='))).toMatch(/Path=\/api\/v1\/auth\/two-factor; .*HttpOnly.*SameSite=Strict/);
     // The ticket isn't a session.
     expect((await call('GET', '/me', { cookie: pw.ticket })).status).toBe(401);
-    // The code confirming the setup was taken; it can't be taken again.
-    const replay = await call('POST', '/auth/two-factor/verify', { cookie: pw.ticket, body: { code: codeNow(patSecret, -1) } });
-    expect(replay.status).toBe(400);
+    // The code confirming the setup was taken; it can't be taken again: refused as used, or as stale
+    // once its thirty seconds have passed.
+    const replay = await call('POST', '/auth/two-factor/verify', { cookie: pw.ticket, body: { code: setupCode } });
+    expect([400, 401]).toContain(replay.status);
     const done = await call('POST', '/auth/two-factor/verify', { cookie: pw.ticket, body: { code: codeNow(patSecret) } });
     expect(done.status).toBe(200);
     expect(done.body).toMatchObject({ login: 'pat', auth: { method: 'session' } });

@@ -1,6 +1,4 @@
 {
-  "id": "249505da-15a5-4d5b-816a-6613b7350bd1",
-  "prevId": "62ec97d3-59d1-4170-837e-ac0f54c9fae5",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -43,6 +41,19 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'entered'"
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "note": {
           "name": "note",
@@ -1929,6 +1940,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'::text[]"
+        },
+        "ai_drafted": {
+          "name": "ai_drafted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {
@@ -2149,7 +2167,7 @@
           "name": "project_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "issue_id": {
           "name": "issue_id",
@@ -2165,6 +2183,12 @@
         },
         "article_id": {
           "name": "article_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "whiteboard_id": {
+          "name": "whiteboard_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2385,7 +2409,7 @@
       "checkConstraints": {
         "attachments_one_owner": {
           "name": "attachments_one_owner",
-          "value": "(\"attachments\".\"issue_id\" IS NULL) <> (\"attachments\".\"article_id\" IS NULL) AND (\"attachments\".\"comment_id\" IS NULL OR \"attachments\".\"issue_id\" IS NOT NULL)"
+          "value": "((\"attachments\".\"issue_id\" IS NOT NULL AND \"attachments\".\"article_id\" IS NULL AND \"attachments\".\"whiteboard_id\" IS NULL) OR (\"attachments\".\"issue_id\" IS NULL AND \"attachments\".\"article_id\" IS NOT NULL AND \"attachments\".\"whiteboard_id\" IS NULL) OR (\"attachments\".\"issue_id\" IS NULL AND \"attachments\".\"article_id\" IS NULL AND \"attachments\".\"whiteboard_id\" IS NOT NULL)) AND (\"attachments\".\"comment_id\" IS NULL OR \"attachments\".\"issue_id\" IS NOT NULL) AND (\"attachments\".\"project_id\" IS NOT NULL OR \"attachments\".\"whiteboard_id\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
@@ -4612,6 +4636,72 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.chat_posts": {
+      "name": "chat_posts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "channel_id": {
+          "name": "channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_id": {
+          "name": "issue_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "chat_posts_channel_issue": {
+          "name": "chat_posts_channel_issue",
+          "columns": [
+            {
+              "expression": "channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "issue_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.chat_requests_seen": {
       "name": "chat_requests_seen",
       "schema": "",
@@ -5050,6 +5140,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'::text[]"
+        },
+        "ai_drafted": {
+          "name": "ai_drafted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {
@@ -5410,11 +5507,12 @@
         }
       },
       "compositePrimaryKeys": {
-        "customer_group_members_project_id_requester_id_pk": {
-          "name": "customer_group_members_project_id_requester_id_pk",
+        "customer_group_members_pkey": {
+          "name": "customer_group_members_pkey",
           "columns": [
             "project_id",
-            "requester_id"
+            "requester_id",
+            "group_id"
           ]
         }
       },
@@ -6105,6 +6203,95 @@
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.group_copy_stops": {
+      "name": "group_copy_stops",
+      "schema": "",
+      "columns": {
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requester_id": {
+          "name": "requester_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stopped_at": {
+          "name": "stopped_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "resumed_at": {
+          "name": "resumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "group_copy_stops_requester": {
+          "name": "group_copy_stops_requester",
+          "columns": [
+            {
+              "expression": "requester_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "group_copy_stops_group_id_customer_groups_id_fk": {
+          "name": "group_copy_stops_group_id_customer_groups_id_fk",
+          "tableFrom": "group_copy_stops",
+          "tableTo": "customer_groups",
+          "columnsFrom": [
+            "group_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "group_copy_stops_requester_id_requesters_id_fk": {
+          "name": "group_copy_stops_requester_id_requesters_id_fk",
+          "tableFrom": "group_copy_stops",
+          "tableTo": "requesters",
+          "columnsFrom": [
+            "requester_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "group_copy_stops_group_id_requester_id_pk": {
+          "name": "group_copy_stops_group_id_requester_id_pk",
+          "columns": [
+            "group_id",
+            "requester_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -8162,6 +8349,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'::text[]"
+        },
+        "description_ai_drafted": {
+          "name": "description_ai_drafted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {
@@ -10142,6 +10336,37 @@
           "notNull": true,
           "default": "'{}'::text[]"
         },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'oidc'"
+        },
+        "saml_entry_point": {
+          "name": "saml_entry_point",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "saml_cert": {
+          "name": "saml_cert",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "saml_entity_id": {
+          "name": "saml_entity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -10183,6 +10408,12 @@
         },
         "desk": {
           "name": "desk",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locale": {
+          "name": "locale",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -10687,6 +10918,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "script_library": {
+          "name": "script_library",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "settings": {
           "name": "settings",
@@ -11591,6 +11828,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "added_by_id": {
           "name": "added_by_id",
           "type": "text",
@@ -11673,6 +11916,19 @@
             "issue_id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "request_ccs_group_id_customer_groups_id_fk": {
+          "name": "request_ccs_group_id_customer_groups_id_fk",
+          "tableFrom": "request_ccs",
+          "tableTo": "customer_groups",
+          "columnsFrom": [
+            "group_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "request_ccs_added_by_id_users_id_fk": {
@@ -12417,6 +12673,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "locale": {
+          "name": "locale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "chosen_locale": {
+          "name": "chosen_locale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "password_set_at": {
           "name": "password_set_at",
           "type": "timestamp with time zone",
@@ -12450,6 +12718,21 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "requesters_domain": {
+          "name": "requesters_domain",
+          "columns": [
+            {
+              "expression": "lower(split_part(\"email\", '@', 2))",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -12876,6 +13159,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "queued": {
+          "name": "queued",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "app_id": {
           "name": "app_id",
@@ -13386,6 +13676,103 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.script_jobs": {
+      "name": "script_jobs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "rule_id": {
+          "name": "rule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_id": {
+          "name": "issue_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "input": {
+          "name": "input",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'queued'"
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "script_jobs_once": {
+          "name": "script_jobs_once",
+          "columns": [
+            {
+              "expression": "rule_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "issue_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "origin",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -14740,6 +15127,78 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.timesheet_weeks": {
+      "name": "timesheet_weeks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week": {
+          "name": "week",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_by_id": {
+          "name": "approved_by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "timesheet_weeks_person_week": {
+          "name": "timesheet_weeks_person_week",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "week"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.user_emails": {
       "name": "user_emails",
       "schema": "",
@@ -15196,6 +15655,12 @@
         "work_week": {
           "name": "work_week",
           "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hr_calendar": {
+          "name": "hr_calendar",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -16573,6 +17038,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "points": {
+          "name": "points",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attachment_id": {
+          "name": "attachment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "seq": {
           "name": "seq",
           "type": "bigint",
@@ -16810,7 +17287,7 @@
           "name": "project_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "name": {
           "name": "name",
@@ -16844,6 +17321,20 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "share": {
+          "name": "share",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'everyone'"
+        },
+        "shared_with": {
+          "name": "shared_with",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{\"people\":[],\"groups\":[]}'::jsonb"
         }
       },
       "indexes": {
@@ -16911,7 +17402,13 @@
           "name": "issue_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "activity": {
+          "name": "activity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "author_id": {
           "name": "author_id",
@@ -17330,8 +17827,10 @@
   "policies": {},
   "views": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
-  }
+    "tables": {},
+    "columns": {}
+  },
+  "id": "44da5963-ea4e-4887-a4ab-f4bac487d786",
+  "prevId": "8013bc88-7ee8-40fe-a743-5443b6699f2e"
 }

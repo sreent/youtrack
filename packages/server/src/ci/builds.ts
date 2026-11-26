@@ -149,7 +149,7 @@ async function fieldFor(ctx: Ctx, projectKey: string, projectId: string, named: 
   const own = buildFieldOf(s, projectId, null);
   if (own) return null;
   const attached = (s.projectFields.get(projectId) ?? []).map((pf) => s.fields.get(pf.fieldId)).filter((f) => f?.type === 'build');
-  if (attached.length > 1) throw badRequest(`${projectKey} has ${attached.length} build fields`, `Say which one its builds go in: ${attached.map((f) => f!.name).join(', ')}.`).said('ci.manyBuildFields', { project: projectKey, count: attached.length, fields: attached.map((f) => f!.name).join(', ') });
+  if (attached.length > 1) throw badRequest(`${projectKey} has ${attached.length} build fields`, `Say which one its builds go in: ${attached.map((f) => f!.name).join(', ')}.`).said('ci.manyBuildFields', { project: projectKey, count: attached.length, fields: attached.map((f) => f!.name) });
   let made = fieldByName(s, FIXED_IN_BUILD);
   if (made && made.type !== 'build') throw badRequest(`"${FIXED_IN_BUILD}" is a ${made.type} field here`, 'Name a build field for the builds to go in.').said('ci.fixedInBuildTaken', { field: FIXED_IN_BUILD, type: made.type });
   if (!made) {

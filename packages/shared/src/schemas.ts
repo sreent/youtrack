@@ -919,6 +919,11 @@ export const ChangeSchema = z
     field: z.string(),
     from: z.string().nullable(),
     to: z.string().nullable(),
+    fromList: z
+      .array(z.string())
+      .optional()
+      .describe('A multi-value field’s or the tags’ values before, each, where there were several: from joins them with ", ", and a page joins them as its language does (D49)'),
+    toList: z.array(z.string()).optional().describe('Their values after, each, where there are several: to joins them with ", "'),
   })
   .meta({ id: 'Change' });
 export type Change = z.infer<typeof ChangeSchema>;
@@ -963,6 +968,13 @@ export type TrackerEvent = z.infer<typeof EventSchema>;
 
 // Search & commands ---------------------------------------------------------
 
+/**
+ * A list among a problem's words (D49): its items, joined as the reader's language joins things one
+ * after another (", ", 「、」), as the API's English joins them; or `{ and }` and `{ or }`, joined by
+ * the language's list with its word ("Priority and Importance", "Priority e Importancia").
+ */
+export const ListSaidSchema = z.union([z.array(z.string()), z.object({ and: z.array(z.string()) }), z.object({ or: z.array(z.string()) })]).meta({ id: 'ListSaid' });
+
 export const QueryProblemSchema = z
   .object({
     message: z.string(),
@@ -971,7 +983,7 @@ export const QueryProblemSchema = z
     hint: z.string().optional(),
     fix: z.string().optional().describe('Text that fixes it, to put in place of start..end'),
     key: z.string().optional().describe('The problem in the catalogs, problem.<key>, for a page that says it in its person’s language (D49). The English in message and hint is the same problem.'),
-    values: z.record(z.string(), z.union([z.string(), z.number()])).optional().describe('What the problem’s words take, by name.'),
+    values: z.record(z.string(), z.union([z.string(), z.number(), ListSaidSchema])).optional().describe('What the problem’s words take, by name: a word, a number or a list.'),
   })
   .meta({ id: 'QueryProblem' });
 export type QueryProblem = z.infer<typeof QueryProblemSchema>;
@@ -1998,13 +2010,19 @@ export const UnsubscribeQuery = z.object({ token: z.string().min(10).max(400) })
 export const UnsubscribeSchema = z
   .object({
     kind: z
-      .enum(['watching', 'direct', 'digest', 'request', 'subscription', 'cc', 'relay'])
-      .describe("What the link is for: a person's kind of email, one subscription's emails, a help desk request's emails to its requester, or to someone copied on it (cc: stopping takes them off it, D57), or relayed to a colleague who answered it (relay: they stop hearing it, D67)"),
+      .enum(['watching', 'direct', 'digest', 'request', 'subscription', 'cc', 'relay', 'group'])
+      .describe(
+        "What the link is for: a person's kind of email, one subscription's emails, a help desk request's emails to its requester, or to someone copied on it (cc: stopping takes them off it, D57), or relayed to a colleague who answered it (relay: they stop hearing it, D67), or to one of its customer group's people (group: they stop being copied on the group's requests, this one, its other open ones and its later ones, D56)",
+      ),
     what: z.string().describe('What the link stops, in words'),
     subscription: z
       .object({ target: z.enum(['project', 'search']), events: z.enum(SUBSCRIPTION_EVENTS), name: z.string().describe('The project’s name, or the saved search’s') })
       .nullable()
       .describe('For a subscription that lasts: what it tells of, for a page that says what in its own words (D49)'),
+    group: z
+      .object({ name: z.string(), desk: z.string().describe('Its desk’s project, by name') })
+      .nullable()
+      .describe('For a customer group’s copies: the group whose emails it stops, for a page that says so in its own words (D49)'),
     done: z.boolean().describe('Whether it is stopped now'),
   })
   .meta({ id: 'Unsubscribe' });
@@ -2055,9 +2073,15 @@ export const RequestCcSchema = z
   .object({
     email: z.string(),
     name: z.string().describe('As whoever copied them named them; empty for none'),
-    via: z.enum(REQUEST_CC_VIA).describe('team: someone on the team copied them; email: the Cc of the requester’s email; portal: the requester, on the portal'),
+    via: z
+      .enum(REQUEST_CC_VIA)
+      .describe('team: someone on the team copied them; email: the Cc of the requester’s email; portal: the requester, on the portal; group: one of the customer group the request was filed under, copied as it came in (D56)'),
     addedBy: UserRefSchema.nullable().describe('Who on the team copied them; null when the requester did'),
     addedAt: timestamp,
+    group: z.string().nullable().describe('For a group’s copy, the customer group that copied them, by name; null otherwise'),
+    hears: z
+      .boolean()
+      .describe('Whether they are told of it now. A group’s copy hears only while the group shares this request with them: still filed under it, not kept private, the group sharing, the address still its member, and they haven’t stopped its emails (D56)'),
   })
   .meta({ id: 'RequestCc' });
 export type RequestCc = z.infer<typeof RequestCcSchema>;
@@ -2086,6 +2110,13 @@ export const HelpdeskRequestSchema = z
       name: z.string(),
       email: z.string(),
       passkeys: z.number().int().describe('How many passkeys they sign in to the portal with (D69); never which'),
+      language: z
+        .object({
+          locale: z.enum(LOCALES),
+          chosen: z.boolean().describe('They chose it on the portal; otherwise it is the language their browser last asked for there'),
+        })
+        .nullable()
+        .describe("The language a4a writes to them in, when it knows one (D63's revisit): their choice on the portal, else their browser's. Null: neither yet, so the desk's, the server's default"),
     }),
     createdAt: timestamp,
     firstResponse: SlaSchema,
@@ -3048,7 +3079,7 @@ export const MoveProblemSchema = z
     hint: z.string().optional(),
     choices: z.array(z.string()).optional().describe('Values the field takes in the project it moves to'),
     key: z.string().optional().describe('The problem in the catalogs, problem.<key>, for a page that says it in its person’s language (D49). The English in message and hint is the same problem.'),
-    values: z.record(z.string(), z.union([z.string(), z.number()])).optional().describe('What the problem’s words take, by name.'),
+    values: z.record(z.string(), z.union([z.string(), z.number(), ListSaidSchema])).optional().describe('What the problem’s words take, by name: a word, a number or a list.'),
   })
   .meta({ id: 'MoveProblem' });
 export type MoveProblem = z.infer<typeof MoveProblemSchema>;
@@ -3059,7 +3090,7 @@ export const MovePlanSchema = z
     to: z.string().describe('Its id once moved'),
     project: z.object({ key: z.string(), name: z.string() }),
     problems: z.array(MoveProblemSchema).describe("What doesn't carry over: each needs a value in `fields` (or null), and nothing moves until none is left"),
-    carried: z.array(z.object({ field: z.string(), from: z.string().nullable(), to: z.string().nullable() })).describe('What each field will hold there'),
+    carried: z.array(ChangeSchema).describe('What each field will hold there; a multi-value field’s values each in fromList and toList'),
     dropped: z.array(z.string()).describe("Fields the project it moves to doesn't have: their values are left behind"),
     leftSprints: z.array(z.string()).describe('Sprints it leaves, on boards that show none of that project'),
     moved: z.boolean().describe('Whether it moved (false for a dry run, or while problems remain)'),
@@ -3944,14 +3975,37 @@ export const PortalDeskSignInSchema = z
   .meta({ id: 'PortalDeskSignIn' });
 export type PortalDeskSignIn = z.infer<typeof PortalDeskSignInSchema>;
 
+/**
+ * The language a requester chose on the portal before signing in (D63's revisit), sent with the sign-in:
+ * theirs from then on, if they had chosen none. Asking for a link carries none, so nothing unauthenticated
+ * changes a requester.
+ */
+const portalChosenLocale = z
+  .enum(LOCALES)
+  .optional()
+  .describe("The language they chose on the portal's page before signing in: theirs from now on, if they have chosen none (D63's revisit)");
+
 /** A requester signed in to the portal (D45). */
 export const PortalMeSchema = z
   .object({
     name: z.string(),
     email: z.string(),
+    locale: z
+      .enum(LOCALES)
+      .nullable()
+      .describe("The language they chose for the portal and every email to them (D63's revisit). Null: their browser's, else the server's default"),
+    defaultLocale: z.enum(LOCALES).describe("The server's default language, for a browser that asks for none a4a speaks"),
     groups: z
-      .array(z.object({ desk: z.object({ key: z.string(), name: z.string() }), name: z.string(), sharing: z.enum(['read', 'comment']) }))
-      .describe("The customer groups they're in that share requests with them, one at most per desk (D56)"),
+      .array(
+        z.object({
+          id: z.string(),
+          desk: z.object({ key: z.string(), name: z.string() }),
+          name: z.string(),
+          sharing: z.enum(['read', 'comment']),
+          copies: z.boolean().describe('Whether its new requests copy them by email (D56): false once they stopped its emails, from an email or here'),
+        }),
+      )
+      .describe("The customer groups they're in that share requests with them (D56)"),
     signedInWith: z
       .object({ method: z.enum(PORTAL_SIGN_IN_METHODS), provider: z.object({ id: z.string(), name: z.string() }).nullable() })
       .describe('How this session was opened (D63): it opens the requests of desks that take that way'),
@@ -4010,8 +4064,12 @@ export const PortalSignInBody = z.object({
   email: z.string().trim().email().max(320),
   desk: z.string().trim().max(20).optional().describe('The desk whose page they signed in from'),
 });
-export const PortalRedeemBody = z.object({ token: z.string().min(10).max(200) });
-export const PortalNameBody = z.object({ name: z.string().trim().min(1).max(200) });
+export const PortalRedeemBody = z.object({ token: z.string().min(10).max(200), locale: portalChosenLocale });
+/** What a requester changes of their own on the portal: the name the team sees, and their language (D63's revisit). Left out, each stays. */
+export const PortalMeUpdateBody = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  locale: z.enum(LOCALES).nullable().optional().describe("The language for the portal and every email to them; null for their browser's again (D63's revisit)"),
+});
 export const PortalNewRequestBody = z.object({
   desk: z.string().trim().min(1).max(20),
   group: z.string().trim().max(100).optional().describe("Which of their several groups at the desk this one is for (D56's revisit): its name, when there are several"),
@@ -4361,6 +4419,8 @@ export const CustomerGroupSchema = z
       )
       .describe("Its dedicated agents, in order: its members' new requests go to whoever has the fewest open"),
     members: z.number().int().describe('Requesters added by hand'),
+    people: z.number().int().describe('Everyone in it now, by hand and by its domains, who would be copied on a new request of its (D56): not the team, nor anyone who stopped its emails'),
+    stops: z.number().int().describe('Its people who stopped its emails (D56): its requests copy them no more'),
     openRequests: z.number().int().describe('Its requests not yet resolved'),
     provider: z
       .object({ id: z.string(), name: z.string() })
@@ -4395,6 +4455,18 @@ export const CustomerGroupMemberSchema = z
   })
   .meta({ id: 'CustomerGroupMember' });
 export type CustomerGroupMember = z.infer<typeof CustomerGroupMemberSchema>;
+
+/** Someone of a customer group who stopped its emails (D56): from a group copy's email, or on the portal. Their own choice, which only they undo. */
+export const GroupCopyStopSchema = z
+  .object({
+    requester: z.object({ id: z.string(), name: z.string(), email: z.string() }),
+    stoppedAt: timestamp,
+  })
+  .meta({ id: 'GroupCopyStop' });
+export type GroupCopyStop = z.infer<typeof GroupCopyStopSchema>;
+
+/** A requester's switch, on the portal, for a group of theirs: whether its new requests copy them by email (D56). */
+export const PortalGroupCopiesBody = z.object({ copies: z.boolean().describe('true: copy me on its new requests from now on; false: stop, and take me off its open ones') });
 
 export const CustomerGroupMemberBody = z.object({
   email: z.string().trim().email().max(320),
@@ -4807,12 +4879,13 @@ export const PortalPasswordSignInBody = z.object({
   password: z.string().min(1).max(200),
   desk: z.string().trim().max(20).optional().describe('The desk whose page they sign in from'),
   captcha: CaptchaSolutionSchema.optional(),
+  locale: portalChosenLocale,
 });
 export const PortalPasswordLinkBody = z.object({
   email: z.string().trim().email().max(320),
   desk: z.string().trim().max(20).optional(),
 });
-export const PortalPasswordSetBody = z.object({ token: z.string().min(10).max(200), password: portalPassword });
+export const PortalPasswordSetBody = z.object({ token: z.string().min(10).max(200), password: portalPassword, locale: portalChosenLocale });
 export const PortalPasswordChangeBody = z.object({ current: z.string().min(1).max(200), password: portalPassword });
 // Passkeys (D62)
 // ---------------------------------------------------------------------------
@@ -5034,7 +5107,7 @@ export const PortalPasskeyAlertSchema = z
 export type PortalPasskeyAlert = z.infer<typeof PortalPasskeyAlertSchema>;
 const portalDesk = z.string().trim().max(20).optional().describe('The desk whose page they sign in from: it must take passkeys');
 export const PortalPasskeyOptionsBody = z.object({ desk: portalDesk, rpId: z.string().trim().max(255).optional() });
-export const PortalPasskeySignInBody = PasskeySignInBody.extend({ desk: portalDesk });
+export const PortalPasskeySignInBody = PasskeySignInBody.extend({ desk: portalDesk, locale: portalChosenLocale });
 
 /** How many passkeys the team took from a requester (D69). */
 export const RemovedPasskeysSchema = z.object({ removed: z.number().int() }).meta({ id: 'RemovedPasskeys' });

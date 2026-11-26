@@ -6,7 +6,7 @@
  * The person is one of this file's own, signed in on the Korean sign-in page: German's spec
  * changes Una's profile, and two language specs sharing a person would cross.
  */
-import type { Page, TestInfo } from '@playwright/test';
+import type { Locator, Page, TestInfo } from '@playwright/test';
 import { unique, uniqueKey, type Api } from './support/api';
 import { expect, test } from './support/fixtures';
 
@@ -31,6 +31,33 @@ async function signIn(page: Page, login: string) {
   await expect(page).toHaveURL(/\/issues$/);
 }
 
+/** A block's text as the browser lays it out, line by line: each character's box says which line it's on. */
+function linesOf(block: Locator): Promise<string[]> {
+  return block.evaluate((el) => {
+    const lines: string[] = [];
+    let line = '';
+    let top: number | null = null;
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let node = walk.nextNode() as Text | null; node; node = walk.nextNode() as Text | null) {
+      for (let i = 0; i < node.length; i++) {
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        const box = range.getClientRects()[0];
+        if (!box) continue;
+        if (top !== null && Math.abs(box.top - top) > 2) {
+          lines.push(line);
+          line = '';
+        }
+        top = box.top;
+        line += node.data[i];
+      }
+    }
+    lines.push(line);
+    return lines.filter((l) => l.trim());
+  });
+}
+
 /** The page in light and in dark, and at a phone's width, where it must not scroll sideways. */
 async function shoot(page: Page, info: TestInfo, name: string) {
   for (const colorScheme of ['light', 'dark'] as const) {
@@ -53,7 +80,7 @@ test('speaks Korean where the browser asks for it, dates and all', async ({ page
   const login = await person(api);
   const key = uniqueKey('KO');
   await api.createProject({ key, name: `언어 ${key}` });
-  const issue = await api.createIssue({ project: key, summary: `로그인 후 페이지가 비어 있음 ${unique()}`, description: '비밀번호를 입력하면 페이지에 아무것도 표시되지 않습니다.' });
+  const issue = await api.createIssue({ project: key, summary: `로그인 후 페이지가 비어 있음 ${unique()}`, description: '비밀번호를 입력하면 페이지에 아무것도 표시되지 않습니다. 새로 고침을 해도 같은 화면이 나오고, 다른 브라우저에서도 마찬가지입니다. 로그아웃했다가 다시 로그인해도 해결되지 않습니다.' });
 
   await signIn(page, login);
   await expect(page.getByRole('heading', { name: '이슈', exact: true })).toBeVisible();
@@ -66,6 +93,13 @@ test('speaks Korean where the browser asks for it, dates and all', async ({ page
   await expect(page.getByRole('heading', { name: '기록과 댓글' })).toBeVisible();
   // Dates as Korean writes them: "2026년 11월 16일".
   await expect(page.locator('time').filter({ hasText: /^\d{4}년 \d{1,2}월 \d{1,2}일$/ }).first()).toBeVisible();
+  // Korean breaks its lines at its spaces, never inside a word (Ocean's `:lang(ko)`): at a phone's
+  // width the description takes several lines, and each but the last ends where a word does.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const lines = await linesOf(page.getByRole('region', { name: '설명' }).locator('p').first());
+  expect(lines.length).toBeGreaterThan(1);
+  for (const line of lines.slice(0, -1)) expect(line, `a line broke inside a word: ${JSON.stringify(lines)}`).toMatch(/\s$/);
+  await page.setViewportSize({ width: 1280, height: 720 });
   await shoot(page, info, 'issue');
 
   await page.goto('/inbox');

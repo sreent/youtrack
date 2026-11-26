@@ -65,9 +65,12 @@ export function eventVerb(tr: Translator, e: TrackerEvent): string {
     case 'script.called':
       return t('server.notify.verb.scriptWebhook', { origin: (e.data as { name?: unknown } | undefined)?.name ?? '' });
     case 'timesheet.submitted':
-      return t('server.notify.verb.timesheetSubmitted', { who: (e.data as { user?: { name?: string } } | undefined)?.user?.name ?? '' });
-    case 'timesheet.approved':
-      return t('server.notify.verb.timesheetApproved', { who: (e.data as { user?: { name?: string } } | undefined)?.user?.name ?? '' });
+    case 'timesheet.approved': {
+      // The verb follows its actor in the title: whose week it was, or their own (`own`), so no title names one person twice.
+      const owner = (e.data as { user?: { id?: string; name?: string } } | undefined)?.user;
+      const own = owner?.id && owner.id === e.actor.id ? 'yes' : 'no';
+      return t(e.type === 'timesheet.submitted' ? 'server.notify.verb.timesheetSubmitted' : 'server.notify.verb.timesheetApproved', { who: owner?.name ?? '', own });
+    }
     // These reach only those whose saved search an issue came into (D31).
     case 'comment.deleted':
       return t('server.notify.verb.deletedComment');
@@ -96,7 +99,8 @@ function ruleName(tr: Translator, e: TrackerEvent): string {
 export function eventDetail(tr: Translator, e: TrackerEvent): string[] {
   const data = e.data as Record<string, unknown>;
   if (e.type === 'rule.notified') return typeof data.message === 'string' && data.message.trim() ? [data.message] : [];
-  if (e.type === 'issue.updated') return e.changes.map((c) => tr.t('server.notify.change', { field: c.field, from: c.from ?? tr.t('server.notify.none'), to: c.to ?? tr.t('server.notify.none') }));
+  // A multi-value field's values, and the tags, each as the reader's language lists them (D49).
+  if (e.type === 'issue.updated') return e.changes.map((c) => tr.t('server.notify.change', { field: c.field, from: c.fromList ?? c.from ?? tr.t('server.notify.none'), to: c.toList ?? c.to ?? tr.t('server.notify.none') }));
   if (e.type === 'comment.created' || e.type === 'comment.updated') return String(data.text ?? '').trim() ? [String(data.text)] : [];
   if (e.type === 'issue.created' && typeof data.description === 'string' && data.description.trim()) return [data.description];
   return [];

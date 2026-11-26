@@ -2,21 +2,27 @@
  * a4a in each person's language (D49): an email in its recipient's, the language on /me, the server's
  * default, and a problem's key beside its English.
  */
-import { eq } from 'drizzle-orm';
+import type { TrackerEvent } from '@a4a/shared';
+import { desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createTranslator, koreanParticles, LOCALES } from '@a4a/shared/i18n';
+import { createTranslator, koreanParticles, LOCALES, sayProblem, type ProblemSaid } from '@a4a/shared/i18n';
 import de from '@a4a/shared/i18n/de.json' with { type: 'json' };
 import en from '@a4a/shared/i18n/en.json' with { type: 'json' };
+import ja from '@a4a/shared/i18n/ja.json' with { type: 'json' };
+import zh from '@a4a/shared/i18n/zh.json' with { type: 'json' };
+import { runCommand } from '../src/commands/executor';
 import type { UserRow } from '../src/context';
-import { users } from '../src/db/schema';
+import { activities, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { createHttpApp } from '../src/http/app';
-import { localeOfPerson, translatorFor } from '../src/i18n';
+import { localeOfPerson, problemFor, translatorFor } from '../src/i18n';
+import { AppError } from '../src/lib/errors';
 import { MailWorker } from '../src/mail/outbox';
 import { notifierConsumer } from '../src/notify/notifier';
 import { prepareQuery } from '../src/search/service';
-import { emailTime } from '../src/notify/words';
-import { createIssue } from '../src/services/issues';
+import { emailTime, eventDetail } from '../src/notify/words';
+import { addFieldValue, attachField, createField } from '../src/services/fields';
+import { createIssue, updateIssue } from '../src/services/issues';
 import { createProject } from '../src/services/projects';
 import { insertUser } from '../src/services/users';
 import { createWorld, type TestWorld } from './helpers';
@@ -81,7 +87,7 @@ describe('a4a in each person’s language (D49)', () => {
       es: 'Incidencias del proyecto SPR y sin resolver: 4',
       fr: 'Tickets dans le projet SPR, non résolus : 4',
       id: '4 isu di proyek SPR, belum selesai',
-      ja: '4件の課題：プロジェクト：SPR、未解決',
+      ja: '4件の課題（プロジェクト：SPR、未解決）',
       zh: '4 个问题：项目 SPR、未解决',
       ko: '이슈 4개: 프로젝트 SPR 및 미해결',
       pt: 'Itens no projeto SPR, não resolvidos: 4',
@@ -202,5 +208,82 @@ describe('a4a in each person’s language (D49)', () => {
     expect(ko.parts('bold', { name: '민준', b: (c: unknown[]) => ({ b: c }) })).toEqual([{ b: ['민준'] }, '을 보았습니다']);
     // Only Korean: another language's brackets are its own.
     expect(createTranslator('en', { x: '{name}을(를)' }).t('x', { name: '민수' })).toBe('민수을(를)');
+  });
+
+  it('elides French’s words before a value that begins with a vowel’s sound, and only there', () => {
+    const fr = translatorFor('fr');
+    // A name with a vowel, one with an h (kept: a4a can't tell a mute one from an aspirated one), an acronym, a number.
+    expect(fr.t('agents.agentAccounts.tokensOf', { login: 'anna' })).toBe('Jetons d’anna');
+    expect(fr.t('agents.agentAccounts.tokensOf', { login: 'ben' })).toBe('Jetons de ben');
+    expect(fr.t('articles.articleTree.sKnowledgeBase', { name: 'Hélène' })).toBe('Base de connaissances de Hélène');
+    expect(fr.t('apps.projectApps.appsIn', { project: 'API' })).toBe('Applications d’API');
+    expect(fr.t('apps.projectApps.appsIn', { project: 'SQL' })).toBe('Applications de SQL');
+    expect(fr.t('ui.badges.onDate', { date: '8 déc.' })).toBe('le 8 déc.');
+    expect(fr.t('activity.ledgerEntry.throughTheApiAs', { name: 'Ada Admin' })).toBe('via l’API, en tant qu’Ada Admin');
+    // A value that is one of the catalog's own messages, by its first word.
+    expect(fr.t('apps.projectApps.appsIn', { project: fr.t('roles.builtin.guest') })).toBe(`Applications d’${fr.t('roles.builtin.guest')}`);
+  });
+
+  it('drops the space Chinese puts beside a value where the value is written in Chinese, on either side', () => {
+    const zhT = translatorFor('zh');
+    expect(zhT.t('activity.ledgerEntry.fromChatAs', { name: '王芳' })).toBe('来自聊天，以王芳身份');
+    expect(zhT.t('activity.ledgerEntry.fromChatAs', { name: 'Ada Admin' })).toBe('来自聊天，以 Ada Admin 身份');
+    expect(zhT.t('activity.ledgerEntry.fromAs', { v: 'Slack', name: '李明' })).toBe('来自 Slack，以李明身份');
+    // Before a value only, and after one only.
+    expect(zhT.t('activity.ledgerEntry.fromChatAs', { name: 'Ada 王' })).toBe('来自聊天，以 Ada 王身份');
+    expect(zhT.t('activity.ledgerEntry.fromChatAs', { name: '王 Ada' })).toBe('来自聊天，以王 Ada 身份');
+    expect(zhT.t('server.notify.title.assigned', { who: '王芳' })).toBe('王芳把此问题指派给了你');
+    expect(zhT.t('server.notify.title.assigned', { who: 'Ada' })).toBe('Ada 把此问题指派给了你');
+  });
+
+  it('passes a problem’s list as a list, which each language joins as it joins items', async () => {
+    const tried = await createIssue(w.adminCtx, { project: 'SPR', summary: 'Ohne Feld', fields: { Nope: 'x' } }).catch((e: unknown) => e);
+    expect(tried).toBeInstanceOf(AppError);
+    const e = tried as AppError;
+    expect(e.words?.key).toBe('issues.noSuchField');
+    const names = e.words?.values?.names as string[];
+    expect(Array.isArray(names) && names.length).toBeGreaterThan(2);
+    // The API's English joins them as English does.
+    expect(e.hint).toBe(`Fields: ${names.join(', ')}`);
+    expect(problemFor(translatorFor('ja'), e)).toContain(names.join('、'));
+    expect(problemFor(translatorFor('zh'), e)).toContain(names.join('、'));
+    expect(problemFor(translatorFor('de'), e)).toContain(names.join(', '));
+    // Over HTTP, for a page to say it again from its key, in its own language.
+    const admin = await call('POST', '/auth/login', { body: { login: 'admin', password: 'password-admin' } });
+    const res = await call('POST', '/issues', { cookie: admin.cookie, body: { project: 'SPR', summary: 'Ohne Feld', fields: { Nope: 'x' } } });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({ key: 'issues.noSuchField', values: { names } });
+    const said = (messages: Record<string, string>, locale: 'ja' | 'zh') => sayProblem(createTranslator(locale, messages), { key: res.body.error.key, values: res.body.error.values } as ProblemSaid);
+    expect(said(ja, 'ja')).toContain(names.join('、'));
+    expect(said(zh, 'zh')).toContain(names.join('、'));
+    expect(said(ja, 'ja')).not.toContain(', ');
+  });
+
+  it('joins two fields a command’s value could be of with Intl’s list: Spanish’s “e” before an “i” sound', async () => {
+    for (const name of ['Impacto', 'Importancia']) {
+      const field = await createField(w.adminCtx, { name, type: 'enum', multi: false, description: '', values: [] });
+      await attachField(w.adminCtx, 'SPR', field.id, {});
+      await addFieldValue(w.adminCtx, field.id, { name: 'Alta' });
+    }
+    w.app.schema.invalidate();
+    const issue = await createIssue(w.adminCtx, { project: 'SPR', summary: 'Zwei Felder' });
+    const { problems } = await runCommand(w.adminCtx, { issues: [issue.id], command: 'Alta', dryRun: true });
+    const p = problems.find((x) => x.key === 'command.valueOfFields');
+    expect(p?.message).toMatch(/^"Alta" is a value of (Impacto and Importancia|Importancia and Impacto)$/);
+    expect(p?.values?.fields).toMatchObject({ and: expect.arrayContaining(['Impacto', 'Importancia']) });
+    const es = sayProblem(translatorFor('es'), { key: p!.key!, values: p!.values } as ProblemSaid);
+    expect(es).toMatch(/es un valor de (Impacto e Importancia|Importancia e Impacto)\./);
+    expect(es).not.toMatch(/ y I/);
+  });
+
+  it('keeps each value of a change to the tags, for a page and an email to join in their language', async () => {
+    const issue = await createIssue(w.adminCtx, { project: 'SPR', summary: 'Mit Tags' });
+    await updateIssue(w.adminCtx, issue.id, { addTags: ['alpha', 'beta'] });
+    const [row] = await w.app.db.select().from(activities).where(eq(activities.type, 'issue.updated')).orderBy(desc(activities.id)).limit(1);
+    const event = { type: row!.type, ...(row!.payload as object) } as TrackerEvent;
+    const tags = event.changes.find((c) => c.field === 'Tags');
+    expect(tags).toMatchObject({ from: null, to: 'alpha, beta', toList: ['alpha', 'beta'] });
+    expect(eventDetail(translatorFor('ja'), event).join('\n')).toContain('alpha、beta');
+    expect(eventDetail(translatorFor('en'), event).join('\n')).toContain('alpha, beta');
   });
 });

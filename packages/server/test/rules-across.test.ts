@@ -24,7 +24,7 @@ import { listNotifications } from '../src/services/notifications';
 import { createProject, updateProject } from '../src/services/projects';
 import { watchIssue } from '../src/services/watchers';
 import { presentField } from '../src/tools/registry';
-import { MAX_DEPTH, RuleEngine } from '../src/workflow/engine';
+import { MAX_DEPTH, RuleEngine, toldSaid } from '../src/workflow/engine';
 import { createRule, listRuleRuns, previewRule, updateRule } from '../src/workflow/rules';
 import { createWorld, type TestWorld } from './helpers';
 
@@ -304,15 +304,24 @@ describe('rules that tell people', () => {
     expect(run).toMatchObject({ outcome: 'applied', issue: issue.id });
     expect(run!.message).toBe('Told Anna Schmidt and Vera Viewer');
     // A page says it in its own language, the names joined as that language joins a list.
-    expect(notesIn(translatorFor('de'), run!.said, run!.message)).toBe('Informiert: Anna Schmidt und Vera Viewer.');
+    expect(notesIn(translatorFor('de'), run!.said, run!.message)).toBe('Benachrichtigt: Anna Schmidt und Vera Viewer.');
     expect(notesIn(translatorFor('ja'), run!.said, run!.message)).toBe('Anna Schmidt、Vera Viewerに通知しました。');
-    expect(notesIn(translatorFor('zh'), run!.said, run!.message)).toBe('通知了 Anna Schmidt和Vera Viewer。');
+    expect(notesIn(translatorFor('zh'), run!.said, run!.message)).toBe('通知了 Anna Schmidt 和 Vera Viewer。');
     expect(notesIn(translatorFor('ko'), run!.said, run!.message)).toBe('Anna Schmidt 및 Vera Viewer에게 알렸습니다.');
     expect(notesIn(translatorFor('th'), run!.said, run!.message)).toBe('แจ้ง Anna Schmidt และ Vera Viewer แล้ว');
 
     // The issue's history says it.
     const history = await issueActivity(w.adminCtx, issue.id);
     expect(history.find((e) => e.type === 'rule.notified')!.actor).toMatchObject({ login: 'workflow', channel: 'automation' });
+
+    // Past three, two names and how many more, counted as each language counts the rest.
+    const five = [w.anna, w.ben, w.viewer, w.admin, w.anna].map((u, i) => ({ ...u, name: i === 4 ? '王芳' : u.name }));
+    const many = toldSaid(five);
+    const english = `Told ${w.anna.name}, ${w.ben.name} and 3 others`;
+    expect(notesIn(translatorFor('en'), [many], english)).toBe(`${english}.`);
+    expect(notesIn(translatorFor('ko'), [many], english)).toBe(`${w.anna.name}, ${w.ben.name} 외 3명에게 알렸습니다.`);
+    expect(notesIn(translatorFor('ja'), [many], english)).toBe(`${w.anna.name}、${w.ben.name}ほか3人に通知しました。`);
+    expect(notesIn(translatorFor('zh'), [many], english)).toBe(`通知了 ${w.anna.name}、${w.ben.name} 和另外 3 人。`);
   });
 
   it('tells only people who can see the issue, and refuses to name one who never could', async () => {

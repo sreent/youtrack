@@ -6,7 +6,7 @@
  */
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { absences, activities, customerGroups, helpdeskRequests, issueFieldValues, notifications, projects, requestCcs, users } from '../src/db/schema';
+import { absences, activities, customerGroups, helpdeskRequests, issueFieldValues, notifications, projects, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { helpdeskConsumer } from '../src/helpdesk/consumer';
 import { receiveMail } from '../src/helpdesk/inbound';
@@ -269,7 +269,7 @@ describe('customer groups', () => {
     const zoes = await ask('BACK', 'zoe@acme.com', 'Globex badge'); // by hand in Globex
     await flush();
     const dina = await signedIn('dina@acme.com', '10.5.0.1');
-    expect((await dina.req('GET', '/portal/me')).body.groups).toEqual([{ desk: { key: 'BACK', name: 'Backend' }, name: 'Acme', sharing: 'comment' }]);
+    expect((await dina.req('GET', '/portal/me')).body.groups).toEqual([{ id: expect.any(String), desk: { key: 'BACK', name: 'Backend' }, name: 'Acme', sharing: 'comment', copies: true }]);
     const list = (await dina.req('GET', '/portal/requests')).body as { id: string; group: string; canReply: boolean; requester: { mine: boolean } }[];
     expect(list.find((r) => r.id === carls.id)).toMatchObject({ group: 'Acme', canReply: true, requester: { mine: false } });
     expect(list.some((r) => r.id === zoes.id)).toBe(false);
@@ -340,23 +340,13 @@ describe('customer groups', () => {
     expect((await refused(removeGroupMember(w.adminCtx, 'BACK', globex.id, rita.id))).status).toBe(404);
   });
 });
-describe("the group's members hear of its requests", () => {
-  it("files a new request with its members copied, for the email alone", async () => {
-    const group = await createCustomerGroup(w.adminCtx, 'BACK', { name: 'MembersHear', domains: ['hear.example'], sharing: 'none' });
-    await addGroupMember(w.adminCtx, 'BACK', group.id, { email: 'colleague@hear.example' });
-    const desk = (await w.app.schema.get()).projectsByKey.get('BACK')!;
-    const issue = await openRequest(w.app, desk, { name: 'Rita', email: 'rita@hear.example', summary: 'Tell my group', description: 'Please.', via: 'form' });
-    const ccs = await w.app.db.select().from(requestCcs).where(eq(requestCcs.issueId, issue.uid));
-    expect(ccs.map((c) => c.email)).toContain('colleague@hear.example');
-    expect(ccs.every((c) => c.via === 'group')).toBe(true);
-    expect(ccs.map((c) => c.email)).not.toContain('rita@hear.example');
-  });
-});
 describe("the customers' directory (D56's revisit)", () => {
   it('names each customer once, across the desks the caller can read', async () => {
     const list = await customerDirectory(w.adminCtx);
     const acme = list.find((c) => c.name.toLowerCase() === 'acme');
     expect(acme).toBeDefined();
+    // Named as its groups write it, not lower-cased.
+    expect(acme!.name).toBe('Acme');
     expect(acme!.domains).toContain('acme.com');
     expect(list.filter((c) => c.name.toLowerCase() === 'acme')).toHaveLength(1);
   });

@@ -16,17 +16,18 @@
  *   Each change locks the request's row, so two at once can't pass the cap, and records its
  *   activity in the same transaction: the request's history says who copied whom, and who stopped.
  */
-import { CC_CONFIRM_DAYS, CC_HOLD_DAYS, REQUEST_CCS_MAX, type CcConfirmation, type CcConfirmed, type HeldCc, type PortalCc, type RequestCc, type RequestCcVia } from '@a4a/shared';
+import { CC_CONFIRM_DAYS, CC_HOLD_DAYS, REQUEST_CCS_MAX, type CcConfirmation, type CcConfirmed, type CustomerSharing, type HeldCc, type PortalCc, type RequestCc, type RequestCcVia } from '@a4a/shared';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, lte, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { helpdeskMailboxes, helpdeskRequests, issues, requestCcConfirmations, requestCcHolds, requestCcs, requesters, userEmails, users } from '../db/schema';
+import { customerGroups, groupCopyStops, helpdeskMailboxes, helpdeskRequests, issues, requestCcConfirmations, requestCcHolds, requestCcs, requesters, userEmails, users } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { deskRecipient, splitAddress } from '../helpdesk/addresses';
 import { randomToken, sha256 } from '../lib/crypto';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
-import { assertCanWriteProject } from './access';
+import { assertCanWriteProject, groupCopyHears } from './access';
+import { groupCopyCandidates, groupCopyLock, groupCopyStandings, type GroupRow } from './customer-groups';
 import { botCtx } from './helpdesk';
 import { issueRef, readableId, stateNames } from './issue-refs';
 import { resolveIssue } from './issues';
@@ -131,7 +132,8 @@ async function copyIn(tx: Db, ctx: Ctx, issue: IssueRow, people: Person[], by: B
   if (!locked) return { added: [], refused: [], activities: [] };
   const rows = await tx.select().from(requestCcs).where(eq(requestCcs.issueId, issue.id));
   const byAddress = new Map(rows.map((r) => [lower(r.email), r]));
-  let active = rows.filter((r) => !r.removedAt).length;
+  const hearing = await hearingOf(tx, issue.id, rows);
+  let active = hearing.size;
   const own = await ownCheck(app, tx);
   const team = await teamAddresses(tx, people.map((p) => p.email));
   const s = await app.schema.get(tx);
@@ -146,23 +148,30 @@ async function copyIn(tx: Db, ctx: Ctx, issue: IssueRow, people: Person[], by: B
     seen.add(key);
     const name = (p.name ?? '').trim().replace(/\s+/g, ' ').slice(0, 100);
     const had = byAddress.get(key);
+    // Copied by their customer group (D56's revisit), they're copied now for a reason of their own: the
+    // row becomes this copy, which hears whatever the group shares. It takes room only if the group's
+    // copy was silent, since a silent one took none.
+    const takesOver = Boolean(had && !had.removedAt && had.via === 'group');
+    const takesRoom = !takesOver || !hearing.has(had!.id);
     let why: CcRefusal | null = standingRefusal(email, own, team, locked.requesterEmail);
-    if (!why && had && !had.removedAt) {
+    if (!why && had && !had.removedAt && !takesOver) {
       // Copied already: nothing changes, but a hold for them is settled.
       await tx.delete(requestCcHolds).where(and(eq(requestCcHolds.issueId, issue.id), sql`lower(${requestCcHolds.email}) = ${key}`));
       continue;
     }
-    // An address taken off isn't put back by an email's Cc; nor by the requester, once they stopped it themselves.
-    if (!why && had && by.via === 'email' && !by.confirmed) why = 'removed';
-    else if (!why && had && by.via !== 'team' && had.removedVia === 'unsubscribe') why = 'stopped';
+    const gone = had?.removedAt ? had : null;
+    // An address taken off isn't put back by an email's Cc; nor by the requester, once they stopped it
+    // themselves, from an email or by stopping their group's emails.
+    if (!why && gone && by.via === 'email' && !by.confirmed) why = 'removed';
+    else if (!why && gone && by.via !== 'team' && (gone.removedVia === 'unsubscribe' || gone.removedVia === 'group')) why = 'stopped';
     // Lowering the cap takes no one off (D67): it stops new copies past it.
-    else if (!why && active >= max) why = 'full';
+    else if (!why && takesRoom && active >= max) why = 'full';
     if (why) {
       out.refused.push({ email, why, max });
       continue;
     }
     const addedById = by.via === 'team' ? by.userId : null;
-    const values = { name: name || had?.name || '', via: by.via, addedById, addedAt: new Date(), removedAt: null, removedVia: null, removedById: null };
+    const values = { name: name || had?.name || '', via: by.via, groupId: null, addedById, addedAt: new Date(), removedAt: null, removedVia: null, removedById: null };
     const [row] = had
       ? await tx.update(requestCcs).set(values).where(eq(requestCcs.id, had.id)).returning()
       : await tx
@@ -170,7 +179,7 @@ async function copyIn(tx: Db, ctx: Ctx, issue: IssueRow, people: Person[], by: B
           .values({ id: newId(), issueId: issue.id, email, ...values })
           .returning();
     await tx.delete(requestCcHolds).where(and(eq(requestCcHolds.issueId, issue.id), sql`lower(${requestCcHolds.email}) = ${key}`));
-    active++;
+    if (takesRoom) active++;
     out.added.push(row!);
     const via = by.via !== 'team' && by.confirmed ? 'confirmed' : by.via;
     out.activities.push(
@@ -233,16 +242,59 @@ async function requestFor(ctx: Ctx, issueId: string): Promise<IssueRow> {
   return issue;
 }
 
-/** Who is copied on a request now, first copied first, as the team sees them. */
+/**
+ * Each of these copies of one request, and whether it hears of it now: the seam's `groupCopyHears`,
+ * over the request's group and privacy and where each group's copy stands with its group (D56's
+ * revisit). Every email to them, every list of who is copied and every relay asks this.
+ */
+async function withHearing(db: Db, issueId: string, rows: CcRow[]): Promise<{ row: CcRow; hears: boolean }[]> {
+  const byGroup = rows.filter((r) => r.via === 'group');
+  if (!byGroup.length) return rows.map((row) => ({ row, hears: true }));
+  const [request] = await db
+    .select({ requesterId: helpdeskRequests.requesterId, groupId: helpdeskRequests.groupId, private: helpdeskRequests.private })
+    .from(helpdeskRequests)
+    .where(eq(helpdeskRequests.issueId, issueId));
+  const standings = await groupCopyStandings(db, request?.groupId ?? null, byGroup.map((r) => r.email));
+  return rows.map((row) => ({ row, hears: Boolean(request) && groupCopyHears(request!, row, standings.get(lower(row.email))) }));
+}
+
+/**
+ * The copies of a request that take room under the desk's cap, by id: those that hear it now. A group's
+ * copy the group no longer shares this request with is silent and takes none (D56's revisit), so a
+ * request made private, or a group that stopped sharing, never keeps someone else from being copied.
+ */
+async function hearingOf(db: Db, issueId: string, rows: CcRow[]): Promise<Set<string>> {
+  const live = rows.filter((r) => !r.removedAt);
+  return new Set((await withHearing(db, issueId, live)).flatMap(({ row, hears }) => (hears ? [row.id] : [])));
+}
+
+/** A copy as the emails to it need it (D56's revisit): whether it hears now, and, for a group's, the group and the requester the address is. */
+export async function copyStanding(db: Db, cc: CcRow): Promise<{ hears: boolean; group: { id: string; name: string; sharing: CustomerSharing } | null; requesterId: string | null }> {
+  const [one] = await withHearing(db, cc.issueId, [cc]);
+  if (cc.via !== 'group' || !cc.groupId) return { hears: Boolean(one?.hears), group: null, requesterId: null };
+  const [group] = await db.select({ id: customerGroups.id, name: customerGroups.name, sharing: customerGroups.sharing }).from(customerGroups).where(eq(customerGroups.id, cc.groupId));
+  const [who] = await db.select({ id: requesters.id }).from(requesters).where(sql`lower(${requesters.email}) = ${lower(cc.email)}`);
+  return { hears: Boolean(one?.hears && group && who), group: group ? { ...group, sharing: group.sharing as CustomerSharing } : null, requesterId: who?.id ?? null };
+}
+
+/**
+ * Who is copied on a request now, first copied first, as the team sees them: each with the group that
+ * copied them, if one did, and whether they hear of it now, so a group's copy that doesn't isn't
+ * listed as hearing (D56's revisit). Those that hear count against the desk's cap; a silent one doesn't.
+ */
 export async function ccsOf(db: Db, s: SchemaSnapshot, issueId: string): Promise<RequestCc[]> {
   const rows = await db
     .select()
     .from(requestCcs)
     .where(and(eq(requestCcs.issueId, issueId), isNull(requestCcs.removedAt)))
     .orderBy(asc(requestCcs.addedAt), asc(requestCcs.id));
-  return rows.map((r) => {
+  const ids = [...new Set(rows.flatMap((r) => (r.groupId ? [r.groupId] : [])))];
+  const groups = ids.length ? await db.select({ id: customerGroups.id, name: customerGroups.name }).from(customerGroups).where(inArray(customerGroups.id, ids)) : [];
+  const names = new Map(groups.map((g) => [g.id, g.name]));
+  return (await withHearing(db, issueId, rows)).map(({ row: r, hears }) => {
     const by = r.addedById ? s.users.get(r.addedById) : undefined;
-    return { email: r.email, name: r.name, via: r.via as RequestCcVia, addedBy: by ? userRefDto(by) : null, addedAt: r.addedAt.toISOString() };
+    const group = r.via === 'group' && r.groupId ? (names.get(r.groupId) ?? null) : null;
+    return { email: r.email, name: r.name, via: r.via as RequestCcVia, addedBy: by ? userRefDto(by) : null, addedAt: r.addedAt.toISOString(), group, hears };
   });
 }
 
@@ -281,8 +333,11 @@ export async function removeCc(ctx: Ctx, issueId: string, email: string): Promis
   return ccsOf(ctx.db, await ctx.app.schema.get(), issue.id);
 }
 
-/** Who takes someone off: the team, the CC themselves from an email's link, or the requester on the portal (D67). */
-type OffBy = { via: 'team' } | { via: 'unsubscribe' } | { via: 'portal'; requesterName: string };
+/**
+ * Who takes someone off: the team, the CC themselves from an email's link, the requester on the portal
+ * (D67), or the CC stopping their customer group's emails, from a link or on the portal (D56's revisit).
+ */
+type OffBy = { via: 'team' } | { via: 'unsubscribe' } | { via: 'portal'; requesterName: string } | { via: 'group'; group: string; where: 'link' | 'portal' };
 
 /** Take the CC that matches off a request, in the caller's transaction, with its activity. */
 async function takeOff(tx: Db, ctx: Ctx, issue: IssueRow, which: (r: CcRow) => boolean, by: OffBy): Promise<ActivityRow[]> {
@@ -296,13 +351,16 @@ async function takeOff(tx: Db, ctx: Ctx, issue: IssueRow, which: (r: CcRow) => b
   const s = await ctx.app.schema.get(tx);
   const ref = issueRef(s, issue, (await stateNames(tx, s, [issue.id])).get(issue.id) ?? null);
   // Stopped from an email, it's them acting, through the help desk; taken off on the portal, its requester (D67): their name in the history.
-  const actor = by.via === 'unsubscribe' ? { requester: { name: row.name || row.email } } : by.via === 'portal' ? { requester: { name: by.requesterName } } : {};
+  // Stopping their group's emails, it's them too, and the history says which group's, and where (D56's revisit).
+  const actor =
+    by.via === 'unsubscribe' || by.via === 'group' ? { requester: { name: row.name || row.email } } : by.via === 'portal' ? { requester: { name: by.requesterName } } : {};
+  const group = by.via === 'group' ? { group: { name: by.group }, where: by.where } : {};
   return [
     await recordActivity(tx, ctx, {
       type: 'request.cc_removed',
       projectId: issue.projectId,
       issueId: issue.id,
-      payload: { issue: ref, data: { cc: { email: row.email, name: row.name }, via: by.via, ...actor } },
+      payload: { issue: ref, data: { cc: { email: row.email, name: row.name }, via: by.via, ...actor, ...group } },
     }),
   ];
 }
@@ -321,6 +379,56 @@ export async function copyFromMail(app: AppServices, issue: IssueRow, requesterN
   const done = await app.db.transaction(async (txRaw) => copyIn(txRaw as unknown as Db, ctx, issue, people, { via: 'email', requesterName }));
   await publishActivities(app, done.activities);
   return { copied: done.added.map((r) => r.email), left: done.refused.map(refusalWords) };
+}
+
+/**
+ * A customer group's people, copied on its new request to hear by email (D56's revisit), in the
+ * transaction that files it: only where the group shares its requests with them (`read` or
+ * `comment`) and the request isn't kept from it, since an email that quotes the team's reply is
+ * seeing the request. Up to the desk's own cap, counting whom the email copied already, in the
+ * cap's order (`groupCopyCandidates`: those added by hand, then those who asked most recently); never
+ * the desk's own addresses, the team's, the requester's, or anyone who stopped the group's emails. No
+ * line in the history: the request is the group's already. Each copy keeps its group, and hears only
+ * while the group shares this request with them (the seam's `groupCopyHears`).
+ */
+export async function copyGroupMembers(tx: Db, app: AppServices, issue: IssueRow, group: GroupRow): Promise<void> {
+  const [now] = await tx.select().from(customerGroups).where(eq(customerGroups.id, group.id));
+  if (!now || (now.sharing !== 'read' && now.sharing !== 'comment')) return;
+  const [request] = await tx.select({ private: helpdeskRequests.private, requesterId: helpdeskRequests.requesterId }).from(helpdeskRequests).where(eq(helpdeskRequests.issueId, issue.id));
+  if (!request || request.private) return;
+  // Takes turns with someone stopping the group's emails at this moment (groupCopyLock).
+  await groupCopyLock(tx, now.id, false);
+  const [asker] = await tx.select({ email: requesters.email }).from(requesters).where(eq(requesters.id, request.requesterId));
+  const rows = await tx.select().from(requestCcs).where(eq(requestCcs.issueId, issue.id));
+  const known = new Set(rows.map((r) => lower(r.email)));
+  let active = (await hearingOf(tx, issue.id, rows)).size;
+  const max = deskCcsMax(await app.schema.get(tx), issue.projectId);
+  if (active >= max) return;
+  const own = await ownCheck(app, tx);
+  // A few more than there's room for, for those already on it and addresses refused here.
+  let n = 0;
+  for (const m of await groupCopyCandidates(tx, now, asker?.email ?? '', max - active + known.size + 20)) {
+    if (active >= max) break;
+    const key = lower(m.email);
+    if (known.has(key) || !readableAddress(m.email) || own(m.email)) continue;
+    // By the database's clock, as the stop's turning back on is, so the seam compares like with like;
+    // a millisecond apart, so they're listed in the cap's order.
+    await tx
+      .insert(requestCcs)
+      .values({
+        id: newId(),
+        issueId: issue.id,
+        email: m.email,
+        name: (m.name ?? '').slice(0, 100),
+        via: 'group',
+        groupId: now.id,
+        addedById: null,
+        addedAt: sql`clock_timestamp() + ${n++} * interval '1 millisecond'`,
+      })
+      .onConflictDoNothing();
+    known.add(key);
+    active++;
+  }
 }
 
 /**
@@ -358,13 +466,14 @@ export async function copiedOn(db: Db, issueId: string, email: string): Promise<
   return row ?? null;
 }
 
-/** Those to tell of an event: copied on the request when it happened, and still. */
+/** Those to tell of an event: copied on the request when it happened, and still, and who hear of it now (D56's revisit). */
 export async function ccsToTell(db: Db, issueId: string, at: Date): Promise<CcRow[]> {
-  return db
+  const rows = await db
     .select()
     .from(requestCcs)
     .where(and(eq(requestCcs.issueId, issueId), isNull(requestCcs.removedAt), lte(requestCcs.addedAt, at)))
     .orderBy(asc(requestCcs.addedAt));
+  return (await withHearing(db, issueId, rows)).filter((x) => x.hears).map((x) => x.row);
 }
 
 /** The requests this address is copied on, among these issues: for the portal (D57). */
@@ -377,14 +486,78 @@ export async function copiedAmong(db: Db, email: string, issueIds: string[]): Pr
   return new Set(rows.map((r) => r.issueId));
 }
 
-/** Who is copied on a request, as its requester sees them on the portal. */
+/** Who is copied on a request, as its requester sees them on the portal: those who hear of it now (D56's revisit). */
 export async function portalCcsOf(db: Db, issueId: string): Promise<PortalCc[]> {
   const rows = await db
     .select()
     .from(requestCcs)
     .where(and(eq(requestCcs.issueId, issueId), isNull(requestCcs.removedAt)))
     .orderBy(asc(requestCcs.addedAt), asc(requestCcs.id));
-  return rows.map((r) => ({ email: r.email, name: r.name, byYou: r.via !== 'team', addedAt: r.addedAt.toISOString() }));
+  return (await withHearing(db, issueId, rows))
+    .filter((x) => x.hears)
+    .map(({ row: r }) => ({ email: r.email, name: r.name, byYou: r.via === 'email' || r.via === 'portal', addedAt: r.addedAt.toISOString() }));
+}
+
+// ---------------------------------------------------------------------------
+// Stopping a customer group's emails (D56's revisit)
+// ---------------------------------------------------------------------------
+
+/** What a group copy's unsubscribe link names: the group and the requester the address is, whatever request it came with. */
+export const groupStopSubject = (groupId: string, requesterId: string) => `${groupId}-${requesterId}`;
+
+/** Whether they've stopped a group's emails now. */
+export async function groupCopiesStopped(db: Db, groupId: string, requesterId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ at: groupCopyStops.stoppedAt })
+    .from(groupCopyStops)
+    .where(and(eq(groupCopyStops.groupId, groupId), eq(groupCopyStops.requesterId, requesterId), isNull(groupCopyStops.resumedAt)));
+  return Boolean(row);
+}
+
+/**
+ * Someone stops a customer group's emails (D56's revisit), from a group copy's link or on the portal.
+ * Their reason is the group, not one request, so it stops what the group copied them on: its open
+ * requests, each taken off as D67 takes a CC off (`removed_via` group, in each request's history), and
+ * its later ones, which don't copy them. Its resolved ones copied them before: the seam hears them no
+ * more while they're stopped, and, turned back on, never again. Their own choice, told to nobody.
+ * Doing it twice is the same as once: a stop kept is kept as it was.
+ */
+export async function stopGroupCopies(app: AppServices, groupId: string, requesterId: string, where: 'link' | 'portal'): Promise<void> {
+  const [group] = await app.db.select().from(customerGroups).where(eq(customerGroups.id, groupId));
+  const [who] = await app.db.select().from(requesters).where(eq(requesters.id, requesterId));
+  if (!group || !who) return;
+  const ctx = await botCtx(app, group.projectId);
+  const activities = await app.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    // Alone, so a request of the group's filed at this moment copies them before this, or sees it.
+    await groupCopyLock(tx, group.id, true);
+    const theirs = and(eq(groupCopyStops.groupId, group.id), eq(groupCopyStops.requesterId, who.id));
+    const [kept] = await tx.select().from(groupCopyStops).where(theirs);
+    if (!kept) await tx.insert(groupCopyStops).values({ groupId: group.id, requesterId: who.id }).onConflictDoNothing();
+    else if (kept.resumedAt) await tx.update(groupCopyStops).set({ stoppedAt: sql`clock_timestamp()`, resumedAt: null }).where(theirs);
+    // Its open requests that copied them, in one order, so two stops at once lock them alike.
+    const open = await tx
+      .select({ cc: requestCcs, issue: issues })
+      .from(requestCcs)
+      .innerJoin(issues, eq(issues.id, requestCcs.issueId))
+      .where(and(eq(requestCcs.groupId, group.id), eq(requestCcs.via, 'group'), isNull(requestCcs.removedAt), isNull(issues.resolvedAt), sql`lower(${requestCcs.email}) = ${lower(who.email)}`))
+      .orderBy(asc(issues.id));
+    const out: ActivityRow[] = [];
+    for (const o of open) out.push(...(await takeOff(tx, ctx, o.issue, (r) => r.id === o.cc.id, { via: 'group', group: group.name, where })));
+    return out;
+  });
+  await publishActivities(app, activities);
+}
+
+/**
+ * They turn a group's emails back on, on the portal (D56's revisit): its later requests copy them
+ * again. Not the ones they stopped: copies made before the stop never hear again. On already, nothing changes.
+ */
+export async function resumeGroupCopies(app: AppServices, groupId: string, requesterId: string): Promise<void> {
+  await app.db
+    .update(groupCopyStops)
+    .set({ resumedAt: sql`clock_timestamp()` })
+    .where(and(eq(groupCopyStops.groupId, groupId), eq(groupCopyStops.requesterId, requesterId), isNull(groupCopyStops.resumedAt)));
 }
 
 /**

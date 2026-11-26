@@ -1,4 +1,4 @@
-import { sayProblem, type ProblemSaid } from '@a4a/shared/i18n';
+import { isListSaid, sayProblem, type ListSaid, type ProblemSaid } from '@a4a/shared/i18n';
 import { translatorFor } from '../i18n';
 
 /** What a problem says in any language: its key under problem.* in the catalogs, and the values it takes (D49); a value may be another problem. */
@@ -68,13 +68,14 @@ export const readAlike = (a: string, b: string): boolean => {
 /**
  * Under tests, a keyed problem's English in the catalog must say what the API says (D49): the two
  * are written apart, the API's where the problem is made and the page's in en.json, so a test that
- * meets the problem fails when one changes without the other. A list of problems among the values
- * is said whole on a page, each with its fix, where the API joins their messages its own way: the
- * problems in it are checked where they're made.
+ * meets the problem fails when one changes without the other. A list of words among the values is
+ * joined as English joins items, ", ", as the API joins it. A list of problems is said whole on a
+ * page, each with its fix, where the API joins their messages its own way: the problems in it are
+ * checked where they're made.
  */
 export function checkProblemWords(message: string, hint: string | undefined, words: ProblemWords): void {
   if (process.env.NODE_ENV !== 'test' || GENERAL.has(words.key)) return;
-  if (Object.values(words.values ?? {}).some((v) => Array.isArray(v))) return;
+  if (Object.values(words.values ?? {}).some((v) => Array.isArray(v) && !isListSaid(v))) return;
   const en = translatorFor('en');
   const key = `problem.${words.key}`;
   if (!en.has(key)) throw new Error(`${key} is in no catalog: add its English to packages/shared/i18n/en.json`);
@@ -83,8 +84,8 @@ export function checkProblemWords(message: string, hint: string | undefined, wor
   if (!readAlike(catalog, api)) throw new Error(`${key} says "${catalog}" in en.json, but the API says "${api}": make them the same words`);
 }
 
-/** What a parser's problem says in any language: its key under problem.* and the words it takes (D49). */
-export type QueryProblemWords = { key: string; values?: Record<string, string | number> };
+/** What a parser's problem says in any language: its key under problem.* and the words it takes, a list among them (D49). */
+export type QueryProblemWords = { key: string; values?: Record<string, string | number | ListSaid> };
 
 /**
  * A parser's problem (a QueryProblem: the query's, a command's, a rule's) with its words beside the
@@ -94,7 +95,7 @@ export type QueryProblemWords = { key: string; values?: Record<string, string | 
 export function keyedProblem<P extends { message: string; hint?: string }>(
   p: P,
   key: string,
-  values?: Record<string, string | number>,
+  values?: Record<string, string | number | ListSaid>,
 ): P & QueryProblemWords {
   checkProblemWords(p.message, p.hint, { key, values });
   return values ? { ...p, key, values } : { ...p, key };
@@ -102,20 +103,21 @@ export function keyedProblem<P extends { message: string; hint?: string }>(
 
 /**
  * A problem's words, carried where it's passed on as another (D49): a parser's, a script check's, or
- * an AppError's whose values are words and numbers. Nothing when it has none.
+ * an AppError's whose values are words, numbers and lists. Nothing when it has none, or holds another
+ * problem.
  */
-export function wordsOf(p: { key?: string; values?: Record<string, string | number> } | AppError): Partial<QueryProblemWords> {
+export function wordsOf(p: { key?: string; values?: Record<string, string | number | ListSaid> } | AppError): Partial<QueryProblemWords> {
   const w = p instanceof AppError ? p.words : p.key ? { key: p.key, values: p.values } : undefined;
   if (!w) return {};
   if (!w.values) return { key: w.key };
-  if (Object.values(w.values).some((v) => typeof v === 'object')) return {};
-  return { key: w.key, values: w.values as Record<string, string | number> };
+  if (Object.values(w.values).some((v) => typeof v === 'object' && !isListSaid(v))) return {};
+  return { key: w.key, values: w.values as Record<string, string | number | ListSaid> };
 }
 
 /** The nearest known name, as a problem's words take it: "Did you mean …?" when there is one (D49). */
 export const guessWords = (guess: string | null | undefined) => ({ hasGuess: guess ? 'yes' : 'no', guess: guess ?? '' });
 
-type SaidAs = { message: string; hint?: string; key?: string; values?: Record<string, string | number> };
+type SaidAs = { message: string; hint?: string; key?: string; values?: Record<string, string | number | ListSaid> };
 
 /**
  * A parser's problem as another problem's value, said whole with its fix on a page (D49): by its key,
@@ -138,7 +140,7 @@ export const errorWords = (e: unknown, message: string): ProblemSaid =>
  * One of the words a server writes about something it shows, beside the API's English (D49), checked
  * as a keyed problem's are: under tests, the catalog's English must say what `message` says.
  */
-export function noted(message: string, key: string, values?: Record<string, string | number>): { message: string; words: ProblemSaid } {
+export function noted(message: string, key: string, values?: Record<string, string | number | ListSaid>): { message: string; words: ProblemSaid } {
   checkProblemWords(message, undefined, values ? { key, values } : { key });
   return { message, words: values ? { key, values } : { key } };
 }

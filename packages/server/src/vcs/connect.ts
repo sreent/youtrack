@@ -53,7 +53,7 @@ export function callbackUrl(app: AppServices, provider: CodeHost): string {
 }
 
 function appFor(app: AppServices, provider: string): { provider: CodeHost; host: CodeHostApp } {
-  if (!(CODE_HOSTS as readonly string[]).includes(provider)) throw notFound(`Code host ${provider}`, `a4a connects accounts at ${CODE_HOSTS.join(', ')}.`).said('vcs.unknownCodeHost', { host: provider, hosts: CODE_HOSTS.join(', ') });
+  if (!(CODE_HOSTS as readonly string[]).includes(provider)) throw notFound(`Code host ${provider}`, `a4a connects accounts at ${CODE_HOSTS.join(', ')}.`).said('vcs.unknownCodeHost', { host: provider, hosts: [...CODE_HOSTS] });
   const host = app.config.codeHosts[provider as CodeHost];
   if (!host && provider === 'gitea') {
     throw badRequest('Connecting an account at Forgejo or Gitea isn’t set up here', 'An administrator gives a4a its address and an OAuth app there (FORGEJO_URL, FORGEJO_CLIENT_ID and _SECRET; or GITEA_*).').said('vcs.connectNotSetUpForge');

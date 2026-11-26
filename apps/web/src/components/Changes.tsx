@@ -1,11 +1,13 @@
 import type { Change } from '@a4a/shared';
-import { t } from '../i18n';
+import { formatItems, t } from '../i18n';
 
 /**
  * a4a's own names in a help desk request's history (D56), said in the page's language: its customer
  * group, and its being kept from the group, whose values are yes and no. Fields people named stay theirs.
+ * Several values on a side (a multi-value field's, the tags) are listed as the page's language lists them (D49).
  */
-function said(c: Change): Change {
+function said(change: Change): Change {
+  const c = { ...change, from: change.fromList ? formatItems(change.fromList) : change.from, to: change.toList ? formatItems(change.toList) : change.to };
   if (c.field === 'Customer group') return { ...c, field: t('ui.changes.customerGroup') };
   if (c.field !== 'Private') return c;
   const yesNo = (v: string | null) => (v === null ? null : v === 'yes' ? t('ui.changes.yes') : t('ui.changes.no'));

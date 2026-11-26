@@ -15,6 +15,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import type { ProblemSaid } from '@a4a/shared/i18n';
@@ -461,7 +462,8 @@ export const timesheetWeeks = pgTable(
     approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('timesheet_weeks_person_week').on(t.userId, t.week)],
+  // A constraint, as migration 0051 made it in every database: one row per person and week.
+  (t) => [unique('timesheet_weeks_person_week').on(t.userId, t.week)],
 );
 
 export const workItems = pgTable(
@@ -1402,13 +1404,16 @@ export const requesters = pgTable(
     name: text('name').notNull(),
     /** Their portal password (D63), as scrypt hashes members' (lib/crypto.ts); null for none. It opens the portal alone. */
     passwordHash: text('password_hash'),
-    /** Their own language (D63's revisit): the portal's emails follow it, as their browser asked; null for the desk's. */
+    /** The language their browser last asked for on the portal (D63's revisit); null until it asked. Their choice, when they made one, wins over it. */
     locale: text('locale'),
+    /** The language they chose on the portal (D63's revisit): the portal and every email to them follow it; null until they choose, or once they choose their browser's again. */
+    chosenLocale: text('chosen_locale'),
     passwordSetAt: ts('password_set_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('requesters_email_lower').on(sql`lower(${t.email})`)],
+  // A customer group's domain names its people by their address's domain (D56): its copies read them by it.
+  (t) => [uniqueIndex('requesters_email_lower').on(sql`lower(${t.email})`), index('requesters_domain').on(sql`lower(split_part(${t.email}, '@', 2))`)],
 );
 
 /** An issue that came in through a project's help desk: who asked, and the first-response target then in force. */
@@ -2933,7 +2938,8 @@ export const customerGroupMembers = pgTable(
     addedAt: created(),
   },
   // A requester may be in several groups at a desk (D56's revisit): the membership is the three together.
-  (t) => [primaryKey({ columns: [t.projectId, t.requesterId, t.groupId] }), index('customer_group_members_group').on(t.groupId)],
+  // Named as Postgres named it when migration 0059 made it, in every database.
+  (t) => [primaryKey({ name: 'customer_group_members_pkey', columns: [t.projectId, t.requesterId, t.groupId] }), index('customer_group_members_group').on(t.groupId)],
 );
 
 /** A group's dedicated agents, in order: its members' new requests go to one of them. */
@@ -2970,14 +2976,16 @@ export const requestCcs = pgTable(
     email: text('email').notNull(),
     /** As whoever copied them named them (an email's Cc, the team, the requester); empty for none. */
     name: text('name').notNull().default(''),
-    /** 'team', 'email' (the Cc of the requester's email) or 'portal' (the requester, signed in). */
+    /** 'team', 'email' (the Cc of the requester's email), 'portal' (the requester, signed in) or 'group' (one of its customer group's people, D56's revisit). */
     via: text('via').notNull(),
+    /** For a group's copy, the customer group that copied them: they hear only while it shares the request with them (D56's revisit). */
+    groupId: text('group_id').references(() => customerGroups.id, { onDelete: 'set null' }),
     /** Whoever on the team copied them; null when the requester did. */
     addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
     addedAt: ts('added_at').notNull().defaultNow(),
     /** No longer copied. They're told nothing, can't answer, and an email's Cc doesn't add them back. */
     removedAt: ts('removed_at'),
-    /** 'team'; 'unsubscribe': they stopped it themselves, from an email; or 'portal': its requester took them off (D67). */
+    /** 'team'; 'unsubscribe': they stopped it themselves, from an email; 'portal': its requester took them off (D67); or 'group': they stopped their group's copies (D56's revisit). */
     removedVia: text('removed_via'),
     removedById: text('removed_by_id').references(() => users.id, { onDelete: 'set null' }),
   },
@@ -3205,6 +3213,8 @@ export const portalSsoStates = pgTable('portal_sso_states', {
     .references(() => portalProviders.id, { onDelete: 'cascade' }),
   /** The desk whose page it started from, to come back to. */
   desk: text('desk'),
+  /** The language they chose on the portal before signing in (D63's revisit): theirs once the provider signs them in, if they have none. */
+  locale: text('locale'),
   codeVerifier: text('code_verifier').notNull(),
   nonce: text('nonce').notNull(),
   createdAt: created(),
@@ -3674,4 +3684,30 @@ export const passkeySetupLinks = pgTable(
     createdAt: created(),
   },
   (t) => [index('passkey_setup_links_user').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// Group copies (wave 8: docs/architecture.md, D56's revisit)
+// ---------------------------------------------------------------------------
+
+/**
+ * Someone of a customer group who stopped its copies (D56's revisit): from a group copy's email, or on
+ * the portal. Per group and requester, since a domain's people have no member row. While stopped
+ * (`resumedAt` null) its new requests don't copy them; turned back on, copies made since hear, and those
+ * made before the stop never do again.
+ */
+export const groupCopyStops = pgTable(
+  'group_copy_stops',
+  {
+    groupId: text('group_id')
+      .notNull()
+      .references(() => customerGroups.id, { onDelete: 'cascade' }),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    stoppedAt: ts('stopped_at').notNull().defaultNow(),
+    /** When they turned its copies back on; null while they're stopped. */
+    resumedAt: ts('resumed_at'),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.requesterId] }), index('group_copy_stops_requester').on(t.requesterId)],
 );

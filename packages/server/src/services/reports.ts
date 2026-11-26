@@ -437,7 +437,7 @@ export async function cycleTimeReport(ctx: Ctx, input: WindowInput & { start?: s
   const known = knownStates(s, scope.projects);
   const unknown = startStates.filter((n) => !known.some((k) => k.name.toLowerCase() === n.toLowerCase()));
   if (unknown.length && known.length) {
-    throw badRequest(`No state is called ${unknown.map((n) => `"${n}"`).join(', ')}`, `States: ${known.map((k) => k.name).join(', ')}`).said('reports.noSuchState', { unknown: unknown.map((n) => `"${n}"`).join(', '), states: known.map((k) => k.name).join(', ') });
+    throw badRequest(`No state is called ${unknown.map((n) => `"${n}"`).join(', ')}`, `States: ${known.map((k) => k.name).join(', ')}`).said('reports.noSuchState', { unknown: unknown.map((n) => `"${n}"`), states: known.map((k) => k.name) });
   }
   const from = startOfDay(w.from, w.tz);
   const to = Math.min(startOfDay(addDays(w.to, 1), w.tz), now + 1);
@@ -495,12 +495,12 @@ export async function findSprint(ctx: Ctx, input: { sprint?: string; board?: str
   }
   const all = (await ctx.db.select().from(boards)).filter(sees);
   const board = all.find((b) => b.id === boardName) ?? all.find((b) => b.name.toLowerCase() === boardName.toLowerCase());
-  if (!board) throw notFound(`Board ${boardName}`, `Boards: ${all.map((b) => b.name).join(', ') || 'none yet'}`).said('reports.boardNotFound', { name: boardName, n: all.length, boards: all.map((b) => b.name).join(', ') });
+  if (!board) throw notFound(`Board ${boardName}`, `Boards: ${all.map((b) => b.name).join(', ') || 'none yet'}`).said('reports.boardNotFound', { name: boardName, n: all.length, boards: all.map((b) => b.name) });
   const list = await ctx.db.select().from(sprints).where(eq(sprints.boardId, board.id)).orderBy(asc(sprints.startDate), asc(sprints.createdAt));
   if (!list.length) throw notFound(`A sprint on ${board.name}`, board.sprintsEnabled ? 'Plan a sprint on the board first.' : 'This board does not use sprints.').said('reports.noSprints', { board: board.name, sprints: board.sprintsEnabled ? 'on' : 'off' });
   if (name) {
     const sprint = list.find((x) => x.name.toLowerCase() === name.toLowerCase());
-    if (!sprint) throw notFound(`Sprint "${name}" on ${board.name}`, `Its sprints: ${list.map((x) => x.name).join(', ')}`).said('reports.sprintNotFound', { name, board: board.name, sprints: list.map((x) => x.name).join(', ') });
+    if (!sprint) throw notFound(`Sprint "${name}" on ${board.name}`, `Its sprints: ${list.map((x) => x.name).join(', ')}`).said('reports.sprintNotFound', { name, board: board.name, sprints: list.map((x) => x.name) });
     return { sprint, board };
   }
   const sprint =

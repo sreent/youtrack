@@ -18,7 +18,7 @@ import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { comments, customerGroups, helpdeskMailboxes, helpdeskRequests, helpdeskTokens, issues, requestCcs, requesters, users } from '../db/schema';
-import { assignToGroupAgent, GROUP_CHANGE, groupByRef, groupMemberEmails, groupsOfRequester, type GroupRow } from './customer-groups';
+import { assignToGroupAgent, GROUP_CHANGE, groupByRef, groupsOfRequester, type GroupRow } from './customer-groups';
 import { requesterPasskeyCount } from './portal-passkeys';
 import { publishActivities, type ActivityRow } from '../events/activity';
 import { captchaChallenge } from '../helpdesk/captcha';
@@ -33,10 +33,12 @@ import { projectSettings } from './projects';
 import { requestSla, resumeFields, syncClocks } from './sla';
 import { projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { insertUser } from './users';
-import { ccsOf, copyOnNewRequest, deskCcsMax, heldOf, holdOnNewRequest, type Person } from './request-ccs';
+import { ccsOf, copyGroupMembers, copyOnNewRequest, deskCcsMax, heldOf, holdOnNewRequest, type Person } from './request-ccs';
 import { noteNotRelayed, relayChoice, type RelayChoice, type RelayHow } from '../helpdesk/relay';
 import { outsideAuthors, outsideKey } from './request-authors';
 import { addWatchers } from './watchers';
+import { languageOfRequester } from '../i18n';
+import type { Locale } from '@a4a/shared/i18n';
 
 /** The agent that files requests and posts requesters' replies. Agents go by their id in lower case. */
 export const HELPDESK_BOT = 'helpdesk';
@@ -155,10 +157,14 @@ export async function deskProject(app: AppServices, key: string): Promise<Projec
   return p;
 }
 
-/** A requester by their email, made when new; their name as they last gave it. */
-export async function requesterFor(db: Db, email: string, name: string): Promise<string> {
+/**
+ * A requester by their email, made when new; their name as they last gave it. `heard` is the language
+ * of the page that filed it (the help form's), kept on a requester made here as their browser's
+ * (D63's revisit), so the first email they get is in it; one a4a knows already keeps their own.
+ */
+export async function requesterFor(db: Db, email: string, name: string, heard?: Locale | null): Promise<string> {
   const res = await db.execute(sql`
-    INSERT INTO requesters (id, email, name) VALUES (${newId()}, ${email}, ${name})
+    INSERT INTO requesters (id, email, name, locale) VALUES (${newId()}, ${email}, ${name}, ${heard ?? null})
     ON CONFLICT ((lower(email))) DO UPDATE SET name = EXCLUDED.name, updated_at = now()
     RETURNING id`);
   return String((res as unknown as { rows: { id: string }[] }).rows[0]!.id);
@@ -193,6 +199,8 @@ export interface NewRequest {
   private?: boolean;
   /** Which of their several groups at the desk this one is for (D56's revisit): its id or name. */
   group?: string;
+  /** The language of the page that filed it (the help form's), kept on a requester a4a meets here first (D63's revisit). */
+  locale?: Locale | null;
 }
 
 /**
@@ -205,7 +213,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   const ctx = await botCtx(app, project.id);
   const email = input.email.trim();
   const name = input.name.trim().replace(/\s+/g, ' ');
-  const requesterId = await requesterFor(app.db, email, name);
+  const requesterId = await requesterFor(app.db, email, name, input.locale ?? null);
   const s = await app.schema.get();
   const lead = project.leadId ? s.users.get(project.leadId) : undefined;
   const received = requestMessageId('request-received');
@@ -241,23 +249,16 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
         slaActivities = await syncClocks(tx, app, await app.schema.get(tx), row, request!);
         // Whom their email copied, before the email that says it came in is sent (D57); held for
         // them to confirm instead, when nobody can vouch that they sent it (D67).
-        // Whom their email copied, before the email that says it came in is sent (D57); held for
-        // them to confirm instead, when nobody can vouch that they sent it (D67).
         if (input.cc?.length && input.ccHeld) heldCcs = await holdOnNewRequest(tx, app, row, input.cc);
         else if (input.cc?.length) {
           const done = await copyOnNewRequest(tx, ctx, row, name, input.cc);
           copied = done.words;
           slaActivities.push(...done.activities);
         }
-        // The group's members hear of its requests (D56's revisit), as the request's CCs (D57):
-        // the hand-added and the domains' requesters, less the requester, up to the same cap. The
-        // portal's replying stays the sharing's own; a member answers a4a's email about the request.
-        if (group && held.length) {
-          const members = await groupMemberEmails(tx as never, group, email);
-          for (const m of members.slice(0, 20)) {
-            await tx.insert(requestCcs).values({ id: newId(), issueId: row.id, email: m.email, name: m.name, via: 'group', addedById: null }).onConflictDoNothing();
-          }
-        }
+        // The group's people hear of its requests by email (D56's revisit), where it shares them and the
+        // request isn't kept from it: the hand-added first, then the domains' requesters who asked most
+        // recently, less the requester, up to the same cap. Their answering stays the sharing's own.
+        if (group && held.length) await copyGroupMembers(tx, app, row, group);
         // The project's lead watches each request, so the requester's replies reach someone.
         if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
         // Its group's dedicated agent takes it (D56), as the help desk's agent, in its history.
@@ -273,7 +274,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
 }
 
 /** File a request from the public form, as an issue in the project. */
-export async function fileRequest(app: AppServices, key: string, input: { name: string; email: string; summary: string; description: string }): Promise<HelpRequestReceived> {
+export async function fileRequest(app: AppServices, key: string, input: { name: string; email: string; summary: string; description: string; locale?: Locale | null }): Promise<HelpRequestReceived> {
   const project = await deskProject(app, key);
   const issue = await openRequest(app, project, { ...input, via: 'form' });
   const email = input.email.trim();
@@ -442,7 +443,8 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
   const [group] = row.request.groupId ? await ctx.db.select().from(customerGroups).where(eq(customerGroups.id, row.request.groupId)) : [];
   return {
     issue: readableId(s, issue),
-    requester: { name: row.requester.name, email: row.requester.email, passkeys: await requesterPasskeyCount(ctx.db, row.requester.id) },
+    // Their language when a4a knows one (D63's revisit), so whoever answers can answer in it.
+    requester: { name: row.requester.name, email: row.requester.email, passkeys: await requesterPasskeyCount(ctx.db, row.requester.id), language: languageOfRequester(row.requester) },
     createdAt: row.request.createdAt.toISOString(),
     // D24's first-response target, as its clock now stands (D45); a request from before clocks, as it was.
     firstResponse: first

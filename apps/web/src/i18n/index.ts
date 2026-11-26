@@ -6,9 +6,11 @@
  * downloads meanwhile. Changing language reloads the page: nothing has to say itself again.
  *
  * Which language: the one the person chose on their profile (kept here once the server says it), else
- * the browser's, else the server's default, else English.
+ * the browser's, else the server's default, else English. A requester's pages (the portal, a request's
+ * tracking page, a desk's form) keep a choice of their own (D63's revisit), so a member trying the
+ * portal changes none of their own pages, and a requester's choice none of the team's.
  */
-import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, joinList, joinSentences, langTag, listParts, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, joinItems, joinList, joinSentences, langTag, listParts, LOCALE_NAMES, matchLocale, sayProblem, type ListSaid, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import { noteIn } from '@a4a/shared/notes';
 import { createElement, Fragment, type ReactNode } from 'react';
 
@@ -19,6 +21,15 @@ const catalogOf = (locale: Locale) => catalogs[`../../../../packages/shared/i18n
 const CHOSEN = 'a4a.locale';
 /** The server's default, for a browser that asks for no language a4a speaks. */
 const SERVER_DEFAULT = 'a4a.defaultLocale';
+/** A requester's choice on the help desk's pages, as the server last said it, or as they chose it signed out ('' for none). */
+const PORTAL_CHOSEN = 'a4a.portal.locale';
+/** '1' while PORTAL_CHOSEN was chosen signed out and no requester has it yet: the next sign-in brings it, theirs if they have none. */
+const PORTAL_UNSAVED = 'a4a.portal.unsaved';
+
+/** Whether a page is a requester's (D63's revisit): the portal, a request's tracking page, a desk's form. */
+export function requesterPage(path: string = location.pathname): boolean {
+  return /^\/(portal|request)\/?$/.test(path) || path.startsWith('/help/');
+}
 
 let translator: Translator = createTranslator(DEFAULT_LOCALE, {});
 
@@ -40,7 +51,7 @@ function store(key: string, value: string): void {
 
 /** The language this page should be in, by what it knows before anything loads. */
 export function wantedLocale(): Locale {
-  const chosen = stored(CHOSEN);
+  const chosen = stored(requesterPage() ? PORTAL_CHOSEN : CHOSEN);
   if (isLocale(chosen)) return chosen;
   const fallback = stored(SERVER_DEFAULT);
   return matchLocale(navigator.languages?.length ? navigator.languages : [navigator.language], isLocale(fallback) ? fallback : DEFAULT_LOCALE);
@@ -109,7 +120,7 @@ export function problemWords(e: unknown): string | null {
  * catalog has, where the page shows the server's English. With `guessShown`, it leaves out its own
  * "Did you mean …?", for a page that offers the guess as a button of its own.
  */
-export function problemSaid(p: { key?: string; values?: Record<string, string | number> }, guessShown = false): string | null {
+export function problemSaid(p: { key?: string; values?: Record<string, string | number | ListSaid> }, guessShown = false): string | null {
   if (!p.key) return null;
   return problemWords(guessShown && p.values?.hasGuess === 'yes' ? { key: p.key, values: { ...p.values, hasGuess: 'no' } } : p);
 }
@@ -191,6 +202,50 @@ export function useLocaleNow(locale: Locale | null): void {
   reloadIfAnother();
 }
 
+/** The server's default, as the server last said it: what a browser that asks for no language a4a speaks reads. */
+export function serverDefaultLocale(): Locale {
+  const d = stored(SERVER_DEFAULT);
+  return isLocale(d) ? d : DEFAULT_LOCALE;
+}
+
+/** The language a requester chose on this browser's help desk pages, or null for their browser's (D63's revisit). */
+export function portalChoice(): Locale | null {
+  const chosen = stored(PORTAL_CHOSEN);
+  return isLocale(chosen) ? chosen : null;
+}
+
+/** What a sign-in brings from the page: a language chosen signed out that no requester has yet, theirs if they have none. */
+export function unsavedPortalChoice(): Locale | undefined {
+  return stored(PORTAL_UNSAVED) === '1' ? (portalChoice() ?? undefined) : undefined;
+}
+
+/** A requester chooses signed out: this browser keeps it, apart from the team's, until a sign-in gives it to them; the page shows it now. */
+export function choosePortalLocale(locale: Locale | null): void {
+  store(PORTAL_CHOSEN, locale ?? '');
+  store(PORTAL_UNSAVED, locale ? '1' : '');
+  reloadIfAnother();
+}
+
+/**
+ * What the server says of a signed-in requester's language: their choice (null: their browser's) and
+ * its default. The page keeps it and follows it, as the team's pages follow the profile (`keepLocale`).
+ */
+export function keepPortalLocale(theirs: string | null | undefined, serverDefault?: string | null): void {
+  if (isLocale(serverDefault)) store(SERVER_DEFAULT, serverDefault);
+  store(PORTAL_CHOSEN, isLocale(theirs) ? theirs : '');
+  store(PORTAL_UNSAVED, '');
+  reloadIfAnother();
+}
+
+/** A language's name in the page's language, by Intl ("Vietnamese", „Vietnamesisch“): a4a's Chinese is Simplified, its Portuguese Portugal's. */
+export function languageName(locale: Locale): string {
+  try {
+    return new Intl.DisplayNames([intlLocale()], { type: 'language' }).of(locale === 'zh' ? 'zh-Hans' : langTag(locale)) ?? LOCALE_NAMES[locale];
+  } catch {
+    return LOCALE_NAMES[locale];
+  }
+}
+
 /** Reload into the language wanted, if it isn't this page's and a catalog for it is there (no loop). */
 function reloadIfAnother(): void {
   const wanted = wantedLocale();
@@ -206,16 +261,10 @@ export const formatList = (items: string[], type: Intl.ListFormatType = 'conjunc
 /**
  * Things said one after another with no "and" (a card's summary, its state, its assignee), with the
  * comma the page's language puts between a list's first items: ", ", Japanese's and Chinese's "、",
- * Thai's space or comma as `listParts` sets it beside a name.
+ * Thai's space or comma as `listParts` sets it beside a name: `joinItems`, as a problem's list is joined.
  */
-export function formatItems(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? '';
-  // A list one longer has every one of these before its "and": keep it up to the last of them.
-  const parts = listParts(translator.locale, items.length + 1, (i) => items[Math.min(i, items.length - 1)]!);
-  return parts
-    .slice(0, parts.indexOf(items.length - 1) + 1)
-    .map((p) => (typeof p === 'number' ? items[p] : p))
-    .join('');
+export function formatItems(items: readonly string[]): string {
+  return joinItems(translator.locale, items);
 }
 const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const EN_DAYS = { short: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], long: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };

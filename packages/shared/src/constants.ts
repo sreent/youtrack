@@ -271,8 +271,8 @@ export const CC_RELAY_LIMITS = { perRequest: 20, perSender: 10 } as const;
 export const CC_CONFIRM_DAYS = 3;
 /** How long a new request's Cc waits for its requester (D67), on the portal, before it's forgotten. */
 export const CC_HOLD_DAYS = 30;
-/** How someone came to be copied on a request (D57): by the team, the Cc of the requester's email, or the requester on the portal. */
-export const REQUEST_CC_VIA = ['team', 'email', 'portal'] as const;
+/** How someone came to be copied on a request (D57): by the team, the Cc of the requester's email, the requester on the portal, or as one of its customer group's people (D56's revisit). */
+export const REQUEST_CC_VIA = ['team', 'email', 'portal', 'group'] as const;
 export type RequestCcVia = (typeof REQUEST_CC_VIA)[number];
 /** How a requester's portal session was opened (D63): an emailed link (D45), their password, or an identity provider. */
 export const PORTAL_SIGN_IN_METHODS = ['link', 'password', 'sso', 'passkey'] as const;

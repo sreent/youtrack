@@ -1,4 +1,4 @@
-import { keyedProblem } from '../lib/errors';
+import { keyedProblem, type QueryProblemWords } from '../lib/errors';
 export type TokenKind = 'word' | 'quoted' | 'braced' | 'hash' | 'colon' | 'comma' | 'lparen' | 'rparen' | 'minus' | 'dotdot';
 
 export interface Token {
@@ -15,7 +15,7 @@ export interface LexProblem {
   end: number;
   /** Its words for a page in another language (D49). */
   key?: string;
-  values?: Record<string, string | number>;
+  values?: QueryProblemWords['values'];
 }
 
 const WORD_STOP = new Set([' ', '\t', '\n', '\r', ':', ',', '(', ')', '"', '{', '}', '#']);

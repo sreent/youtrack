@@ -6,6 +6,10 @@
  * with the group, and answers it; the requester hears of it by email, and the team's page says a
  * colleague wrote it.
  *
+ * Then a group's member copied on its new request (D56's revisit): their email says it's because of
+ * the group, with no reply address where it shares to read; its stop link's page stops the group's
+ * emails, and the portal's switch turns them back on.
+ *
  * The run's own server sends no email (playwright.config.ts), so the portal's part runs on a server
  * of its own that does, beside a mail server (support/mail.ts), as D57's spec does.
  */
@@ -68,6 +72,55 @@ test('a manager makes a group with a domain and an agent, and its member’s req
   await expect(card.getByText(`${name}’s members read and answer it on the portal.`)).toBeVisible();
   await expectAccessible(page);
 
+});
+
+test('a manager names a group after a customer another desk serves, told apart from one alike by its domains', async ({ page, api }) => {
+  // Another desk serves two customers whose names differ by one character, as Japanese companies' often do.
+  const u = unique();
+  const other = uniqueKey('CA');
+  await api.createProject({ key: other, name: `Customers ${other}`, lead: THIRD.login });
+  const one = { name: `〇〇システム株式会社 ${u}`, domain: `sys-${u}.example`.toLowerCase() };
+  const two = { name: `〇〇システムズ株式会社 ${u}`, domain: `systems-${u}.example`.toLowerCase() };
+  for (const c of [one, two]) await api.post(`/projects/${other}/customer-groups`, { name: c.name, domains: [c.domain], sharing: 'none' });
+  // This desk has a group of its own named alike: it's not suggested, since it can't take that name again.
+  const key = uniqueKey('CB');
+  await api.createProject({ key, name: `Customers ${key}`, lead: THIRD.login });
+  const mine = `〇〇システム工業 ${u}`;
+  await api.post(`/projects/${key}/customer-groups`, { name: mine, domains: [`kogyo-${u}.example`.toLowerCase()], sharing: 'none' });
+
+  await page.goto(`/projects/${key}`);
+  const groups = page.getByRole('region', { name: 'Customer groups' });
+  await groups.getByRole('button', { name: 'Add a group' }).click();
+  const form = groups.getByRole('form', { name: 'Add a group' });
+  const field = form.getByRole('combobox', { name: 'Name', exact: true });
+  await field.fill(u);
+  // Each by its name and its domains, which tell them apart.
+  const known = form.getByRole('listbox', { name: 'Customers other help desks serve' });
+  await expect(known.getByRole('option')).toHaveCount(2);
+  await expect(known.getByRole('option', { name: `${one.name} ${one.domain}` })).toBeVisible();
+  await expect(known.getByRole('option', { name: `${two.name} ${two.domain}` })).toBeVisible();
+  await expect(form.getByRole('status').filter({ hasText: 'other help desks serve' })).toHaveText('2 customers other help desks serve: up and down to choose, Enter to take one.');
+  await expectAccessible(page);
+  // At a phone's width a long name's domains wrap beneath it, and nothing scrolls sideways.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectNoSidewaysScroll(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  // The arrows choose and Enter takes: its name and its domains, which the field had none of. Names
+  // come in the page's language's order, where kana come before kanji: システムズ, then システム株式会社.
+  await field.press('ArrowDown');
+  await expect(known.getByRole('option', { name: `${two.name} ${two.domain}` })).toHaveAttribute('aria-selected', 'true');
+  await field.press('Enter');
+  await expect(field).toHaveValue(two.name);
+  await expect(form.getByLabel('Email domains')).toHaveValue(two.domain);
+  await expect(known).toHaveCount(0);
+  // Typed, and never taken, a new customer's name stays as written: Escape puts the suggestions away.
+  await field.fill(`株式会社 ${u}`);
+  await expect(known.getByRole('option')).toHaveCount(2);
+  await field.press('Escape');
+  await expect(known).toHaveCount(0);
+  await expect(field).toHaveValue(`株式会社 ${u}`);
+  await expect(form.getByLabel('Email domains')).toHaveValue(two.domain);
 });
 
 test('a colleague signs in to the portal, answers a request shared with their group, and the requester hears of it', async ({ browser }) => {
@@ -141,6 +194,120 @@ test('a colleague signs in to the portal, answers a request shared with their gr
     await dana.setViewportSize({ width: 1280, height: 900 });
     await dana.goto('/portal');
     await expect(dana.getByText('No requests yet.', { exact: false })).toBeVisible();
+    expect(teamWatch.unexpected()).toEqual([]);
+    expect(portalWatch.unexpected()).toEqual([]);
+    await portal.close();
+    await team.close();
+  } finally {
+    await server.close();
+    await mail.close();
+  }
+});
+
+test('a group’s member hears its new request, says why, stops the group’s emails from the link, and turns them back on in the portal', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const mail = await startMailServer();
+  const server = await startMailingServer(mail.port);
+  try {
+    const DESK = 'help@desk.example';
+    const team = await browser.newContext({ baseURL: server.url, locale: 'en-GB', viewport: { width: 1280, height: 900 } });
+    const teamWatch = await prepareContext(team);
+    const page = await team.newPage();
+    await page.goto('/login');
+    await page.getByLabel('Login').fill(server.admin.login);
+    await page.getByLabel('Password').fill(server.admin.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/issues$/);
+    const made = await page.request.post('/api/v1/me/tokens', { data: { name: 'e2e', scopes: ['read', 'write', 'admin'] }, headers: { origin: server.url } });
+    expect(made.status(), await made.text()).toBe(201);
+    const { token } = (await made.json()) as { token: string };
+    const call = async <T>(method: string, path: string, data?: unknown): Promise<T> => {
+      const res = await page.request.fetch(`/api/v1${path}`, { method, data, headers: { authorization: `Bearer ${token}` } });
+      expect(res.ok(), `${method} ${path}: ${res.status()} ${await res.text()}`).toBe(true);
+      return (res.status() === 204 ? null : await res.json()) as T;
+    };
+    await call('POST', '/projects', { key: 'CGR', name: 'Readers desk', template: 'software' });
+    await call('PATCH', '/projects/CGR', { settings: { helpdesk: { enabled: true } } });
+    await call('PUT', '/projects/CGR/helpdesk/mail', { address: DESK });
+    const { url: webhook } = await call<{ url: string }>('POST', '/projects/CGR/helpdesk/mail/secret');
+    await call('POST', '/projects/CGR/customer-groups', { name: 'Globex', domains: ['globex.example'], sharing: 'read' });
+
+    // Rae at Globex asked once before; Sam, also at Globex, asks now, and the group shares its people's requests to read.
+    await postMail(webhook, message({ from: 'Rae <rae@globex.example>', to: DESK, subject: 'Badges for the new hires', body: 'Three of them.' }));
+    await mail.waitFor('rae@globex.example', (m) => (m.headers.get('subject') ?? '').includes('Badges for the new hires'));
+    await postMail(webhook, message({ from: 'Sam <sam@globex.example>', to: DESK, subject: 'The projector is dim', body: 'Room 4.' }));
+    await mail.waitFor('sam@globex.example', (m) => (m.headers.get('subject') ?? '').includes('The projector is dim'));
+    await call('POST', '/issues/CGR-2/comments', { text: 'A new lamp is on its way.', visibility: 'public' });
+
+    // Rae hears of it, and her email says why: she's in Globex, whose people read each other's requests. No reply address.
+    const toRae = await mail.waitFor('rae@globex.example', (m) => m.text.includes('A new lamp is on its way.'));
+    expect(toRae.text).toContain("replied to Sam's request.");
+    expect(toRae.text).toContain("You get this because you're in Globex, whose people can read each other's requests to Readers desk's help desk. Replies to this email reach nobody: the link above opens it.");
+    expect(toRae.headers.get('reply-to')).toBeUndefined();
+    const stop = /Stop emails about Globex's requests: (\S+)/.exec(toRae.text)?.[1];
+    expect(stop).toBeTruthy();
+
+    // The team's card lists her as one of Globex's people.
+    await page.goto('/issues/CGR-2');
+    const card = page.getByRole('region', { name: 'Help desk request' });
+    await expect(card.getByText(/as one of Globex's people/)).toBeVisible();
+
+    // Her link's page says which group's emails it stops; its button stops them, this request's, the group's other open ones and its new ones.
+    const portal = await browser.newContext({ baseURL: server.url, locale: 'en-GB', viewport: { width: 1280, height: 900 } });
+    const portalWatch = await prepareContext(portal);
+    const rae = await portal.newPage();
+    await rae.goto(new URL(stop!).pathname + new URL(stop!).search);
+    await expect(rae.getByRole('heading', { name: 'Stop these emails?' })).toBeVisible();
+    await expect(rae.getByText("Emails about this request and Globex's other requests at Readers desk, which copy you as one of its people.")).toBeVisible();
+    await expectAccessible(rae);
+    await rae.screenshot({ path: test.info().outputPath('group-stop-light.png') });
+    await rae.getByRole('button', { name: 'Stop them' }).click();
+    await expect(rae.getByRole('heading', { name: 'Stopped' })).toBeVisible();
+    await expect(rae.getByText("You're no longer copied on Globex's requests, open or new.", { exact: false })).toBeVisible();
+    for (const [colorScheme, width] of [['dark', 1280], ['light', 390]] as const) {
+      await rae.emulateMedia({ colorScheme });
+      await rae.setViewportSize({ width, height: 844 });
+      await expectAccessible(rae);
+      await expectNoSidewaysScroll(rae);
+      await rae.screenshot({ path: test.info().outputPath(`group-stopped-${colorScheme}-${width}.png`) });
+    }
+    await rae.emulateMedia({ colorScheme: 'light' });
+    await rae.setViewportSize({ width: 1280, height: 900 });
+
+    // The request's history says she stopped Globex's emails; she's copied no more.
+    await page.reload();
+    await expect(page.getByRole('region', { name: 'History and comments' }).getByText("stopped emails about Globex's requests, from the link in an email")).toBeVisible();
+    await expect(card.getByText(/as one of Globex's people/)).toBeHidden();
+
+    // In the portal, her groups each have a switch; Globex's is off, and she turns it back on from the keyboard.
+    await rae.goto('/portal');
+    await rae.getByRole('textbox', { name: 'Your email' }).fill('rae@globex.example');
+    await rae.getByRole('button', { name: 'Email me a link' }).click();
+    const link = await mail.waitFor('rae@globex.example', (m) => m.text.includes('/portal#hdl_'));
+    await rae.goto(/(\/portal#hdl_[A-Za-z0-9_-]{43})/.exec(link.text)![1]!);
+    const emails = rae.getByRole('region', { name: "Emails about your groups' requests" });
+    const toggle = emails.getByRole('checkbox', { name: "Email me about Globex's new requests" });
+    await expect(toggle).not.toBeChecked();
+    await toggle.focus();
+    await rae.keyboard.press('Space');
+    await expect(emails.getByRole('status')).toHaveText("You're copied on Globex's new requests again.");
+    await expect(toggle).toBeChecked();
+    for (const [colorScheme, width] of [['light', 1280], ['dark', 1280], ['light', 390]] as const) {
+      await rae.emulateMedia({ colorScheme });
+      await rae.setViewportSize({ width, height: 844 });
+      await expectAccessible(rae);
+      await expectNoSidewaysScroll(rae);
+      await emails.screenshot({ path: test.info().outputPath(`group-switch-${colorScheme}-${width}.png`) });
+    }
+    // Globex's next request copies her again.
+    await postMail(webhook, message({ from: 'Sam <sam@globex.example>', to: DESK, subject: 'The screen flickers', body: 'Room 5.' }));
+    const copied = await call<{ ccs: { email: string; hears: boolean }[] }>('GET', '/issues/CGR-3/request');
+    expect(copied.ccs).toEqual([expect.objectContaining({ email: 'rae@globex.example', hears: true })]);
+
+    // The desk's page says whom Globex's requests copy.
+    await page.goto('/projects/CGR');
+    await expect(page.getByRole('region', { name: 'Customer groups' }).getByText('Its new requests copy its people by email, all but whoever asked: 2 people now.')).toBeVisible();
+    await expectAccessible(page);
     expect(teamWatch.unexpected()).toEqual([]);
     expect(portalWatch.unexpected()).toEqual([]);
     await portal.close();

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ApiError, get, post } from '../api/client';
 import { Lone } from '../app/Auth';
+import { RequesterLone } from '../features/helpdesk/PortalLanguage';
 import { Badge } from '../components/Badges';
 import { Markdown } from '../components/Markdown';
 import { ErrorNote, Loading } from '../components/States';
@@ -46,10 +47,10 @@ export default function TrackPage() {
   if (!token || request.error) {
     const missing = !token || (request.error instanceof ApiError && request.error.status === 404);
     return (
-      <Lone wide>
+      <RequesterLone wide>
         <h1>{missing ? t('page.track.thisLinkDoesnTOpen') : t('page.track.yourRequestDidnTLoad')}</h1>
         {missing ? <p className="note">{t('page.track.useTheLinkInYour')}</p> : <ErrorNote error={request.error} />}
-      </Lone>
+      </RequesterLone>
     );
   }
   if (request.isLoading || !request.data) {
@@ -75,7 +76,7 @@ export default function TrackPage() {
     }
   };
   return (
-    <Lone wide>
+    <RequesterLone wide>
       <p className="label">{tr('page.track.helpDesk', { name: r.project.name })}</p>
       <div className="title-row">
         <h1>{r.summary}</h1>
@@ -130,6 +131,6 @@ export default function TrackPage() {
           </button>
         </div>
       </form>
-    </Lone>
+    </RequesterLone>
   );
 }

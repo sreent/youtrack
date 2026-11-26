@@ -271,6 +271,8 @@ describe('subscriptions by email', () => {
       kind: 'subscription',
       what: 'Emails about new issues in Web app. Your inbox in a4a still has them.',
       subscription: { target: 'project', events: 'new', name: 'Web app' },
+      // A customer group's copies' links name their group (D56's revisit); a subscription's name none.
+      group: null,
       done: false,
     });
     expect(await applyUnsubscribe(w.app, link)).toMatchObject({ kind: 'subscription', done: true });
@@ -306,6 +308,8 @@ describe('subscriptions by email', () => {
       kind: 'subscription',
       what: 'Emails about every change in Web app. Your inbox in a4a still has them.',
       subscription: { target: 'project', events: 'all', name: 'Web app' },
+      // A customer group's copies' links name their group (D56's revisit); a subscription's name none.
+      group: null,
       done: false,
     });
     // What a German page makes of them: the inbox's line and the unsubscribe page's.

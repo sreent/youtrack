@@ -283,12 +283,12 @@ class Compiler {
       if (found.length) return pick === 'min' ? Math.min(...found) : Math.max(...found);
       const names = [...new Set(all.map((x) => x.name))];
       const guess = didYouMean(raw, names);
-      const latest = names.slice(-10).reverse().join(', ');
+      const latest = names.slice(-10).reverse();
       this.problem(
         { key: 'query.unknownBuild', values: { build: raw, field: field.name, ...guessWords(guess), n: names.length, builds: latest } },
         `Unknown build "${raw}" for ${field.name}`,
         span,
-        guess ? `Did you mean "${guess}"?` : names.length ? `Latest builds: ${latest}` : 'There are no builds yet.',
+        guess ? `Did you mean "${guess}"?` : names.length ? `Latest builds: ${latest.join(', ')}` : 'There are no builds yet.',
         guess,
       );
       return null;
@@ -321,7 +321,7 @@ class Compiler {
             const names = [...new Set((s.valuesByField.get(field.id) ?? []).map((x) => x.name))];
             const guess = didYouMean(v.raw, names);
             this.problem(
-              { key: 'query.unknownValue', values: { value: v.raw, field: field.name, ...guessWords(guess), n: names.length, allowed: names.join(', ') } },
+              { key: 'query.unknownValue', values: { value: v.raw, field: field.name, ...guessWords(guess), n: names.length, allowed: names } },
               `Unknown value "${v.raw}" for ${field.name}`,
               v.span,
               guess ? `Did you mean "${guess}"?` : names.length ? `Values: ${names.join(', ')}` : 'There are no values yet.',
@@ -416,7 +416,7 @@ class Compiler {
             const names = [...s.groups.values()].map((x) => x.name);
             const guess = didYouMean(v.raw, names);
             this.problem(
-              { key: 'query.unknownGroup', values: { group: v.raw, field: field.name, ...guessWords(guess), n: names.length, groups: names.join(', ') } },
+              { key: 'query.unknownGroup', values: { group: v.raw, field: field.name, ...guessWords(guess), n: names.length, groups: names } },
               `Unknown group "${v.raw}" for ${field.name}`,
               v.span,
               guess ? `Did you mean "${guess}"?` : names.length ? `Groups: ${names.join(', ')}` : 'There are no groups yet.',
@@ -689,7 +689,7 @@ class Compiler {
       const guess = didYouMean(raw, allowed);
       const name = target === 'first_response' ? 'first response' : (target ?? 'sla');
       this.problem(
-        { key: 'query.unknownValue', values: { value: raw, field: name, ...guessWords(guess), n: allowed.length, allowed: allowed.join(', ') } },
+        { key: 'query.unknownValue', values: { value: raw, field: name, ...guessWords(guess), n: allowed.length, allowed } },
         `Unknown value "${raw}" for ${name}`,
         span,
         guess ? `Did you mean "${guess}"?` : `Values: ${allowed.join(', ')}`,
