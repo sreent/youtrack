@@ -94,11 +94,6 @@ const waitingOnBack3 = (to: string) => async (_api: Api, page: Page) => {
   return to;
 };
 
-/** A project of the tour's own, with a rule of each kind. It has no issues, so they never act. */
-/**
- * A plan of its own whose one person is away a whole day and the afternoon of the next, in the
- * grid's days: three days' work from today, which waits for them.
- */
 /** An issue that moved from BACK to WEB, with reactions to it: its page, by the id it had (D41). */
 const moved = async (api: Api) => {
   const issue = await api.createIssue({ project: 'BACK', summary: 'Sign-in page shows the old logo', description: 'Since the rebrand, the sign-in page still shows the old logo.' });
@@ -120,6 +115,12 @@ const reportsOfItsOwn = (to: (key: string) => string) => async (api: Api) => {
   return to(key);
 };
 
+/**
+ * A plan of its own whose one person is away the afternoon of the grid's first day and the whole of
+ * its second: three days' work from today, which waits for them. The grid begins where the work
+ * does, so a whole day away on its first day would move the grid past itself; and the calendar's
+ * next day may be a Saturday, which the grid doesn't draw.
+ */
 const withDaysAway = async (api: Api) => {
   const key = uniqueKey('TA');
   await api.createProject({ key, name: `Tour ${key}`, template: 'waterfall' });
@@ -133,12 +134,11 @@ const withDaysAway = async (api: Api) => {
   // The start is a working day: on a weekend the task would be scheduled from Monday anyway (D43's revisit).
   const startDay = [0, 6].includes(new Date(`${today}T00:00:00Z`).getUTCDay()) ? weekdays[0] : today;
   const made = await api.createIssue({ project: key, summary: 'Patch the core switches', fields: { Type: 'Task', Assignee: login, Estimation: '3d', 'Start date': startDay } });
-  // Away on the grid's own first two rendered days, so the columns show them however it draws.
+  // The grid's own first two days, working days both, as it draws them before anyone is away.
   const load = await api.get<{ resources: { days: { date: string }[] }[] }>(`/projects/${key}/resources`);
-  const first = load.resources.find((r) => r.days.length)!.days[0]!.date;
-  const dayAfter = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-  await api.post('/absences', { user: login, from: first, kind: 'holiday' });
-  await api.post('/absences', { user: login, from: dayAfter(first), half: 'afternoon', kind: 'training' });
+  const [first, second] = load.resources.find((r) => r.days.length)!.days.map((d) => d.date);
+  await api.post('/absences', { user: login, from: first, half: 'afternoon', kind: 'training' });
+  await api.post('/absences', { user: login, from: second, kind: 'holiday' });
   return `/plan/${key}/resources`;
 };
 
@@ -172,6 +172,7 @@ const aWeekOfTime = async (api: Api) => {
   return '/timesheet';
 };
 
+/** A project of the tour's own, with a rule of each kind. It has no issues, so they never act. */
 const withRules = async (api: Api) => {
   const key = uniqueKey('TR');
   await api.createProject({ key, name: `Tour ${key}` });
@@ -413,8 +414,16 @@ const STOPS: Stop[] = [
   { name: 'a timeline', path: '/plan/MIG', ready: (p) => p.getByRole('group', { name: /^Data center migration, / }) },
   { name: 'who is booked', path: '/plan/MIG/resources', ready: (p) => p.getByRole('table', { name: "Who's booked, and how much" }) },
   // The grid may begin wherever the server's own today falls (a weekend shifts it): what matters
-  // is that someone's days away are drawn on its cells, whole or half.
-  { name: 'who is booked, and who is away', path: withDaysAway, ready: (p) => p.getByRole('cell', { name: /away/ }).first() },
+  // is that someone's days away are drawn on their row's cells, the half day and the whole one.
+  {
+    name: 'who is booked, and who is away',
+    path: withDaysAway,
+    ready: (p) =>
+      p
+        .getByRole('row')
+        .filter({ has: p.getByRole('cell', { name: /away in the afternoon/ }) })
+        .filter({ has: p.getByRole('cell', { name: 'away', exact: true }) }),
+  },
   { name: 'costs', path: '/plan/MIG/costs', ready: (p) => p.getByRole('heading', { name: 'Cost against plan' }) },
   { name: 'the assistant', path: '/assistant', ready: (p) => p.getByRole('navigation', { name: 'Your conversations' }) },
   {
