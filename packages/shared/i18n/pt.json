@@ -867,7 +867,7 @@
   "common.format.yesterday": "Ontem",
   "common.ladder.now": " · agora",
   "components.toasts.dismiss": "Dispensar",
-  "components.toasts.region": "Notificações",
+  "components.toasts.region": "Alterações recentes",
   "components.toasts.undo": "Desfazer",
   "components.toasts.undoKeys": "{mac, select, yes {⌘Z desfaz a alteração.} other {Ctrl+Z desfaz a alteração.}}",
   "count.comments": "{n, plural, one {# comentário} other {# comentários}}",

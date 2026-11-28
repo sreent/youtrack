@@ -40,7 +40,7 @@ async function commandOnBoth(page: Page, command: string): Promise<void> {
 test('a command on two chosen issues is undone from its toast, which the status line says once', async ({ page, api }) => {
   await commandOnBoth(page, 'Priority Critical');
   expect(await priorities(api)).toEqual(['Critical', 'Critical']);
-  const region = page.getByRole('region', { name: 'Notifications' });
+  const region = page.getByRole('region', { name: 'Recent changes' });
   const toast = region.locator('.toast');
   await expect(toast.locator('.toast-words')).toHaveText('Changed 2 issues.');
   // Held under the pointer while it's read and drawn.
@@ -70,7 +70,7 @@ test('a command on two chosen issues is undone from its toast, which the status 
 test('Ctrl+Z undoes your newest edit on the page, Ctrl+Shift+Z makes it again, and a text field keeps its own', async ({ page, api }) => {
   await commandOnBoth(page, 'Priority Major');
   expect(await priorities(api)).toEqual(['Major', 'Major']);
-  const said = page.getByRole('region', { name: 'Notifications' }).getByRole('status');
+  const said = page.getByRole('region', { name: 'Recent changes' }).getByRole('status');
   await expect(said).toHaveText('Changed 2 issues. Ctrl+Z undoes it.');
 
   // In the search field, Ctrl+Z is the field's: nothing is undone.
@@ -95,7 +95,7 @@ test('Ctrl+Z undoes your newest edit on the page, Ctrl+Shift+Z makes it again, a
 
 test('the history offers Undo on your own edit, naming the other issue it puts back; F8 reaches the toast', async ({ page, api }) => {
   await commandOnBoth(page, 'Priority Minor');
-  const region = page.getByRole('region', { name: 'Notifications' });
+  const region = page.getByRole('region', { name: 'Recent changes' });
   await expect(region.locator('.toast')).toHaveCount(1);
   // F8 reaches the newest toast from the page, and goes back.
   const row = page.getByRole('list', { name: '2 issues' }).getByRole('listitem').first();
@@ -119,7 +119,7 @@ test('the history offers Undo on your own edit, naming the other issue it puts b
 test('at a phone’s width the toast fits, and nothing scrolls sideways', async ({ page, api }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await commandOnBoth(page, 'Priority Critical');
-  const toast = page.getByRole('region', { name: 'Notifications' }).locator('.toast');
+  const toast = page.getByRole('region', { name: 'Recent changes' }).locator('.toast');
   await expect(toast.locator('.toast-words')).toHaveText('Changed 2 issues.');
   await toast.hover();
   await expectNoSidewaysScroll(page);

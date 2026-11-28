@@ -60,7 +60,7 @@ async function open(page: Page, clock: 'paused' | 'running' = 'paused'): Promise
 
 test('a toast is said once by the region’s status line, offers Undo once, and stands while it is read', async ({ page }) => {
   const problems = await open(page);
-  const region = page.getByRole('region', { name: 'Notifications' });
+  const region = page.getByRole('region', { name: 'Recent changes' });
   const said = region.getByRole('status');
   const toasts = region.locator('.toast');
   await expect(region).toHaveAttribute('aria-keyshortcuts', 'F8');
@@ -119,7 +119,7 @@ test('a toast is said once by the region’s status line, offers Undo once, and 
 
 test('what the page said already is shown and not said again; more words stand longer', async ({ page }) => {
   const problems = await open(page);
-  const region = page.getByRole('region', { name: 'Notifications' });
+  const region = page.getByRole('region', { name: 'Recent changes' });
   const said = region.getByRole('status');
   const toasts = region.locator('.toast');
   await page.getByRole('button', { name: 'Save it' }).click();
@@ -147,7 +147,7 @@ test('what the page said already is shown and not said again; more words stand l
 
 test('three toasts at most, the newest at the foot, each going after six seconds; Dismiss closes one at once', async ({ page }) => {
   const problems = await open(page);
-  const toasts = page.getByRole('region', { name: 'Notifications' }).locator('.toast');
+  const toasts = page.getByRole('region', { name: 'Recent changes' }).locator('.toast');
   const saveIt = page.getByRole('button', { name: 'Save it' });
   for (let i = 0; i < 4; i++) await saveIt.click();
   await expect(toasts).toHaveCount(3);
@@ -174,7 +174,7 @@ test('three toasts at most, the newest at the foot, each going after six seconds
 test('axe finds nothing in a toast, in light or dark', async ({ page }) => {
   const problems = await open(page, 'running');
   await page.getByRole('button', { name: 'Move it' }).click();
-  const toast = page.getByRole('region', { name: 'Notifications' }).locator('.toast');
+  const toast = page.getByRole('region', { name: 'Recent changes' }).locator('.toast');
   // Held under the pointer while axe reads it, on the page's own clock.
   await toast.hover();
   await expectAccessible(page);

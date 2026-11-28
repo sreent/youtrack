@@ -867,7 +867,7 @@
   "common.format.yesterday": "어제",
   "common.ladder.now": " · 지금",
   "components.toasts.dismiss": "닫기",
-  "components.toasts.region": "알림",
+  "components.toasts.region": "최근 변경 사항",
   "components.toasts.undo": "실행 취소",
   "components.toasts.undoKeys": "{mac, select, yes {⌘Z를 누르면 실행 취소됩니다.} other {Ctrl+Z를 누르면 실행 취소됩니다.}}",
   "count.comments": "{n, plural, other {댓글 #개}}",

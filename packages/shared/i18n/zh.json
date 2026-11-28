@@ -867,7 +867,7 @@
   "common.format.yesterday": "昨天",
   "common.ladder.now": " · 当前",
   "components.toasts.dismiss": "关闭",
-  "components.toasts.region": "通知",
+  "components.toasts.region": "最近的更改",
   "components.toasts.undo": "撤销",
   "components.toasts.undoKeys": "{mac, select, yes {按 ⌘Z 可撤销。} other {按 Ctrl+Z 可撤销。}}",
   "count.comments": "{n, plural, other {# 条评论}}",

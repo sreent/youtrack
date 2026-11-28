@@ -867,7 +867,7 @@
   "common.format.yesterday": "Yesterday",
   "common.ladder.now": " · now",
   "components.toasts.dismiss": "Dismiss",
-  "components.toasts.region": "Notifications",
+  "components.toasts.region": "Recent changes",
   "components.toasts.undo": "Undo",
   "components.toasts.undoKeys": "{mac, select, yes {⌘Z undoes it.} other {Ctrl+Z undoes it.}}",
   "count.comments": "{n, plural, one {# comment} other {# comments}}",

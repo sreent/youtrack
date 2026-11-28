@@ -867,7 +867,7 @@
   "common.format.yesterday": "เมื่อวาน",
   "common.ladder.now": " · ตอนนี้",
   "components.toasts.dismiss": "ปิด",
-  "components.toasts.region": "การแจ้งเตือน",
+  "components.toasts.region": "การเปลี่ยนแปลงล่าสุด",
   "components.toasts.undo": "เลิกทำ",
   "components.toasts.undoKeys": "{mac, select, yes {กด ⌘Z เพื่อเลิกทำ} other {กด Ctrl+Z เพื่อเลิกทำ}}",
   "count.comments": "{n, plural, other {ความคิดเห็น # รายการ}}",

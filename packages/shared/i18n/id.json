@@ -867,7 +867,7 @@
   "common.format.yesterday": "Kemarin",
   "common.ladder.now": " · sekarang",
   "components.toasts.dismiss": "Tutup",
-  "components.toasts.region": "Notifikasi",
+  "components.toasts.region": "Perubahan terbaru",
   "components.toasts.undo": "Batalkan",
   "components.toasts.undoKeys": "{mac, select, yes {Tekan ⌘Z untuk membatalkannya.} other {Tekan Ctrl+Z untuk membatalkannya.}}",
   "count.comments": "{n, plural, other {# komentar}}",

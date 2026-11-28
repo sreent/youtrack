@@ -867,7 +867,7 @@
   "common.format.yesterday": "昨日",
   "common.ladder.now": " · 現在",
   "components.toasts.dismiss": "閉じる",
-  "components.toasts.region": "通知",
+  "components.toasts.region": "最近の変更",
   "components.toasts.undo": "元に戻す",
   "components.toasts.undoKeys": "{mac, select, yes {⌘Zで元に戻せます。} other {Ctrl+Zで元に戻せます。}}",
   "count.comments": "{n, plural, other {#件のコメント}}",

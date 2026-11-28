@@ -867,7 +867,7 @@
   "common.format.yesterday": "Hôm qua",
   "common.ladder.now": " · hiện tại",
   "components.toasts.dismiss": "Đóng",
-  "components.toasts.region": "Thông báo",
+  "components.toasts.region": "Thay đổi gần đây",
   "components.toasts.undo": "Hoàn tác",
   "components.toasts.undoKeys": "{mac, select, yes {Nhấn ⌘Z để hoàn tác.} other {Nhấn Ctrl+Z để hoàn tác.}}",
   "count.comments": "{n, plural, other {# bình luận}}",
