@@ -5,7 +5,7 @@
  * adopt it; deleting one takes its baselines, and says how many first.
  */
 import { VIEW_LIMITS } from '@a4a/shared';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { UserRow } from '../src/context';
 import { baselines, savedSearches } from '../src/db/schema';
@@ -18,6 +18,7 @@ import { adoptSavedSearch, createSavedSearch, deleteSavedSearch, listSavedSearch
 import { insertUser } from '../src/services/users';
 import { createWorld, type TestWorld } from './helpers';
 
+const ON_POSTGRES = Boolean(process.env.TEST_DATABASE_URL);
 let w: TestWorld;
 let http: ReturnType<typeof createHttpApp>;
 const tokens = new Map<string, string>();
@@ -213,5 +214,37 @@ describe('deleting a saved search with baselines', () => {
     const one = await createSavedSearch(w.as(w.anna), { name: 'One baseline', query: 'project: BACK', shared: false });
     await w.app.db.insert(baselines).values({ id: newId(), savedSearchId: one.id, name: 'Only', createdById: w.anna.id });
     expect((await failure(() => deleteSavedSearch(w.as(w.anna), one.id))).message).toBe('"One baseline" has a baseline, which would be deleted with it');
+  });
+
+  it.runIf(ON_POSTGRES)('counts a baseline being taken while it is deleted, rather than delete it unasked', async () => {
+    // The race: a baseline is taken of the search in a transaction that hasn't committed when the delete
+    // begins. The delete locks the search's row, so it waits for the baseline, then counts it and asks.
+    // Counting without that lock, it counts none, and its delete takes the baseline along unasked.
+    const s = await createSavedSearch(w.as(w.anna), { name: 'Raced baseline', query: 'project: BACK', shared: false });
+    let commit!: () => void;
+    let inserted!: () => void;
+    const held = new Promise<void>((r) => (commit = r));
+    const begun = new Promise<void>((r) => (inserted = r));
+    const taking = w.app.db.transaction(async (tx) => {
+      await tx.insert(baselines).values({ id: newId(), savedSearchId: s.id, name: 'Taken meanwhile', createdById: w.anna.id });
+      inserted();
+      await held;
+    });
+    await begun;
+    const deleting = deleteSavedSearch(w.as(w.anna), s.id).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    for (let i = 0; i < 100; i++) {
+      const waiting = (await w.app.db.execute(sql`SELECT count(*)::int AS n FROM pg_locks WHERE NOT granted`)) as unknown as { rows: { n: number }[] };
+      if ((waiting.rows[0]?.n ?? 0) > 0) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    commit();
+    await taking;
+    const outcome = await deleting;
+    expect(outcome).toBeInstanceOf(AppError);
+    expect((outcome as AppError).words).toMatchObject({ key: 'savedSearches.hasBaselines', values: { n: 1 } });
+    expect(await w.app.db.select({ id: baselines.id }).from(baselines).where(eq(baselines.savedSearchId, s.id))).toHaveLength(1);
   });
 });

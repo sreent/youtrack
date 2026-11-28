@@ -42,8 +42,8 @@ describe('deleting someone', () => {
     expect(await searchRows([plan.id, own.id])).toEqual([{ id: plan.id, ownerId: null, shared: true }]);
     expect((await listSavedSearches(w.as(w.ben))).find((s) => s.id === plan.id)).toMatchObject({ name: 'Team plan', shared: true, owner: null, view: { kind: 'list' }, version: 0 });
     expect((await listSubscriptions(w.as(w.ben))).map((s) => s.search?.id)).toContain(plan.id);
-    // Nobody's own now: changing it takes an administrator, as someone else's search does.
-    await expect(updateSavedSearch(w.as(w.ben), plan.id, { name: 'Mine now' })).rejects.toThrow('Only its owner can change a saved search');
+    // Nobody's own now: changing it takes an administrator, and anyone else is told one can adopt it.
+    await expect(updateSavedSearch(w.as(w.ben), plan.id, { name: 'Mine now' })).rejects.toMatchObject({ status: 403, words: { key: 'savedSearches.ownerless' } });
     expect(await updateSavedSearch(w.adminCtx, plan.id, { name: 'Team plan, adopted' })).toMatchObject({ name: 'Team plan, adopted', owner: null });
   });
 
