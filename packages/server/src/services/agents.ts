@@ -12,7 +12,7 @@
  *   undone the same way, by that person alone, for 30 days; several made as one undo as one group.
  */
 import { isOwnAgent, type AgentAccount, type ApiToken, type Scope, type TrackerEvent, type UndoResult, type UndoState } from '@a4a/shared';
-import { and, asc, desc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { requireScope, scopesForRole, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { activities, agentChanges, apiTokens, issueLinks, issueTags, issues, tags } from '../db/schema';
@@ -260,9 +260,11 @@ async function whatStops(db: Db, s: SchemaSnapshot, rec: ChangeRow, now: Now): P
 
 /**
  * What stops a change, or its whole group, being undone: each row's reasons, a group's said with the
- * issue each is on. An issue the reader no longer sees is said as one, unnamed.
+ * issue each is on. An issue the reader no longer sees is said as one, unnamed. `quiet` passes over a
+ * row whose issue nothing has happened to since (a history's glance at a group's other issues); the
+ * undo itself reads every row.
  */
-async function groupStops(db: Db, s: SchemaSnapshot, recs: ChangeRow[], seen: Set<string> | null): Promise<Stop[]> {
+async function groupStops(db: Db, s: SchemaSnapshot, recs: ChangeRow[], seen: Set<string> | null, quiet: (rec: ChangeRow) => boolean = () => false): Promise<Stop[]> {
   const earliest = new Map<string, number>();
   for (const rec of recs) earliest.set(rec.issueId, Math.min(earliest.get(rec.issueId) ?? rec.activityId, rec.activityId));
   const nows = new Map<string, Now | null>();
@@ -274,6 +276,7 @@ async function groupStops(db: Db, s: SchemaSnapshot, recs: ChangeRow[], seen: Se
       hidden = true;
       continue;
     }
+    if (quiet(rec)) continue;
     if (!nows.has(rec.issueId)) nows.set(rec.issueId, await issueNow(db, rec.issueId, earliest.get(rec.issueId)!));
     const now = nows.get(rec.issueId)!;
     const stops = now ? await whatStops(db, s, rec, now) : [ISSUE_GONE];
@@ -312,12 +315,29 @@ export async function undoStandings(ctx: Ctx, s: SchemaSnapshot, events: Tracker
     .from(agentChanges)
     .where(or(inArray(agentChanges.activityId, ids), inArray(agentChanges.pairActivityId, ids)));
   const recs = found.filter((rec) => undoableBy(rec, me));
+  if (!recs.length) return out;
   // A group's other rows, read once for each group.
   const groupIds = [...new Set(recs.flatMap((r) => (r.groupId ? [r.groupId] : [])))];
   const groupRows = groupIds.length ? await db.select().from(agentChanges).where(inArray(agentChanges.groupId, groupIds)).orderBy(asc(agentChanges.id)) : [];
   const membersOf = (rec: ChangeRow) => (rec.groupId ? groupRows.filter((g) => g.groupId === rec.groupId && g.kind === rec.kind && g.actorId === rec.actorId) : [rec]);
   const seen = await seenIssueIds(ctx, [...new Set([...recs, ...groupRows].map((r) => r.issueId))]);
   const refs = await issueRefsById(db, s, [...seen]);
+  // A group's other issues are read whole only when something happened to them after the edit: the
+  // rest can't have changed since. This issue's own rows are always read, as D34 reads them.
+  const here = new Set(recs.map((r) => r.issueId));
+  const elsewhere = [...new Set(groupRows.map((r) => r.issueId))].filter((id) => !here.has(id));
+  const lastOn = new Map(
+    elsewhere.length
+      ? (
+          await db
+            .select({ issueId: activities.issueId, last: sql<number>`max(${activities.id})` })
+            .from(activities)
+            .where(and(inArray(activities.issueId, elsewhere), inArray(activities.type, ['issue.updated', 'link.created', 'link.deleted'])))
+            .groupBy(activities.issueId)
+        ).map((r) => [r.issueId!, Number(r.last)] as const)
+      : [],
+  );
+  const quiet = (rec: ChangeRow) => !here.has(rec.issueId) && (lastOn.get(rec.issueId) ?? 0) <= rec.activityId;
   const standingOf = new Map<string, Omit<UndoStanding, 'others'>>();
   for (const rec of recs) {
     const members = membersOf(rec);
@@ -330,7 +350,7 @@ export async function undoStandings(ctx: Ctx, s: SchemaSnapshot, events: Tracker
         const name = nameOf(s, undone.undoneById);
         standing = { state: 'undone', note: `${name} undid it`, noteWords: [{ key: 'agents.undoneBy', values: { who: known ? 'named' : 'someone', name: known ? name : '' } }] };
       } else {
-        const stops = await groupStops(db, s, members, rec.groupId ? seen : null);
+        const stops = await groupStops(db, s, members, rec.groupId ? seen : null, quiet);
         // Each reason as a page says it, a sentence of its own (D49); the note joins them as the API does.
         standing = stops.length ? { state: 'changed_since', note: sentence(stops.map((x) => x.words)), noteWords: stops.map((x) => x.said) } : { state: 'possible', note: '', noteWords: [] };
       }

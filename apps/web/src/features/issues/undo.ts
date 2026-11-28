@@ -120,12 +120,12 @@ function onKey(e: KeyboardEvent): void {
   if (e.defaultPrevented || e.altKey || e.key.toLowerCase() !== 'z') return;
   if (!(onMac() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey)) return;
   if (takesText(e.target) || document.querySelector('dialog[open]')) return;
+  // Nothing of yours to undo or make again here: the key is left to whatever else takes it.
+  const newest = e.shiftKey ? store.undone[store.undone.length - 1] : store.done[store.done.length - 1];
+  if (!newest) return;
   e.preventDefault();
   if (e.shiftKey) void redoNewest();
-  else {
-    const newest = store.done[store.done.length - 1];
-    if (newest) void undoEdit(newest);
-  }
+  else void undoEdit(newest);
 }
 
 const subscribe = (listener: () => void) => {
@@ -135,14 +135,17 @@ const subscribe = (listener: () => void) => {
 
 /**
  * A view that makes edits: `remember` each as it lands, and Ctrl+Z and Ctrl+Shift+Z work on this page
- * while it's open. When the last view using it goes, so do its edits: they were this page's.
+ * while it's open (`active`). When the last view using it goes, so do its edits: they were this page's.
  */
-export function useViewEdits(): { remember: (edit: ViewEditDone) => void } {
+export function useViewEdits(active = true): { remember: (edit: ViewEditDone) => void } {
   const toasts = useToast();
   const qc = useQueryClient();
-  store.toasts = toasts;
-  store.qc = qc;
+  if (active) {
+    store.toasts = toasts;
+    store.qc = qc;
+  }
   useEffect(() => {
+    if (!active) return;
     store.users += 1;
     if (store.users === 1) document.addEventListener('keydown', onKey);
     return () => {
@@ -153,7 +156,7 @@ export function useViewEdits(): { remember: (edit: ViewEditDone) => void } {
       store.undone = [];
       store.problem = null;
     };
-  }, []);
+  }, [active]);
   return { remember: useCallback((edit: ViewEditDone) => remember(edit), []) };
 }
 

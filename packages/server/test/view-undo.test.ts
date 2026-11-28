@@ -49,7 +49,10 @@ async function failure(attempt: Promise<unknown>): Promise<AppError> {
 }
 
 async function three(summary: string): Promise<IssueDetail[]> {
-  return Promise.all([1, 2, 3].map((n) => createIssue(anna, { project: 'BACK', summary: `${summary} ${n}`, fields: { Priority: 'Normal' } })));
+  const made: IssueDetail[] = [];
+  // One at a time, so their numbers follow the list's order.
+  for (const n of [1, 2, 3]) made.push(await createIssue(anna, { project: 'BACK', summary: `${summary} ${n}`, fields: { Priority: 'Normal' } }));
+  return made;
 }
 
 /** A command on the list's chosen issues: one group, its answer naming what undoes it. */

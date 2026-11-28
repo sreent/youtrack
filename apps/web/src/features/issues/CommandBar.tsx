@@ -74,7 +74,8 @@ function viewEditOf(res: CommandResult, again: () => Promise<CommandResult>): Vi
  */
 export function CommandBar({ issues, open, onClose, onApplied, initial, view }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const edits = useViewEdits();
+  // Only a bar in a view makes edits Ctrl+Z undoes: the issue page's and the boards' are as they were.
+  const edits = useViewEdits(view !== undefined);
   const undoProblem = useViewUndoProblem();
   // One issue is changed as on its own page; several chosen in a view are one edit, undone as one.
   const inView = view && issues.length > 1 ? view : undefined;
