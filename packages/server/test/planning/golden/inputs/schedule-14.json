@@ -1,0 +1,100 @@
+{
+  "source": "schedule.test.ts › computeSchedule: summary tasks > applies a summary’s start date and due date to its subtasks",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": null,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "S",
+        "summary": "Task S",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": "2026-11-23",
+        "deadline": "2026-11-23",
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "K",
+        "summary": "Task K",
+        "parent": "S",
+        "assigneeId": null,
+        "effortMinutes": 960,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-anna",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 100
+      },
+      {
+        "id": "u-ben",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 80
+      }
+    ],
+    "workItems": [],
+    "baseline": null
+  },
+  "overrides": [
+    [
+      {
+        "id": "K",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "K",
+        "effortMinutes": 1920
+      },
+      {
+        "id": "S",
+        "delayDays": 1
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-23",
+      "2026-11-24"
+    ]
+  ]
+}

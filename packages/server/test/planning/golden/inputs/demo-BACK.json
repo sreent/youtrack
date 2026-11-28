@@ -1,0 +1,304 @@
+{
+  "source": "the demo: BACK",
+  "input": {
+    "today": "2026-11-28",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [],
+      "budget": null,
+      "currency": "USD"
+    },
+    "tasks": [
+      {
+        "id": "BACK-1",
+        "summary": "Public API v2",
+        "parent": null,
+        "assigneeId": "0revw0le9otxamoa",
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 2,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-2",
+        "summary": "Login fails on Safari with SSO",
+        "parent": null,
+        "assigneeId": "0revw0le9otxamoa",
+        "effortMinutes": 960,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": "2026-11-26",
+        "spentMinutes": 180,
+        "priorityOrdinal": 1,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-3",
+        "summary": "Users can't sign in with single sign-on on Safari 17",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-4",
+        "summary": "Add rate limiting to the public API",
+        "parent": "BACK-1",
+        "assigneeId": "w42yr0c4rn7t543s",
+        "effortMinutes": 1440,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 2,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-5",
+        "summary": "API returns 500 when the pagination cursor is malformed",
+        "parent": "BACK-1",
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 2,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-6",
+        "summary": "Document the v2 authentication flow",
+        "parent": "BACK-1",
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-7",
+        "summary": "Migrate the sessions table to Postgres 16",
+        "parent": null,
+        "assigneeId": "0revw0le9otxamoa",
+        "effortMinutes": 720,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-8",
+        "summary": "Rotate signing keys without downtime",
+        "parent": null,
+        "assigneeId": "0revw0le9otxamoa",
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 1,
+        "fixedCost": null,
+        "predecessors": [
+          "BACK-7"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-9",
+        "summary": "Flaky test: OrdersSyncTest times out on CI",
+        "parent": null,
+        "assigneeId": "7rfimc1f0xsan3b7",
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 4,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-10",
+        "summary": "Webhook deliveries are not retried on 503",
+        "parent": null,
+        "assigneeId": "w42yr0c4rn7t543s",
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": true,
+        "resolvedAt": "2026-11-24",
+        "firstWorkDate": "2026-11-23",
+        "spentMinutes": 300,
+        "priorityOrdinal": 2,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-11",
+        "summary": "Slow query on the activity feed for large projects",
+        "parent": null,
+        "assigneeId": "0revw0le9otxamoa",
+        "effortMinutes": 960,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 2,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "BACK-12",
+        "summary": "Remove the deprecated v1 export endpoint",
+        "parent": null,
+        "assigneeId": "w42yr0c4rn7t543s",
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": true,
+        "resolvedAt": "2026-11-28",
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 4,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "0revw0le9otxamoa",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 95,
+        "week": null
+      },
+      {
+        "id": "w42yr0c4rn7t543s",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 85,
+        "week": null
+      },
+      {
+        "id": "7rfimc1f0xsan3b7",
+        "login": "diego",
+        "name": "Diego Alvarez",
+        "capacityHoursPerDay": 6,
+        "hourlyRate": 70,
+        "week": null
+      }
+    ],
+    "workItems": [
+      {
+        "taskId": "BACK-2",
+        "authorId": "0revw0le9otxamoa",
+        "date": "2026-11-26",
+        "minutes": 180,
+        "hourlyRate": 95
+      },
+      {
+        "taskId": "BACK-10",
+        "authorId": "w42yr0c4rn7t543s",
+        "date": "2026-11-23",
+        "minutes": 300,
+        "hourlyRate": 85
+      }
+    ],
+    "baseline": null,
+    "absences": []
+  },
+  "overrides": [
+    [
+      {
+        "id": "BACK-4",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "BACK-2",
+        "effortMinutes": 1920
+      },
+      {
+        "id": "BACK-8",
+        "start": "2026-12-01"
+      },
+      {
+        "id": "BACK-5",
+        "assigneeId": "0revw0le9otxamoa"
+      },
+      {
+        "id": "BACK-1",
+        "delayDays": 1
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-23",
+      "2026-12-02"
+    ]
+  ]
+}

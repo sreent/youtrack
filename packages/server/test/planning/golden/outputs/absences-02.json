@@ -1,0 +1,749 @@
+{
+  "computeSchedule": {
+    "start": "2026-11-16",
+    "finish": "2026-11-23",
+    "today": "2026-11-16",
+    "tasks": [
+      {
+        "id": "A",
+        "summary": "Task A",
+        "parent": null,
+        "depth": 0,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "u-anna",
+        "priorityOrdinal": null,
+        "start": "2026-11-16",
+        "finish": "2026-11-20",
+        "durationDays": 3,
+        "effortMinutes": 1440,
+        "spentMinutes": 0,
+        "remainingMinutes": 1440,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-16",
+        "earlyFinish": "2026-11-20",
+        "lateStart": "2026-11-16",
+        "lateFinish": "2026-11-20",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "project_start",
+        "predecessors": [],
+        "plannedCost": 2400,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "B",
+        "summary": "Task B",
+        "parent": null,
+        "depth": 0,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "u-ben",
+        "priorityOrdinal": null,
+        "start": "2026-11-23",
+        "finish": "2026-11-23",
+        "durationDays": 1,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "remainingMinutes": 480,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-23",
+        "earlyFinish": "2026-11-23",
+        "lateStart": "2026-11-23",
+        "lateFinish": "2026-11-23",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "A"
+        ],
+        "plannedCost": 640,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      }
+    ],
+    "criticalPath": [
+      "A",
+      "B"
+    ],
+    "warnings": [],
+    "baseline": null
+  },
+  "computeSchedule with overrides 1": {
+    "start": "2026-11-20",
+    "finish": "2026-11-25",
+    "today": "2026-11-16",
+    "tasks": [
+      {
+        "id": "A",
+        "summary": "Task A",
+        "parent": null,
+        "depth": 0,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "u-anna",
+        "priorityOrdinal": null,
+        "start": "2026-11-20",
+        "finish": "2026-11-24",
+        "durationDays": 3,
+        "effortMinutes": 1440,
+        "spentMinutes": 0,
+        "remainingMinutes": 1440,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-20",
+        "earlyFinish": "2026-11-24",
+        "lateStart": "2026-11-20",
+        "lateFinish": "2026-11-24",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "project_start",
+        "predecessors": [],
+        "plannedCost": 2400,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "B",
+        "summary": "Task B",
+        "parent": null,
+        "depth": 0,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "u-ben",
+        "priorityOrdinal": null,
+        "start": "2026-11-25",
+        "finish": "2026-11-25",
+        "durationDays": 1,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "remainingMinutes": 480,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-25",
+        "earlyFinish": "2026-11-25",
+        "lateStart": "2026-11-25",
+        "lateFinish": "2026-11-25",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "A"
+        ],
+        "plannedCost": 640,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      }
+    ],
+    "criticalPath": [
+      "A",
+      "B"
+    ],
+    "warnings": [],
+    "baseline": null
+  },
+  "whatIf 1": {
+    "before": {
+      "finish": "2026-11-23",
+      "criticalPath": [
+        "A",
+        "B"
+      ]
+    },
+    "after": {
+      "start": "2026-11-20",
+      "finish": "2026-11-25",
+      "today": "2026-11-16",
+      "tasks": [
+        {
+          "id": "A",
+          "summary": "Task A",
+          "parent": null,
+          "depth": 0,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "u-anna",
+          "priorityOrdinal": null,
+          "start": "2026-11-20",
+          "finish": "2026-11-24",
+          "durationDays": 3,
+          "effortMinutes": 1440,
+          "spentMinutes": 0,
+          "remainingMinutes": 1440,
+          "percentComplete": 0,
+          "earlyStart": "2026-11-20",
+          "earlyFinish": "2026-11-24",
+          "lateStart": "2026-11-20",
+          "lateFinish": "2026-11-24",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "project_start",
+          "predecessors": [],
+          "plannedCost": 2400,
+          "actualCost": 0,
+          "baseline": null,
+          "variance": null
+        },
+        {
+          "id": "B",
+          "summary": "Task B",
+          "parent": null,
+          "depth": 0,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "u-ben",
+          "priorityOrdinal": null,
+          "start": "2026-11-25",
+          "finish": "2026-11-25",
+          "durationDays": 1,
+          "effortMinutes": 480,
+          "spentMinutes": 0,
+          "remainingMinutes": 480,
+          "percentComplete": 0,
+          "earlyStart": "2026-11-25",
+          "earlyFinish": "2026-11-25",
+          "lateStart": "2026-11-25",
+          "lateFinish": "2026-11-25",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "A"
+          ],
+          "plannedCost": 640,
+          "actualCost": 0,
+          "baseline": null,
+          "variance": null
+        }
+      ],
+      "criticalPath": [
+        "A",
+        "B"
+      ],
+      "warnings": [],
+      "baseline": null
+    },
+    "finishDeltaDays": 2,
+    "impacted": [
+      {
+        "id": "A",
+        "summary": "Task A",
+        "startDeltaDays": 3,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "B",
+        "summary": "Task B",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      }
+    ]
+  },
+  "computeSchedule with overrides 2": {
+    "start": "2026-11-16",
+    "finish": "2026-11-26",
+    "today": "2026-11-16",
+    "tasks": [
+      {
+        "id": "A",
+        "summary": "Task A",
+        "parent": null,
+        "depth": 0,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "u-anna",
+        "priorityOrdinal": null,
+        "start": "2026-11-16",
+        "finish": "2026-11-25",
+        "durationDays": 6,
+        "effortMinutes": 2880,
+        "spentMinutes": 0,
+        "remainingMinutes": 2880,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-16",
+        "earlyFinish": "2026-11-25",
+        "lateStart": "2026-11-16",
+        "lateFinish": "2026-11-25",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "project_start",
+        "predecessors": [],
+        "plannedCost": 4800,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "B",
+        "summary": "Task B",
+        "parent": null,
+        "depth": 0,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "u-ben",
+        "priorityOrdinal": null,
+        "start": "2026-11-26",
+        "finish": "2026-11-26",
+        "durationDays": 1,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "remainingMinutes": 480,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-26",
+        "earlyFinish": "2026-11-26",
+        "lateStart": "2026-11-26",
+        "lateFinish": "2026-11-26",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "A"
+        ],
+        "plannedCost": 640,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      }
+    ],
+    "criticalPath": [
+      "A",
+      "B"
+    ],
+    "warnings": [],
+    "baseline": null
+  },
+  "whatIf 2": {
+    "before": {
+      "finish": "2026-11-23",
+      "criticalPath": [
+        "A",
+        "B"
+      ]
+    },
+    "after": {
+      "start": "2026-11-16",
+      "finish": "2026-11-26",
+      "today": "2026-11-16",
+      "tasks": [
+        {
+          "id": "A",
+          "summary": "Task A",
+          "parent": null,
+          "depth": 0,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "u-anna",
+          "priorityOrdinal": null,
+          "start": "2026-11-16",
+          "finish": "2026-11-25",
+          "durationDays": 6,
+          "effortMinutes": 2880,
+          "spentMinutes": 0,
+          "remainingMinutes": 2880,
+          "percentComplete": 0,
+          "earlyStart": "2026-11-16",
+          "earlyFinish": "2026-11-25",
+          "lateStart": "2026-11-16",
+          "lateFinish": "2026-11-25",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "project_start",
+          "predecessors": [],
+          "plannedCost": 4800,
+          "actualCost": 0,
+          "baseline": null,
+          "variance": null
+        },
+        {
+          "id": "B",
+          "summary": "Task B",
+          "parent": null,
+          "depth": 0,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "u-ben",
+          "priorityOrdinal": null,
+          "start": "2026-11-26",
+          "finish": "2026-11-26",
+          "durationDays": 1,
+          "effortMinutes": 480,
+          "spentMinutes": 0,
+          "remainingMinutes": 480,
+          "percentComplete": 0,
+          "earlyStart": "2026-11-26",
+          "earlyFinish": "2026-11-26",
+          "lateStart": "2026-11-26",
+          "lateFinish": "2026-11-26",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "A"
+          ],
+          "plannedCost": 640,
+          "actualCost": 0,
+          "baseline": null,
+          "variance": null
+        }
+      ],
+      "criticalPath": [
+        "A",
+        "B"
+      ],
+      "warnings": [],
+      "baseline": null
+    },
+    "finishDeltaDays": 3,
+    "impacted": [
+      {
+        "id": "A",
+        "summary": "Task A",
+        "startDeltaDays": 0,
+        "finishDeltaDays": 3
+      },
+      {
+        "id": "B",
+        "summary": "Task B",
+        "startDeltaDays": 3,
+        "finishDeltaDays": 3
+      }
+    ]
+  },
+  "computeLoad": {
+    "from": "2026-11-16",
+    "to": "2026-11-23",
+    "resources": [
+      {
+        "resourceId": "u-anna",
+        "capacityHoursPerDay": 8,
+        "totalHours": 24,
+        "overallocatedDays": 0,
+        "peakLoadPct": 100,
+        "days": [
+          {
+            "date": "2026-11-16",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "A",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-11-17",
+            "hours": 0,
+            "capacity": 0,
+            "away": "day",
+            "tasks": []
+          },
+          {
+            "date": "2026-11-18",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "A",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-11-20",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "A",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-11-23",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      },
+      {
+        "resourceId": "u-ben",
+        "capacityHoursPerDay": 8,
+        "totalHours": 8,
+        "overallocatedDays": 0,
+        "peakLoadPct": 100,
+        "days": [
+          {
+            "date": "2026-11-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-17",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-18",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-20",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-23",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "B",
+                "hours": 8
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "unassignedHours": 0
+  },
+  "computeLoad window 1": {
+    "from": "2026-11-16",
+    "to": "2026-11-23",
+    "resources": [
+      {
+        "resourceId": "u-anna",
+        "capacityHoursPerDay": 8,
+        "totalHours": 24,
+        "overallocatedDays": 0,
+        "peakLoadPct": 100,
+        "days": [
+          {
+            "date": "2026-11-16",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "A",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-11-17",
+            "hours": 0,
+            "capacity": 0,
+            "away": "day",
+            "tasks": []
+          },
+          {
+            "date": "2026-11-18",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "A",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-11-20",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "A",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-11-23",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      },
+      {
+        "resourceId": "u-ben",
+        "capacityHoursPerDay": 8,
+        "totalHours": 8,
+        "overallocatedDays": 0,
+        "peakLoadPct": 100,
+        "days": [
+          {
+            "date": "2026-11-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-17",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-18",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-20",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-23",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "B",
+                "hours": 8
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "unassignedHours": 0
+  },
+  "levelResources within_slack": {
+    "mode": "within_slack",
+    "finishBefore": "2026-11-23",
+    "finishAfter": "2026-11-23",
+    "overallocatedDaysBefore": 0,
+    "overallocatedDaysAfter": 0,
+    "changes": [],
+    "unresolved": [],
+    "levelledStarts": {},
+    "keepStart": null
+  },
+  "levelResources allow_delay": {
+    "mode": "allow_delay",
+    "finishBefore": "2026-11-23",
+    "finishAfter": "2026-11-23",
+    "overallocatedDaysBefore": 0,
+    "overallocatedDaysAfter": 0,
+    "changes": [],
+    "unresolved": [],
+    "levelledStarts": {},
+    "keepStart": null
+  },
+  "computeCosts": {
+    "currency": "EUR",
+    "budget": null,
+    "plannedCost": 3040,
+    "actualCost": 0,
+    "forecastCost": 3040,
+    "budgetVariance": null,
+    "byTask": [
+      {
+        "id": "A",
+        "summary": "Task A",
+        "assigneeId": "u-anna",
+        "plannedCost": 2400,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 1440,
+        "spentMinutes": 0,
+        "resolved": false
+      },
+      {
+        "id": "B",
+        "summary": "Task B",
+        "assigneeId": "u-ben",
+        "plannedCost": 640,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "resolved": false
+      }
+    ],
+    "byPerson": [
+      {
+        "resourceId": "u-anna",
+        "hourlyRate": 100,
+        "plannedHours": 24,
+        "actualHours": 0,
+        "plannedCost": 2400,
+        "actualCost": 0
+      },
+      {
+        "resourceId": "u-ben",
+        "hourlyRate": 80,
+        "plannedHours": 8,
+        "actualHours": 0,
+        "plannedCost": 640,
+        "actualCost": 0
+      }
+    ],
+    "evm": null,
+    "warnings": []
+  }
+}

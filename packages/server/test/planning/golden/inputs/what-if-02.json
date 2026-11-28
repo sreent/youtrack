@@ -1,0 +1,103 @@
+{
+  "source": "what-if.test.ts › whatIf > replaces estimates, assignees and start dates",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": null,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "A",
+        "summary": "Build",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": 1440,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "B",
+        "summary": "Docs",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "C",
+        "summary": "Release",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [
+          "A",
+          "B"
+        ],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-half",
+        "login": "half",
+        "name": "Half Time",
+        "capacityHoursPerDay": 4,
+        "hourlyRate": null
+      }
+    ],
+    "workItems": [],
+    "baseline": null
+  },
+  "overrides": [
+    [
+      {
+        "id": "A",
+        "assigneeId": "u-half"
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-16",
+      "2026-11-20"
+    ]
+  ]
+}

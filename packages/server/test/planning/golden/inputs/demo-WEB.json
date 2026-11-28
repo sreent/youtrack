@@ -1,0 +1,182 @@
+{
+  "source": "the demo: WEB",
+  "input": {
+    "today": "2026-11-28",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [],
+      "budget": null,
+      "currency": "USD"
+    },
+    "tasks": [
+      {
+        "id": "WEB-1",
+        "summary": "Dark mode toggle is missing from settings",
+        "parent": null,
+        "assigneeId": "w42yr0c4rn7t543s",
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "WEB-2",
+        "summary": "Keyboard focus is lost after closing the command dialog",
+        "parent": null,
+        "assigneeId": "w42yr0c4rn7t543s",
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 2,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "WEB-3",
+        "summary": "Onboarding checklist for new workspaces",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "WEB-4",
+        "summary": "Charts don't render in Safari 16",
+        "parent": null,
+        "assigneeId": "w42yr0c4rn7t543s",
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 1,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "WEB-5",
+        "summary": "Fix the typo on the pricing page",
+        "parent": null,
+        "assigneeId": "w42yr0c4rn7t543s",
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": true,
+        "resolvedAt": "2026-11-26",
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 4,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "WEB-6",
+        "summary": "Improve empty states on the issues page",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 4,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "WEB-7",
+        "summary": "Search box loses the query after navigating back",
+        "parent": null,
+        "assigneeId": "w42yr0c4rn7t543s",
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": true,
+        "resolvedAt": "2026-11-23",
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "w42yr0c4rn7t543s",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 85,
+        "week": null
+      }
+    ],
+    "workItems": [],
+    "baseline": null,
+    "absences": []
+  },
+  "overrides": [
+    [
+      {
+        "id": "WEB-1",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "WEB-1",
+        "effortMinutes": 960
+      },
+      {
+        "id": "WEB-6",
+        "start": "2026-12-01"
+      },
+      {
+        "id": "WEB-3",
+        "assigneeId": "w42yr0c4rn7t543s"
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-23",
+      "2026-11-30"
+    ]
+  ]
+}

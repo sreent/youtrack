@@ -1,0 +1,81 @@
+{
+  "source": "schedule.test.ts › computeSchedule: leaf tasks > ignores predecessors outside the plan, with a warning",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": null,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "MIG-4",
+        "summary": "Task MIG-4",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [
+          "WEB-7"
+        ],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-anna",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 100
+      },
+      {
+        "id": "u-ben",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 80
+      }
+    ],
+    "workItems": [],
+    "baseline": null
+  },
+  "overrides": [
+    [
+      {
+        "id": "MIG-4",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "MIG-4",
+        "effortMinutes": 960
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-16",
+      "2026-11-16"
+    ]
+  ]
+}

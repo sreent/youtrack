@@ -1,0 +1,142 @@
+{
+  "source": "schedule.test.ts › computeSchedule: leaf tasks > uses actual dates for resolved work and remaining work for tasks in progress",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": null,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "R",
+        "summary": "Task R",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": 960,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": true,
+        "resolvedAt": "2026-11-10",
+        "firstWorkDate": "2026-11-02",
+        "spentMinutes": 960,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "P",
+        "summary": "Task P",
+        "parent": null,
+        "assigneeId": "u-anna",
+        "effortMinutes": 1440,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": "2026-11-12",
+        "spentMinutes": 480,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [
+          "R"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "S",
+        "summary": "Task S",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [
+          "P"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "O",
+        "summary": "Task O",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": "2026-11-13",
+        "spentMinutes": 600,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-anna",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 100
+      },
+      {
+        "id": "u-ben",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 80
+      }
+    ],
+    "workItems": [],
+    "baseline": null
+  },
+  "overrides": [
+    [
+      {
+        "id": "P",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "P",
+        "effortMinutes": 2880
+      },
+      {
+        "id": "S",
+        "start": "2026-11-19"
+      },
+      {
+        "id": "S",
+        "assigneeId": "u-anna"
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-02",
+      "2026-11-18"
+    ]
+  ]
+}

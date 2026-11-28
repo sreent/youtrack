@@ -1,0 +1,125 @@
+{
+  "source": "schedule.test.ts › computeSchedule: leaf tasks > places milestones on their predecessors’ finish, with zero duration",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": null,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "A",
+        "summary": "Task A",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": 960,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "M",
+        "summary": "Task M",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [
+          "A"
+        ],
+        "isMilestone": true
+      },
+      {
+        "id": "B",
+        "summary": "Task B",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [
+          "M"
+        ],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-anna",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 100
+      },
+      {
+        "id": "u-ben",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 80
+      }
+    ],
+    "workItems": [],
+    "baseline": null
+  },
+  "overrides": [
+    [
+      {
+        "id": "A",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "A",
+        "effortMinutes": 1920
+      },
+      {
+        "id": "B",
+        "start": "2026-11-19"
+      },
+      {
+        "id": "B",
+        "assigneeId": "u-anna"
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-16",
+      "2026-11-18"
+    ]
+  ]
+}

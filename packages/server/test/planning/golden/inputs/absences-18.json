@@ -1,0 +1,108 @@
+{
+  "source": "absences.test.ts › load and levelling around days away > counts work booked on a day away as over what they can do",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": null,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "A",
+        "summary": "Task A",
+        "parent": null,
+        "assigneeId": "u-anna",
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "B",
+        "summary": "Task B",
+        "parent": null,
+        "assigneeId": "u-anna",
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-anna",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 100
+      },
+      {
+        "id": "u-ben",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 80
+      }
+    ],
+    "workItems": [],
+    "baseline": null,
+    "absences": [
+      {
+        "resourceId": "u-anna",
+        "from": "2026-11-17",
+        "to": "2026-11-17",
+        "half": null
+      }
+    ]
+  },
+  "overrides": [
+    [
+      {
+        "id": "A",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "A",
+        "effortMinutes": 960
+      },
+      {
+        "id": "B",
+        "start": "2026-11-19"
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-16",
+      "2026-11-18"
+    ]
+  ]
+}

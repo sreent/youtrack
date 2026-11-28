@@ -1,0 +1,72 @@
+{
+  "source": "schedule.test.ts › computeSchedule: leaf tasks > caps daily hours at the assignee capacity",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": null,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "A",
+        "summary": "Task A",
+        "parent": null,
+        "assigneeId": "u-part",
+        "effortMinutes": 960,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-part",
+        "login": "part",
+        "name": "Part Timer",
+        "capacityHoursPerDay": 6,
+        "hourlyRate": null
+      }
+    ],
+    "workItems": [],
+    "baseline": null
+  },
+  "overrides": [
+    [
+      {
+        "id": "A",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "A",
+        "effortMinutes": 1920
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-16",
+      "2026-11-18"
+    ]
+  ]
+}

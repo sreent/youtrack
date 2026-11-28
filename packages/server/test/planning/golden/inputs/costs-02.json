@@ -1,0 +1,179 @@
+{
+  "source": "costs.test.ts › computeCosts > computes earned value against a baseline",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": 3000,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "T1",
+        "summary": "Task T1",
+        "parent": null,
+        "assigneeId": "u-anna",
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": true,
+        "resolvedAt": "2026-11-10",
+        "firstWorkDate": "2026-11-02",
+        "spentMinutes": 600,
+        "priorityOrdinal": null,
+        "fixedCost": 200,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "T2",
+        "summary": "Task T2",
+        "parent": null,
+        "assigneeId": "u-ben",
+        "effortMinutes": 960,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": "2026-11-12",
+        "spentMinutes": 240,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "T3",
+        "summary": "Task T3",
+        "parent": null,
+        "assigneeId": "u-carl",
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": 500,
+        "predecessors": [],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-anna",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 100
+      },
+      {
+        "id": "u-ben",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 80
+      },
+      {
+        "id": "u-carl",
+        "login": "carl",
+        "name": "Carl Jung",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": null
+      }
+    ],
+    "workItems": [
+      {
+        "taskId": "T1",
+        "authorId": "u-anna",
+        "date": "2026-11-02",
+        "minutes": 360,
+        "hourlyRate": null
+      },
+      {
+        "taskId": "T1",
+        "authorId": "u-anna",
+        "date": "2026-11-03",
+        "minutes": 240,
+        "hourlyRate": 120
+      },
+      {
+        "taskId": "T2",
+        "authorId": "u-ben",
+        "date": "2026-11-12",
+        "minutes": 240,
+        "hourlyRate": null
+      }
+    ],
+    "baseline": {
+      "id": "bl-1",
+      "name": "Kick-off",
+      "tasks": [
+        {
+          "id": "T1",
+          "start": "2026-11-02",
+          "finish": "2026-11-06",
+          "effortMinutes": 480,
+          "cost": 1000
+        },
+        {
+          "id": "T2",
+          "start": "2026-11-12",
+          "finish": "2026-11-18",
+          "effortMinutes": 960,
+          "cost": 1280
+        },
+        {
+          "id": "T3",
+          "start": "2026-11-23",
+          "finish": "2026-11-23",
+          "effortMinutes": 480,
+          "cost": 500
+        },
+        {
+          "id": "OLD-1",
+          "start": "2026-11-02",
+          "finish": "2026-11-03",
+          "effortMinutes": 240,
+          "cost": 999
+        }
+      ]
+    }
+  },
+  "overrides": [
+    [
+      {
+        "id": "T2",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "T2",
+        "effortMinutes": 1920
+      },
+      {
+        "id": "T3",
+        "start": "2026-11-19"
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-02",
+      "2026-11-17"
+    ]
+  ]
+}

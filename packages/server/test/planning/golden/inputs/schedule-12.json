@@ -1,0 +1,157 @@
+{
+  "source": "schedule.test.ts › computeSchedule: summary tasks > rolls a three-level hierarchy up from its leaves",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": null,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "E",
+        "summary": "Task E",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": 600,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "F",
+        "summary": "Task F",
+        "parent": "E",
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "T1",
+        "summary": "Task T1",
+        "parent": "F",
+        "assigneeId": null,
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": true,
+        "resolvedAt": "2026-11-10",
+        "firstWorkDate": "2026-11-09",
+        "spentMinutes": 480,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "T2",
+        "summary": "Task T2",
+        "parent": "F",
+        "assigneeId": null,
+        "effortMinutes": 960,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [
+          "T1"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "T3",
+        "summary": "Task T3",
+        "parent": "E",
+        "assigneeId": null,
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-anna",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 100
+      },
+      {
+        "id": "u-ben",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 80
+      }
+    ],
+    "workItems": [],
+    "baseline": null
+  },
+  "overrides": [
+    [
+      {
+        "id": "T2",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "T2",
+        "effortMinutes": 1920
+      },
+      {
+        "id": "T3",
+        "start": "2026-11-19"
+      },
+      {
+        "id": "E",
+        "delayDays": 1
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-09",
+      "2026-11-17"
+    ]
+  ]
+}

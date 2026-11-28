@@ -1,0 +1,390 @@
+{
+  "computeSchedule": {
+    "start": "2026-11-16",
+    "finish": "2026-11-16",
+    "today": "2026-11-16",
+    "tasks": [
+      {
+        "id": "MIG-4",
+        "summary": "Task MIG-4",
+        "parent": null,
+        "depth": 0,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": null,
+        "start": "2026-11-16",
+        "finish": "2026-11-16",
+        "durationDays": 1,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "remainingMinutes": 480,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-16",
+        "earlyFinish": "2026-11-16",
+        "lateStart": "2026-11-16",
+        "lateFinish": "2026-11-16",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "project_start",
+        "predecessors": [],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      }
+    ],
+    "criticalPath": [
+      "MIG-4"
+    ],
+    "warnings": [
+      "MIG-4 depends on WEB-7, which is outside this plan"
+    ],
+    "baseline": null
+  },
+  "computeSchedule with overrides 1": {
+    "start": "2026-11-18",
+    "finish": "2026-11-18",
+    "today": "2026-11-16",
+    "tasks": [
+      {
+        "id": "MIG-4",
+        "summary": "Task MIG-4",
+        "parent": null,
+        "depth": 0,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": null,
+        "start": "2026-11-18",
+        "finish": "2026-11-18",
+        "durationDays": 1,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "remainingMinutes": 480,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-18",
+        "earlyFinish": "2026-11-18",
+        "lateStart": "2026-11-18",
+        "lateFinish": "2026-11-18",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "project_start",
+        "predecessors": [],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      }
+    ],
+    "criticalPath": [
+      "MIG-4"
+    ],
+    "warnings": [
+      "MIG-4 depends on WEB-7, which is outside this plan"
+    ],
+    "baseline": null
+  },
+  "whatIf 1": {
+    "before": {
+      "finish": "2026-11-16",
+      "criticalPath": [
+        "MIG-4"
+      ]
+    },
+    "after": {
+      "start": "2026-11-18",
+      "finish": "2026-11-18",
+      "today": "2026-11-16",
+      "tasks": [
+        {
+          "id": "MIG-4",
+          "summary": "Task MIG-4",
+          "parent": null,
+          "depth": 0,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": null,
+          "start": "2026-11-18",
+          "finish": "2026-11-18",
+          "durationDays": 1,
+          "effortMinutes": 480,
+          "spentMinutes": 0,
+          "remainingMinutes": 480,
+          "percentComplete": 0,
+          "earlyStart": "2026-11-18",
+          "earlyFinish": "2026-11-18",
+          "lateStart": "2026-11-18",
+          "lateFinish": "2026-11-18",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "project_start",
+          "predecessors": [],
+          "plannedCost": 0,
+          "actualCost": 0,
+          "baseline": null,
+          "variance": null
+        }
+      ],
+      "criticalPath": [
+        "MIG-4"
+      ],
+      "warnings": [
+        "MIG-4 depends on WEB-7, which is outside this plan"
+      ],
+      "baseline": null
+    },
+    "finishDeltaDays": 2,
+    "impacted": [
+      {
+        "id": "MIG-4",
+        "summary": "Task MIG-4",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      }
+    ]
+  },
+  "computeSchedule with overrides 2": {
+    "start": "2026-11-16",
+    "finish": "2026-11-17",
+    "today": "2026-11-16",
+    "tasks": [
+      {
+        "id": "MIG-4",
+        "summary": "Task MIG-4",
+        "parent": null,
+        "depth": 0,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": null,
+        "start": "2026-11-16",
+        "finish": "2026-11-17",
+        "durationDays": 2,
+        "effortMinutes": 960,
+        "spentMinutes": 0,
+        "remainingMinutes": 960,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-16",
+        "earlyFinish": "2026-11-17",
+        "lateStart": "2026-11-16",
+        "lateFinish": "2026-11-17",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "project_start",
+        "predecessors": [],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      }
+    ],
+    "criticalPath": [
+      "MIG-4"
+    ],
+    "warnings": [
+      "MIG-4 depends on WEB-7, which is outside this plan"
+    ],
+    "baseline": null
+  },
+  "whatIf 2": {
+    "before": {
+      "finish": "2026-11-16",
+      "criticalPath": [
+        "MIG-4"
+      ]
+    },
+    "after": {
+      "start": "2026-11-16",
+      "finish": "2026-11-17",
+      "today": "2026-11-16",
+      "tasks": [
+        {
+          "id": "MIG-4",
+          "summary": "Task MIG-4",
+          "parent": null,
+          "depth": 0,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": null,
+          "start": "2026-11-16",
+          "finish": "2026-11-17",
+          "durationDays": 2,
+          "effortMinutes": 960,
+          "spentMinutes": 0,
+          "remainingMinutes": 960,
+          "percentComplete": 0,
+          "earlyStart": "2026-11-16",
+          "earlyFinish": "2026-11-17",
+          "lateStart": "2026-11-16",
+          "lateFinish": "2026-11-17",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "project_start",
+          "predecessors": [],
+          "plannedCost": 0,
+          "actualCost": 0,
+          "baseline": null,
+          "variance": null
+        }
+      ],
+      "criticalPath": [
+        "MIG-4"
+      ],
+      "warnings": [
+        "MIG-4 depends on WEB-7, which is outside this plan"
+      ],
+      "baseline": null
+    },
+    "finishDeltaDays": 1,
+    "impacted": [
+      {
+        "id": "MIG-4",
+        "summary": "Task MIG-4",
+        "startDeltaDays": 0,
+        "finishDeltaDays": 1
+      }
+    ]
+  },
+  "computeLoad": {
+    "from": "2026-11-16",
+    "to": "2026-11-16",
+    "resources": [
+      {
+        "resourceId": "u-anna",
+        "capacityHoursPerDay": 8,
+        "totalHours": 0,
+        "overallocatedDays": 0,
+        "peakLoadPct": 0,
+        "days": [
+          {
+            "date": "2026-11-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      },
+      {
+        "resourceId": "u-ben",
+        "capacityHoursPerDay": 8,
+        "totalHours": 0,
+        "overallocatedDays": 0,
+        "peakLoadPct": 0,
+        "days": [
+          {
+            "date": "2026-11-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      }
+    ],
+    "unassignedHours": 8
+  },
+  "computeLoad window 1": {
+    "from": "2026-11-16",
+    "to": "2026-11-16",
+    "resources": [
+      {
+        "resourceId": "u-anna",
+        "capacityHoursPerDay": 8,
+        "totalHours": 0,
+        "overallocatedDays": 0,
+        "peakLoadPct": 0,
+        "days": [
+          {
+            "date": "2026-11-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      },
+      {
+        "resourceId": "u-ben",
+        "capacityHoursPerDay": 8,
+        "totalHours": 0,
+        "overallocatedDays": 0,
+        "peakLoadPct": 0,
+        "days": [
+          {
+            "date": "2026-11-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      }
+    ],
+    "unassignedHours": 8
+  },
+  "levelResources within_slack": {
+    "mode": "within_slack",
+    "finishBefore": "2026-11-16",
+    "finishAfter": "2026-11-16",
+    "overallocatedDaysBefore": 0,
+    "overallocatedDaysAfter": 0,
+    "changes": [],
+    "unresolved": [],
+    "levelledStarts": {},
+    "keepStart": null
+  },
+  "levelResources allow_delay": {
+    "mode": "allow_delay",
+    "finishBefore": "2026-11-16",
+    "finishAfter": "2026-11-16",
+    "overallocatedDaysBefore": 0,
+    "overallocatedDaysAfter": 0,
+    "changes": [],
+    "unresolved": [],
+    "levelledStarts": {},
+    "keepStart": null
+  },
+  "computeCosts": {
+    "currency": "EUR",
+    "budget": null,
+    "plannedCost": 0,
+    "actualCost": 0,
+    "forecastCost": 0,
+    "budgetVariance": null,
+    "byTask": [
+      {
+        "id": "MIG-4",
+        "summary": "Task MIG-4",
+        "assigneeId": null,
+        "plannedCost": 0,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "resolved": false
+      }
+    ],
+    "byPerson": [],
+    "evm": null,
+    "warnings": []
+  }
+}

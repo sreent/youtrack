@@ -1,0 +1,524 @@
+{
+  "source": "the demo: MIG with its plan of record",
+  "input": {
+    "today": "2026-11-28",
+    "calendar": {
+      "startDate": "2026-11-07",
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [],
+      "budget": 60000,
+      "currency": "USD"
+    },
+    "tasks": [
+      {
+        "id": "MIG-1",
+        "summary": "Assessment",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 2,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-2",
+        "summary": "Inventory servers and applications",
+        "parent": "MIG-1",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "effortMinutes": 1920,
+        "startConstraint": "2026-11-07",
+        "deadline": null,
+        "resolved": true,
+        "resolvedAt": "2026-11-12",
+        "firstWorkDate": "2026-11-07",
+        "spentMinutes": 1920,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-3",
+        "summary": "Map application dependencies",
+        "parent": "MIG-1",
+        "assigneeId": "0revw0le9otxamoa",
+        "effortMinutes": 1440,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": true,
+        "resolvedAt": "2026-11-18",
+        "firstWorkDate": "2026-11-13",
+        "spentMinutes": 1680,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [
+          "MIG-2"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-4",
+        "summary": "Assessment signed off",
+        "parent": "MIG-1",
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": true,
+        "resolvedAt": "2026-11-18",
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [
+          "MIG-3"
+        ],
+        "isMilestone": true
+      },
+      {
+        "id": "MIG-5",
+        "summary": "Design",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 2,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-6",
+        "summary": "Target network design",
+        "parent": "MIG-5",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "effortMinutes": 2400,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": "2026-11-22",
+        "spentMinutes": 1440,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [
+          "MIG-4"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-7",
+        "summary": "Storage and backup design",
+        "parent": "MIG-5",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "effortMinutes": 1920,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [
+          "MIG-4"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-8",
+        "summary": "Security review of the design",
+        "parent": "MIG-5",
+        "assigneeId": "7rfimc1f0xsan3b7",
+        "effortMinutes": 960,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [
+          "MIG-6",
+          "MIG-7"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-9",
+        "summary": "Design approved",
+        "parent": "MIG-5",
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 1,
+        "fixedCost": null,
+        "predecessors": [
+          "MIG-8"
+        ],
+        "isMilestone": true
+      },
+      {
+        "id": "MIG-10",
+        "summary": "Migration",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 2,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-11",
+        "summary": "Provision the target environment",
+        "parent": "MIG-10",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "effortMinutes": 2400,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": 12000,
+        "predecessors": [
+          "MIG-9"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-12",
+        "summary": "Migrate databases",
+        "parent": "MIG-10",
+        "assigneeId": "0revw0le9otxamoa",
+        "effortMinutes": 2880,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 1,
+        "fixedCost": null,
+        "predecessors": [
+          "MIG-11"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-13",
+        "summary": "Migrate application servers",
+        "parent": "MIG-10",
+        "assigneeId": "w42yr0c4rn7t543s",
+        "effortMinutes": 3840,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [
+          "MIG-11"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-14",
+        "summary": "Cut over DNS and traffic",
+        "parent": "MIG-10",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": "2026-12-28",
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 1,
+        "fixedCost": null,
+        "predecessors": [
+          "MIG-12",
+          "MIG-13"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-15",
+        "summary": "Closure",
+        "parent": null,
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 2,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-16",
+        "summary": "Decommission the Leeds data center",
+        "parent": "MIG-15",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "effortMinutes": 1440,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": 3000,
+        "predecessors": [
+          "MIG-14"
+        ],
+        "isMilestone": false
+      },
+      {
+        "id": "MIG-17",
+        "summary": "Migration complete",
+        "parent": "MIG-15",
+        "assigneeId": null,
+        "effortMinutes": null,
+        "startConstraint": null,
+        "deadline": "2027-01-07",
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": 3,
+        "fixedCost": null,
+        "predecessors": [
+          "MIG-16"
+        ],
+        "isMilestone": true
+      }
+    ],
+    "resources": [
+      {
+        "id": "lwzbq3lk1e2ysjme",
+        "login": "chloe",
+        "name": "Chloé Martin",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 100,
+        "week": null
+      },
+      {
+        "id": "0revw0le9otxamoa",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 95,
+        "week": null
+      },
+      {
+        "id": "7rfimc1f0xsan3b7",
+        "login": "diego",
+        "name": "Diego Alvarez",
+        "capacityHoursPerDay": 6,
+        "hourlyRate": 70,
+        "week": null
+      },
+      {
+        "id": "w42yr0c4rn7t543s",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 85,
+        "week": null
+      }
+    ],
+    "workItems": [
+      {
+        "taskId": "MIG-2",
+        "authorId": "lwzbq3lk1e2ysjme",
+        "date": "2026-11-07",
+        "minutes": 1920,
+        "hourlyRate": 100
+      },
+      {
+        "taskId": "MIG-3",
+        "authorId": "0revw0le9otxamoa",
+        "date": "2026-11-13",
+        "minutes": 1680,
+        "hourlyRate": 95
+      },
+      {
+        "taskId": "MIG-6",
+        "authorId": "lwzbq3lk1e2ysjme",
+        "date": "2026-11-22",
+        "minutes": 1440,
+        "hourlyRate": 100
+      }
+    ],
+    "baseline": {
+      "id": "mbq8vdyndwf16rnt",
+      "name": "Plan of record",
+      "tasks": [
+        {
+          "id": "MIG-2",
+          "start": "2026-11-09",
+          "finish": "2026-11-12",
+          "effortMinutes": 1920,
+          "cost": 3200
+        },
+        {
+          "id": "MIG-3",
+          "start": "2026-11-13",
+          "finish": "2026-11-17",
+          "effortMinutes": 1440,
+          "cost": 2280
+        },
+        {
+          "id": "MIG-4",
+          "start": "2026-11-17",
+          "finish": "2026-11-17",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        {
+          "id": "MIG-6",
+          "start": "2026-11-18",
+          "finish": "2026-11-24",
+          "effortMinutes": 2400,
+          "cost": 4000
+        },
+        {
+          "id": "MIG-7",
+          "start": "2026-11-18",
+          "finish": "2026-11-23",
+          "effortMinutes": 1920,
+          "cost": 3200
+        },
+        {
+          "id": "MIG-8",
+          "start": "2026-11-25",
+          "finish": "2026-11-27",
+          "effortMinutes": 960,
+          "cost": 1120
+        },
+        {
+          "id": "MIG-9",
+          "start": "2026-11-27",
+          "finish": "2026-11-27",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        {
+          "id": "MIG-11",
+          "start": "2026-11-30",
+          "finish": "2026-12-04",
+          "effortMinutes": 2400,
+          "cost": 16000
+        },
+        {
+          "id": "MIG-12",
+          "start": "2026-12-07",
+          "finish": "2026-12-14",
+          "effortMinutes": 2880,
+          "cost": 4560
+        },
+        {
+          "id": "MIG-13",
+          "start": "2026-12-07",
+          "finish": "2026-12-16",
+          "effortMinutes": 3840,
+          "cost": 5440
+        },
+        {
+          "id": "MIG-14",
+          "start": "2026-12-17",
+          "finish": "2026-12-17",
+          "effortMinutes": 480,
+          "cost": 800
+        },
+        {
+          "id": "MIG-16",
+          "start": "2026-12-18",
+          "finish": "2026-12-22",
+          "effortMinutes": 1440,
+          "cost": 5400
+        },
+        {
+          "id": "MIG-17",
+          "start": "2026-12-22",
+          "finish": "2026-12-22",
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      ]
+    },
+    "absences": []
+  },
+  "overrides": [
+    [
+      {
+        "id": "MIG-7",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "MIG-6",
+        "effortMinutes": 4800
+      },
+      {
+        "id": "MIG-17",
+        "start": "2026-12-01"
+      },
+      {
+        "id": "MIG-8",
+        "assigneeId": "lwzbq3lk1e2ysjme"
+      },
+      {
+        "id": "MIG-1",
+        "delayDays": 1
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-07",
+      "2026-12-31"
+    ]
+  ]
+}

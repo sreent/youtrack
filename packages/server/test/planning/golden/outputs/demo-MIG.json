@@ -1,0 +1,6300 @@
+{
+  "computeSchedule": {
+    "start": "2026-11-07",
+    "finish": "2026-12-31",
+    "today": "2026-11-28",
+    "tasks": [
+      {
+        "id": "MIG-1",
+        "summary": "Assessment",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": true,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-11-07",
+        "finish": "2026-11-18",
+        "durationDays": 8,
+        "effortMinutes": 3360,
+        "spentMinutes": 3600,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-07",
+        "earlyFinish": "2026-11-18",
+        "lateStart": "2026-11-07",
+        "lateFinish": "2026-11-18",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [],
+        "plannedCost": 5480,
+        "actualCost": 5860,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-2",
+        "summary": "Inventory servers and applications",
+        "parent": "MIG-1",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": true,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-11-07",
+        "finish": "2026-11-12",
+        "durationDays": 4,
+        "effortMinutes": 1920,
+        "spentMinutes": 1920,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-07",
+        "earlyFinish": "2026-11-12",
+        "lateStart": "2026-11-07",
+        "lateFinish": "2026-11-12",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [],
+        "plannedCost": 3200,
+        "actualCost": 3200,
+        "baseline": {
+          "start": "2026-11-09",
+          "finish": "2026-11-12",
+          "effortMinutes": 1920,
+          "cost": 3200
+        },
+        "variance": {
+          "startDays": 0,
+          "finishDays": 0,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-3",
+        "summary": "Map application dependencies",
+        "parent": "MIG-1",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": true,
+        "assigneeId": "0revw0le9otxamoa",
+        "priorityOrdinal": 3,
+        "start": "2026-11-13",
+        "finish": "2026-11-18",
+        "durationDays": 4,
+        "effortMinutes": 1440,
+        "spentMinutes": 1680,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-13",
+        "earlyFinish": "2026-11-18",
+        "lateStart": "2026-11-13",
+        "lateFinish": "2026-11-18",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [
+          "MIG-2"
+        ],
+        "plannedCost": 2280,
+        "actualCost": 2660,
+        "baseline": {
+          "start": "2026-11-13",
+          "finish": "2026-11-17",
+          "effortMinutes": 1440,
+          "cost": 2280
+        },
+        "variance": {
+          "startDays": 0,
+          "finishDays": 1,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-4",
+        "summary": "Assessment signed off",
+        "parent": "MIG-1",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": true,
+        "resolved": true,
+        "assigneeId": null,
+        "priorityOrdinal": 3,
+        "start": "2026-11-18",
+        "finish": "2026-11-18",
+        "durationDays": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-18",
+        "earlyFinish": "2026-11-18",
+        "lateStart": "2026-11-18",
+        "lateFinish": "2026-11-18",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [
+          "MIG-3"
+        ],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-17",
+          "finish": "2026-11-17",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        "variance": {
+          "startDays": 1,
+          "finishDays": 1,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-5",
+        "summary": "Design",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-11-22",
+        "finish": "2026-12-08",
+        "durationDays": 12,
+        "effortMinutes": 5280,
+        "spentMinutes": 1440,
+        "remainingMinutes": 3840,
+        "percentComplete": 27,
+        "earlyStart": "2026-11-22",
+        "earlyFinish": "2026-12-08",
+        "lateStart": "2026-11-22",
+        "lateFinish": "2026-12-08",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [],
+        "plannedCost": 8320,
+        "actualCost": 2400,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-6",
+        "summary": "Target network design",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-11-22",
+        "finish": "2026-12-01",
+        "durationDays": 7,
+        "effortMinutes": 2400,
+        "spentMinutes": 1440,
+        "remainingMinutes": 960,
+        "percentComplete": 60,
+        "earlyStart": "2026-11-22",
+        "earlyFinish": "2026-12-01",
+        "lateStart": "2026-11-22",
+        "lateFinish": "2026-12-03",
+        "slackDays": 2,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [
+          "MIG-4"
+        ],
+        "plannedCost": 4000,
+        "actualCost": 2400,
+        "baseline": {
+          "start": "2026-11-18",
+          "finish": "2026-11-24",
+          "effortMinutes": 2400,
+          "cost": 4000
+        },
+        "variance": {
+          "startDays": 2,
+          "finishDays": 5,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-7",
+        "summary": "Storage and backup design",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-11-30",
+        "finish": "2026-12-03",
+        "durationDays": 4,
+        "effortMinutes": 1920,
+        "spentMinutes": 0,
+        "remainingMinutes": 1920,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-30",
+        "earlyFinish": "2026-12-03",
+        "lateStart": "2026-11-30",
+        "lateFinish": "2026-12-03",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "project_start",
+        "predecessors": [
+          "MIG-4"
+        ],
+        "plannedCost": 3200,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-18",
+          "finish": "2026-11-23",
+          "effortMinutes": 1920,
+          "cost": 3200
+        },
+        "variance": {
+          "startDays": 8,
+          "finishDays": 8,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-8",
+        "summary": "Security review of the design",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "7rfimc1f0xsan3b7",
+        "priorityOrdinal": 3,
+        "start": "2026-12-04",
+        "finish": "2026-12-08",
+        "durationDays": 3,
+        "effortMinutes": 960,
+        "spentMinutes": 0,
+        "remainingMinutes": 960,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-04",
+        "earlyFinish": "2026-12-08",
+        "lateStart": "2026-12-04",
+        "lateFinish": "2026-12-08",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-6",
+          "MIG-7"
+        ],
+        "plannedCost": 1120,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-25",
+          "finish": "2026-11-27",
+          "effortMinutes": 960,
+          "cost": 1120
+        },
+        "variance": {
+          "startDays": 7,
+          "finishDays": 7,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-9",
+        "summary": "Design approved",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": true,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 1,
+        "start": "2026-12-08",
+        "finish": "2026-12-08",
+        "durationDays": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "remainingMinutes": 0,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-08",
+        "earlyFinish": "2026-12-08",
+        "lateStart": "2026-12-08",
+        "lateFinish": "2026-12-08",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-8"
+        ],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-27",
+          "finish": "2026-11-27",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        "variance": {
+          "startDays": 7,
+          "finishDays": 7,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-10",
+        "summary": "Migration",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-12-09",
+        "finish": "2026-12-28",
+        "durationDays": 14,
+        "effortMinutes": 9600,
+        "spentMinutes": 0,
+        "remainingMinutes": 9600,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-09",
+        "earlyFinish": "2026-12-28",
+        "lateStart": "2026-12-09",
+        "lateFinish": "2026-12-28",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [],
+        "plannedCost": 26800,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-11",
+        "summary": "Provision the target environment",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-12-09",
+        "finish": "2026-12-15",
+        "durationDays": 5,
+        "effortMinutes": 2400,
+        "spentMinutes": 0,
+        "remainingMinutes": 2400,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-09",
+        "earlyFinish": "2026-12-15",
+        "lateStart": "2026-12-09",
+        "lateFinish": "2026-12-15",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-9"
+        ],
+        "plannedCost": 16000,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-30",
+          "finish": "2026-12-04",
+          "effortMinutes": 2400,
+          "cost": 16000
+        },
+        "variance": {
+          "startDays": 7,
+          "finishDays": 7,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-12",
+        "summary": "Migrate databases",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "0revw0le9otxamoa",
+        "priorityOrdinal": 1,
+        "start": "2026-12-16",
+        "finish": "2026-12-23",
+        "durationDays": 6,
+        "effortMinutes": 2880,
+        "spentMinutes": 0,
+        "remainingMinutes": 2880,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-16",
+        "earlyFinish": "2026-12-23",
+        "lateStart": "2026-12-18",
+        "lateFinish": "2026-12-25",
+        "slackDays": 2,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-11"
+        ],
+        "plannedCost": 4560,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-07",
+          "finish": "2026-12-14",
+          "effortMinutes": 2880,
+          "cost": 4560
+        },
+        "variance": {
+          "startDays": 7,
+          "finishDays": 7,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-13",
+        "summary": "Migrate application servers",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "w42yr0c4rn7t543s",
+        "priorityOrdinal": 3,
+        "start": "2026-12-16",
+        "finish": "2026-12-25",
+        "durationDays": 8,
+        "effortMinutes": 3840,
+        "spentMinutes": 0,
+        "remainingMinutes": 3840,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-16",
+        "earlyFinish": "2026-12-25",
+        "lateStart": "2026-12-16",
+        "lateFinish": "2026-12-25",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-11"
+        ],
+        "plannedCost": 5440,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-07",
+          "finish": "2026-12-16",
+          "effortMinutes": 3840,
+          "cost": 5440
+        },
+        "variance": {
+          "startDays": 7,
+          "finishDays": 7,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-14",
+        "summary": "Cut over DNS and traffic",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 1,
+        "start": "2026-12-28",
+        "finish": "2026-12-28",
+        "durationDays": 1,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "remainingMinutes": 480,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-28",
+        "earlyFinish": "2026-12-28",
+        "lateStart": "2026-12-28",
+        "lateFinish": "2026-12-28",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": "2026-12-28",
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-12",
+          "MIG-13"
+        ],
+        "plannedCost": 800,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-17",
+          "finish": "2026-12-17",
+          "effortMinutes": 480,
+          "cost": 800
+        },
+        "variance": {
+          "startDays": 7,
+          "finishDays": 7,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-15",
+        "summary": "Closure",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-12-29",
+        "finish": "2026-12-31",
+        "durationDays": 3,
+        "effortMinutes": 1440,
+        "spentMinutes": 0,
+        "remainingMinutes": 1440,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-29",
+        "earlyFinish": "2026-12-31",
+        "lateStart": "2026-12-29",
+        "lateFinish": "2026-12-31",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [],
+        "plannedCost": 5400,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-16",
+        "summary": "Decommission the Leeds data center",
+        "parent": "MIG-15",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-12-29",
+        "finish": "2026-12-31",
+        "durationDays": 3,
+        "effortMinutes": 1440,
+        "spentMinutes": 0,
+        "remainingMinutes": 1440,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-29",
+        "earlyFinish": "2026-12-31",
+        "lateStart": "2026-12-29",
+        "lateFinish": "2026-12-31",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-14"
+        ],
+        "plannedCost": 5400,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-18",
+          "finish": "2026-12-22",
+          "effortMinutes": 1440,
+          "cost": 5400
+        },
+        "variance": {
+          "startDays": 7,
+          "finishDays": 7,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-17",
+        "summary": "Migration complete",
+        "parent": "MIG-15",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": true,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 3,
+        "start": "2026-12-31",
+        "finish": "2026-12-31",
+        "durationDays": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "remainingMinutes": 0,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-31",
+        "earlyFinish": "2026-12-31",
+        "lateStart": "2026-12-31",
+        "lateFinish": "2026-12-31",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": "2027-01-07",
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-16"
+        ],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-22",
+          "finish": "2026-12-22",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        "variance": {
+          "startDays": 7,
+          "finishDays": 7,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      }
+    ],
+    "criticalPath": [
+      "MIG-7",
+      "MIG-8",
+      "MIG-9",
+      "MIG-11",
+      "MIG-13",
+      "MIG-14",
+      "MIG-16",
+      "MIG-17"
+    ],
+    "warnings": [],
+    "baseline": {
+      "id": "mbq8vdyndwf16rnt",
+      "name": "Plan of record",
+      "finish": "2026-12-22",
+      "finishVarianceDays": 7
+    }
+  },
+  "computeSchedule with overrides 1": {
+    "start": "2026-11-07",
+    "finish": "2027-01-04",
+    "today": "2026-11-28",
+    "tasks": [
+      {
+        "id": "MIG-1",
+        "summary": "Assessment",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": true,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-11-07",
+        "finish": "2026-11-18",
+        "durationDays": 8,
+        "effortMinutes": 3360,
+        "spentMinutes": 3600,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-07",
+        "earlyFinish": "2026-11-18",
+        "lateStart": "2026-11-07",
+        "lateFinish": "2026-11-18",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [],
+        "plannedCost": 5480,
+        "actualCost": 5860,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-2",
+        "summary": "Inventory servers and applications",
+        "parent": "MIG-1",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": true,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-11-07",
+        "finish": "2026-11-12",
+        "durationDays": 4,
+        "effortMinutes": 1920,
+        "spentMinutes": 1920,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-07",
+        "earlyFinish": "2026-11-12",
+        "lateStart": "2026-11-07",
+        "lateFinish": "2026-11-12",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [],
+        "plannedCost": 3200,
+        "actualCost": 3200,
+        "baseline": {
+          "start": "2026-11-09",
+          "finish": "2026-11-12",
+          "effortMinutes": 1920,
+          "cost": 3200
+        },
+        "variance": {
+          "startDays": 0,
+          "finishDays": 0,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-3",
+        "summary": "Map application dependencies",
+        "parent": "MIG-1",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": true,
+        "assigneeId": "0revw0le9otxamoa",
+        "priorityOrdinal": 3,
+        "start": "2026-11-13",
+        "finish": "2026-11-18",
+        "durationDays": 4,
+        "effortMinutes": 1440,
+        "spentMinutes": 1680,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-13",
+        "earlyFinish": "2026-11-18",
+        "lateStart": "2026-11-13",
+        "lateFinish": "2026-11-18",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [
+          "MIG-2"
+        ],
+        "plannedCost": 2280,
+        "actualCost": 2660,
+        "baseline": {
+          "start": "2026-11-13",
+          "finish": "2026-11-17",
+          "effortMinutes": 1440,
+          "cost": 2280
+        },
+        "variance": {
+          "startDays": 0,
+          "finishDays": 1,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-4",
+        "summary": "Assessment signed off",
+        "parent": "MIG-1",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": true,
+        "resolved": true,
+        "assigneeId": null,
+        "priorityOrdinal": 3,
+        "start": "2026-11-18",
+        "finish": "2026-11-18",
+        "durationDays": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-18",
+        "earlyFinish": "2026-11-18",
+        "lateStart": "2026-11-18",
+        "lateFinish": "2026-11-18",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [
+          "MIG-3"
+        ],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-17",
+          "finish": "2026-11-17",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        "variance": {
+          "startDays": 1,
+          "finishDays": 1,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-5",
+        "summary": "Design",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-11-22",
+        "finish": "2026-12-10",
+        "durationDays": 14,
+        "effortMinutes": 5280,
+        "spentMinutes": 1440,
+        "remainingMinutes": 3840,
+        "percentComplete": 27,
+        "earlyStart": "2026-11-22",
+        "earlyFinish": "2026-12-10",
+        "lateStart": "2026-11-22",
+        "lateFinish": "2026-12-08",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [],
+        "plannedCost": 8320,
+        "actualCost": 2400,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-6",
+        "summary": "Target network design",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-11-22",
+        "finish": "2026-12-01",
+        "durationDays": 7,
+        "effortMinutes": 2400,
+        "spentMinutes": 1440,
+        "remainingMinutes": 960,
+        "percentComplete": 60,
+        "earlyStart": "2026-11-22",
+        "earlyFinish": "2026-12-01",
+        "lateStart": "2026-11-22",
+        "lateFinish": "2026-12-03",
+        "slackDays": 2,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [
+          "MIG-4"
+        ],
+        "plannedCost": 4000,
+        "actualCost": 2400,
+        "baseline": {
+          "start": "2026-11-18",
+          "finish": "2026-11-24",
+          "effortMinutes": 2400,
+          "cost": 4000
+        },
+        "variance": {
+          "startDays": 2,
+          "finishDays": 5,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-7",
+        "summary": "Storage and backup design",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-12-02",
+        "finish": "2026-12-07",
+        "durationDays": 4,
+        "effortMinutes": 1920,
+        "spentMinutes": 0,
+        "remainingMinutes": 1920,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-02",
+        "earlyFinish": "2026-12-07",
+        "lateStart": "2026-11-30",
+        "lateFinish": "2026-12-03",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "project_start",
+        "predecessors": [
+          "MIG-4"
+        ],
+        "plannedCost": 3200,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-18",
+          "finish": "2026-11-23",
+          "effortMinutes": 1920,
+          "cost": 3200
+        },
+        "variance": {
+          "startDays": 10,
+          "finishDays": 10,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-8",
+        "summary": "Security review of the design",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "7rfimc1f0xsan3b7",
+        "priorityOrdinal": 3,
+        "start": "2026-12-08",
+        "finish": "2026-12-10",
+        "durationDays": 3,
+        "effortMinutes": 960,
+        "spentMinutes": 0,
+        "remainingMinutes": 960,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-08",
+        "earlyFinish": "2026-12-10",
+        "lateStart": "2026-12-04",
+        "lateFinish": "2026-12-08",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-6",
+          "MIG-7"
+        ],
+        "plannedCost": 1120,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-25",
+          "finish": "2026-11-27",
+          "effortMinutes": 960,
+          "cost": 1120
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-9",
+        "summary": "Design approved",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": true,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 1,
+        "start": "2026-12-10",
+        "finish": "2026-12-10",
+        "durationDays": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "remainingMinutes": 0,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-10",
+        "earlyFinish": "2026-12-10",
+        "lateStart": "2026-12-08",
+        "lateFinish": "2026-12-08",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-8"
+        ],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-27",
+          "finish": "2026-11-27",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-10",
+        "summary": "Migration",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-12-11",
+        "finish": "2026-12-30",
+        "durationDays": 14,
+        "effortMinutes": 9600,
+        "spentMinutes": 0,
+        "remainingMinutes": 9600,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-11",
+        "earlyFinish": "2026-12-30",
+        "lateStart": "2026-12-09",
+        "lateFinish": "2026-12-28",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [],
+        "plannedCost": 26800,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-11",
+        "summary": "Provision the target environment",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-12-11",
+        "finish": "2026-12-17",
+        "durationDays": 5,
+        "effortMinutes": 2400,
+        "spentMinutes": 0,
+        "remainingMinutes": 2400,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-11",
+        "earlyFinish": "2026-12-17",
+        "lateStart": "2026-12-09",
+        "lateFinish": "2026-12-15",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-9"
+        ],
+        "plannedCost": 16000,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-30",
+          "finish": "2026-12-04",
+          "effortMinutes": 2400,
+          "cost": 16000
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-12",
+        "summary": "Migrate databases",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "0revw0le9otxamoa",
+        "priorityOrdinal": 1,
+        "start": "2026-12-18",
+        "finish": "2026-12-25",
+        "durationDays": 6,
+        "effortMinutes": 2880,
+        "spentMinutes": 0,
+        "remainingMinutes": 2880,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-18",
+        "earlyFinish": "2026-12-25",
+        "lateStart": "2026-12-18",
+        "lateFinish": "2026-12-25",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-11"
+        ],
+        "plannedCost": 4560,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-07",
+          "finish": "2026-12-14",
+          "effortMinutes": 2880,
+          "cost": 4560
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-13",
+        "summary": "Migrate application servers",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "w42yr0c4rn7t543s",
+        "priorityOrdinal": 3,
+        "start": "2026-12-18",
+        "finish": "2026-12-29",
+        "durationDays": 8,
+        "effortMinutes": 3840,
+        "spentMinutes": 0,
+        "remainingMinutes": 3840,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-18",
+        "earlyFinish": "2026-12-29",
+        "lateStart": "2026-12-16",
+        "lateFinish": "2026-12-25",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-11"
+        ],
+        "plannedCost": 5440,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-07",
+          "finish": "2026-12-16",
+          "effortMinutes": 3840,
+          "cost": 5440
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-14",
+        "summary": "Cut over DNS and traffic",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 1,
+        "start": "2026-12-30",
+        "finish": "2026-12-30",
+        "durationDays": 1,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "remainingMinutes": 480,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-30",
+        "earlyFinish": "2026-12-30",
+        "lateStart": "2026-12-28",
+        "lateFinish": "2026-12-28",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": "2026-12-28",
+        "late": true,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-12",
+          "MIG-13"
+        ],
+        "plannedCost": 800,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-17",
+          "finish": "2026-12-17",
+          "effortMinutes": 480,
+          "cost": 800
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-15",
+        "summary": "Closure",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-12-31",
+        "finish": "2027-01-04",
+        "durationDays": 3,
+        "effortMinutes": 1440,
+        "spentMinutes": 0,
+        "remainingMinutes": 1440,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-31",
+        "earlyFinish": "2027-01-04",
+        "lateStart": "2026-12-31",
+        "lateFinish": "2027-01-04",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [],
+        "plannedCost": 5400,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-16",
+        "summary": "Decommission the Leeds data center",
+        "parent": "MIG-15",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-12-31",
+        "finish": "2027-01-04",
+        "durationDays": 3,
+        "effortMinutes": 1440,
+        "spentMinutes": 0,
+        "remainingMinutes": 1440,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-31",
+        "earlyFinish": "2027-01-04",
+        "lateStart": "2026-12-31",
+        "lateFinish": "2027-01-04",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-14"
+        ],
+        "plannedCost": 5400,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-18",
+          "finish": "2026-12-22",
+          "effortMinutes": 1440,
+          "cost": 5400
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-17",
+        "summary": "Migration complete",
+        "parent": "MIG-15",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": true,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 3,
+        "start": "2027-01-04",
+        "finish": "2027-01-04",
+        "durationDays": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "remainingMinutes": 0,
+        "percentComplete": 0,
+        "earlyStart": "2027-01-04",
+        "earlyFinish": "2027-01-04",
+        "lateStart": "2027-01-04",
+        "lateFinish": "2027-01-04",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": "2027-01-07",
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-16"
+        ],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-22",
+          "finish": "2026-12-22",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      }
+    ],
+    "criticalPath": [
+      "MIG-7",
+      "MIG-8",
+      "MIG-9",
+      "MIG-11",
+      "MIG-12",
+      "MIG-13",
+      "MIG-14",
+      "MIG-16",
+      "MIG-17"
+    ],
+    "warnings": [],
+    "baseline": {
+      "id": "mbq8vdyndwf16rnt",
+      "name": "Plan of record",
+      "finish": "2026-12-22",
+      "finishVarianceDays": 9
+    }
+  },
+  "whatIf 1": {
+    "before": {
+      "finish": "2026-12-31",
+      "criticalPath": [
+        "MIG-7",
+        "MIG-8",
+        "MIG-9",
+        "MIG-11",
+        "MIG-13",
+        "MIG-14",
+        "MIG-16",
+        "MIG-17"
+      ]
+    },
+    "after": {
+      "start": "2026-11-07",
+      "finish": "2027-01-04",
+      "today": "2026-11-28",
+      "tasks": [
+        {
+          "id": "MIG-1",
+          "summary": "Assessment",
+          "parent": null,
+          "depth": 0,
+          "isSummary": true,
+          "isMilestone": false,
+          "resolved": true,
+          "assigneeId": null,
+          "priorityOrdinal": 2,
+          "start": "2026-11-07",
+          "finish": "2026-11-18",
+          "durationDays": 8,
+          "effortMinutes": 3360,
+          "spentMinutes": 3600,
+          "remainingMinutes": 0,
+          "percentComplete": 100,
+          "earlyStart": "2026-11-07",
+          "earlyFinish": "2026-11-18",
+          "lateStart": "2026-11-07",
+          "lateFinish": "2026-11-18",
+          "slackDays": 0,
+          "critical": false,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [],
+          "plannedCost": 5480,
+          "actualCost": 5860,
+          "baseline": null,
+          "variance": null
+        },
+        {
+          "id": "MIG-2",
+          "summary": "Inventory servers and applications",
+          "parent": "MIG-1",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": true,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-11-07",
+          "finish": "2026-11-12",
+          "durationDays": 4,
+          "effortMinutes": 1920,
+          "spentMinutes": 1920,
+          "remainingMinutes": 0,
+          "percentComplete": 100,
+          "earlyStart": "2026-11-07",
+          "earlyFinish": "2026-11-12",
+          "lateStart": "2026-11-07",
+          "lateFinish": "2026-11-12",
+          "slackDays": 0,
+          "critical": false,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [],
+          "plannedCost": 3200,
+          "actualCost": 3200,
+          "baseline": {
+            "start": "2026-11-09",
+            "finish": "2026-11-12",
+            "effortMinutes": 1920,
+            "cost": 3200
+          },
+          "variance": {
+            "startDays": 0,
+            "finishDays": 0,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-3",
+          "summary": "Map application dependencies",
+          "parent": "MIG-1",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": true,
+          "assigneeId": "0revw0le9otxamoa",
+          "priorityOrdinal": 3,
+          "start": "2026-11-13",
+          "finish": "2026-11-18",
+          "durationDays": 4,
+          "effortMinutes": 1440,
+          "spentMinutes": 1680,
+          "remainingMinutes": 0,
+          "percentComplete": 100,
+          "earlyStart": "2026-11-13",
+          "earlyFinish": "2026-11-18",
+          "lateStart": "2026-11-13",
+          "lateFinish": "2026-11-18",
+          "slackDays": 0,
+          "critical": false,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [
+            "MIG-2"
+          ],
+          "plannedCost": 2280,
+          "actualCost": 2660,
+          "baseline": {
+            "start": "2026-11-13",
+            "finish": "2026-11-17",
+            "effortMinutes": 1440,
+            "cost": 2280
+          },
+          "variance": {
+            "startDays": 0,
+            "finishDays": 1,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-4",
+          "summary": "Assessment signed off",
+          "parent": "MIG-1",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": true,
+          "resolved": true,
+          "assigneeId": null,
+          "priorityOrdinal": 3,
+          "start": "2026-11-18",
+          "finish": "2026-11-18",
+          "durationDays": 0,
+          "effortMinutes": 0,
+          "spentMinutes": 0,
+          "remainingMinutes": 0,
+          "percentComplete": 100,
+          "earlyStart": "2026-11-18",
+          "earlyFinish": "2026-11-18",
+          "lateStart": "2026-11-18",
+          "lateFinish": "2026-11-18",
+          "slackDays": 0,
+          "critical": false,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [
+            "MIG-3"
+          ],
+          "plannedCost": 0,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-11-17",
+            "finish": "2026-11-17",
+            "effortMinutes": 0,
+            "cost": 0
+          },
+          "variance": {
+            "startDays": 1,
+            "finishDays": 1,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-5",
+          "summary": "Design",
+          "parent": null,
+          "depth": 0,
+          "isSummary": true,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": 2,
+          "start": "2026-11-22",
+          "finish": "2026-12-10",
+          "durationDays": 14,
+          "effortMinutes": 5280,
+          "spentMinutes": 1440,
+          "remainingMinutes": 3840,
+          "percentComplete": 27,
+          "earlyStart": "2026-11-22",
+          "earlyFinish": "2026-12-10",
+          "lateStart": "2026-11-22",
+          "lateFinish": "2026-12-08",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [],
+          "plannedCost": 8320,
+          "actualCost": 2400,
+          "baseline": null,
+          "variance": null
+        },
+        {
+          "id": "MIG-6",
+          "summary": "Target network design",
+          "parent": "MIG-5",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-11-22",
+          "finish": "2026-12-01",
+          "durationDays": 7,
+          "effortMinutes": 2400,
+          "spentMinutes": 1440,
+          "remainingMinutes": 960,
+          "percentComplete": 60,
+          "earlyStart": "2026-11-22",
+          "earlyFinish": "2026-12-01",
+          "lateStart": "2026-11-22",
+          "lateFinish": "2026-12-03",
+          "slackDays": 2,
+          "critical": false,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [
+            "MIG-4"
+          ],
+          "plannedCost": 4000,
+          "actualCost": 2400,
+          "baseline": {
+            "start": "2026-11-18",
+            "finish": "2026-11-24",
+            "effortMinutes": 2400,
+            "cost": 4000
+          },
+          "variance": {
+            "startDays": 2,
+            "finishDays": 5,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-7",
+          "summary": "Storage and backup design",
+          "parent": "MIG-5",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-12-02",
+          "finish": "2026-12-07",
+          "durationDays": 4,
+          "effortMinutes": 1920,
+          "spentMinutes": 0,
+          "remainingMinutes": 1920,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-02",
+          "earlyFinish": "2026-12-07",
+          "lateStart": "2026-11-30",
+          "lateFinish": "2026-12-03",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "project_start",
+          "predecessors": [
+            "MIG-4"
+          ],
+          "plannedCost": 3200,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-11-18",
+            "finish": "2026-11-23",
+            "effortMinutes": 1920,
+            "cost": 3200
+          },
+          "variance": {
+            "startDays": 10,
+            "finishDays": 10,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-8",
+          "summary": "Security review of the design",
+          "parent": "MIG-5",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "7rfimc1f0xsan3b7",
+          "priorityOrdinal": 3,
+          "start": "2026-12-08",
+          "finish": "2026-12-10",
+          "durationDays": 3,
+          "effortMinutes": 960,
+          "spentMinutes": 0,
+          "remainingMinutes": 960,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-08",
+          "earlyFinish": "2026-12-10",
+          "lateStart": "2026-12-04",
+          "lateFinish": "2026-12-08",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-6",
+            "MIG-7"
+          ],
+          "plannedCost": 1120,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-11-25",
+            "finish": "2026-11-27",
+            "effortMinutes": 960,
+            "cost": 1120
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-9",
+          "summary": "Design approved",
+          "parent": "MIG-5",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": true,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": 1,
+          "start": "2026-12-10",
+          "finish": "2026-12-10",
+          "durationDays": 0,
+          "effortMinutes": 0,
+          "spentMinutes": 0,
+          "remainingMinutes": 0,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-10",
+          "earlyFinish": "2026-12-10",
+          "lateStart": "2026-12-08",
+          "lateFinish": "2026-12-08",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-8"
+          ],
+          "plannedCost": 0,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-11-27",
+            "finish": "2026-11-27",
+            "effortMinutes": 0,
+            "cost": 0
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-10",
+          "summary": "Migration",
+          "parent": null,
+          "depth": 0,
+          "isSummary": true,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": 2,
+          "start": "2026-12-11",
+          "finish": "2026-12-30",
+          "durationDays": 14,
+          "effortMinutes": 9600,
+          "spentMinutes": 0,
+          "remainingMinutes": 9600,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-11",
+          "earlyFinish": "2026-12-30",
+          "lateStart": "2026-12-09",
+          "lateFinish": "2026-12-28",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [],
+          "plannedCost": 26800,
+          "actualCost": 0,
+          "baseline": null,
+          "variance": null
+        },
+        {
+          "id": "MIG-11",
+          "summary": "Provision the target environment",
+          "parent": "MIG-10",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-12-11",
+          "finish": "2026-12-17",
+          "durationDays": 5,
+          "effortMinutes": 2400,
+          "spentMinutes": 0,
+          "remainingMinutes": 2400,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-11",
+          "earlyFinish": "2026-12-17",
+          "lateStart": "2026-12-09",
+          "lateFinish": "2026-12-15",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-9"
+          ],
+          "plannedCost": 16000,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-11-30",
+            "finish": "2026-12-04",
+            "effortMinutes": 2400,
+            "cost": 16000
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-12",
+          "summary": "Migrate databases",
+          "parent": "MIG-10",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "0revw0le9otxamoa",
+          "priorityOrdinal": 1,
+          "start": "2026-12-18",
+          "finish": "2026-12-25",
+          "durationDays": 6,
+          "effortMinutes": 2880,
+          "spentMinutes": 0,
+          "remainingMinutes": 2880,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-18",
+          "earlyFinish": "2026-12-25",
+          "lateStart": "2026-12-18",
+          "lateFinish": "2026-12-25",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-11"
+          ],
+          "plannedCost": 4560,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-12-07",
+            "finish": "2026-12-14",
+            "effortMinutes": 2880,
+            "cost": 4560
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-13",
+          "summary": "Migrate application servers",
+          "parent": "MIG-10",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "w42yr0c4rn7t543s",
+          "priorityOrdinal": 3,
+          "start": "2026-12-18",
+          "finish": "2026-12-29",
+          "durationDays": 8,
+          "effortMinutes": 3840,
+          "spentMinutes": 0,
+          "remainingMinutes": 3840,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-18",
+          "earlyFinish": "2026-12-29",
+          "lateStart": "2026-12-16",
+          "lateFinish": "2026-12-25",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-11"
+          ],
+          "plannedCost": 5440,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-12-07",
+            "finish": "2026-12-16",
+            "effortMinutes": 3840,
+            "cost": 5440
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-14",
+          "summary": "Cut over DNS and traffic",
+          "parent": "MIG-10",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 1,
+          "start": "2026-12-30",
+          "finish": "2026-12-30",
+          "durationDays": 1,
+          "effortMinutes": 480,
+          "spentMinutes": 0,
+          "remainingMinutes": 480,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-30",
+          "earlyFinish": "2026-12-30",
+          "lateStart": "2026-12-28",
+          "lateFinish": "2026-12-28",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": "2026-12-28",
+          "late": true,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-12",
+            "MIG-13"
+          ],
+          "plannedCost": 800,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-12-17",
+            "finish": "2026-12-17",
+            "effortMinutes": 480,
+            "cost": 800
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-15",
+          "summary": "Closure",
+          "parent": null,
+          "depth": 0,
+          "isSummary": true,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": 2,
+          "start": "2026-12-31",
+          "finish": "2027-01-04",
+          "durationDays": 3,
+          "effortMinutes": 1440,
+          "spentMinutes": 0,
+          "remainingMinutes": 1440,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-31",
+          "earlyFinish": "2027-01-04",
+          "lateStart": "2026-12-31",
+          "lateFinish": "2027-01-04",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [],
+          "plannedCost": 5400,
+          "actualCost": 0,
+          "baseline": null,
+          "variance": null
+        },
+        {
+          "id": "MIG-16",
+          "summary": "Decommission the Leeds data center",
+          "parent": "MIG-15",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-12-31",
+          "finish": "2027-01-04",
+          "durationDays": 3,
+          "effortMinutes": 1440,
+          "spentMinutes": 0,
+          "remainingMinutes": 1440,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-31",
+          "earlyFinish": "2027-01-04",
+          "lateStart": "2026-12-31",
+          "lateFinish": "2027-01-04",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-14"
+          ],
+          "plannedCost": 5400,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-12-18",
+            "finish": "2026-12-22",
+            "effortMinutes": 1440,
+            "cost": 5400
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-17",
+          "summary": "Migration complete",
+          "parent": "MIG-15",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": true,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": 3,
+          "start": "2027-01-04",
+          "finish": "2027-01-04",
+          "durationDays": 0,
+          "effortMinutes": 0,
+          "spentMinutes": 0,
+          "remainingMinutes": 0,
+          "percentComplete": 0,
+          "earlyStart": "2027-01-04",
+          "earlyFinish": "2027-01-04",
+          "lateStart": "2027-01-04",
+          "lateFinish": "2027-01-04",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": "2027-01-07",
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-16"
+          ],
+          "plannedCost": 0,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-12-22",
+            "finish": "2026-12-22",
+            "effortMinutes": 0,
+            "cost": 0
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        }
+      ],
+      "criticalPath": [
+        "MIG-7",
+        "MIG-8",
+        "MIG-9",
+        "MIG-11",
+        "MIG-12",
+        "MIG-13",
+        "MIG-14",
+        "MIG-16",
+        "MIG-17"
+      ],
+      "warnings": [],
+      "baseline": {
+        "id": "mbq8vdyndwf16rnt",
+        "name": "Plan of record",
+        "finish": "2026-12-22",
+        "finishVarianceDays": 9
+      }
+    },
+    "finishDeltaDays": 2,
+    "impacted": [
+      {
+        "id": "MIG-5",
+        "summary": "Design",
+        "startDeltaDays": 0,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-7",
+        "summary": "Storage and backup design",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-8",
+        "summary": "Security review of the design",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-9",
+        "summary": "Design approved",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-10",
+        "summary": "Migration",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-11",
+        "summary": "Provision the target environment",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-12",
+        "summary": "Migrate databases",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-13",
+        "summary": "Migrate application servers",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-14",
+        "summary": "Cut over DNS and traffic",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-15",
+        "summary": "Closure",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-16",
+        "summary": "Decommission the Leeds data center",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-17",
+        "summary": "Migration complete",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      }
+    ]
+  },
+  "computeSchedule with overrides 2": {
+    "start": "2026-11-07",
+    "finish": "2027-01-04",
+    "today": "2026-11-28",
+    "tasks": [
+      {
+        "id": "MIG-1",
+        "summary": "Assessment",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": true,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-11-07",
+        "finish": "2026-11-18",
+        "durationDays": 8,
+        "effortMinutes": 3360,
+        "spentMinutes": 3600,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-07",
+        "earlyFinish": "2026-11-18",
+        "lateStart": "2026-11-07",
+        "lateFinish": "2026-11-18",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [],
+        "plannedCost": 5480,
+        "actualCost": 5860,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-2",
+        "summary": "Inventory servers and applications",
+        "parent": "MIG-1",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": true,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-11-07",
+        "finish": "2026-11-12",
+        "durationDays": 4,
+        "effortMinutes": 1920,
+        "spentMinutes": 1920,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-07",
+        "earlyFinish": "2026-11-12",
+        "lateStart": "2026-11-07",
+        "lateFinish": "2026-11-12",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [],
+        "plannedCost": 3200,
+        "actualCost": 3200,
+        "baseline": {
+          "start": "2026-11-09",
+          "finish": "2026-11-12",
+          "effortMinutes": 1920,
+          "cost": 3200
+        },
+        "variance": {
+          "startDays": 0,
+          "finishDays": 0,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-3",
+        "summary": "Map application dependencies",
+        "parent": "MIG-1",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": true,
+        "assigneeId": "0revw0le9otxamoa",
+        "priorityOrdinal": 3,
+        "start": "2026-11-13",
+        "finish": "2026-11-18",
+        "durationDays": 4,
+        "effortMinutes": 1440,
+        "spentMinutes": 1680,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-13",
+        "earlyFinish": "2026-11-18",
+        "lateStart": "2026-11-13",
+        "lateFinish": "2026-11-18",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [
+          "MIG-2"
+        ],
+        "plannedCost": 2280,
+        "actualCost": 2660,
+        "baseline": {
+          "start": "2026-11-13",
+          "finish": "2026-11-17",
+          "effortMinutes": 1440,
+          "cost": 2280
+        },
+        "variance": {
+          "startDays": 0,
+          "finishDays": 1,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-4",
+        "summary": "Assessment signed off",
+        "parent": "MIG-1",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": true,
+        "resolved": true,
+        "assigneeId": null,
+        "priorityOrdinal": 3,
+        "start": "2026-11-18",
+        "finish": "2026-11-18",
+        "durationDays": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "remainingMinutes": 0,
+        "percentComplete": 100,
+        "earlyStart": "2026-11-18",
+        "earlyFinish": "2026-11-18",
+        "lateStart": "2026-11-18",
+        "lateFinish": "2026-11-18",
+        "slackDays": 0,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [
+          "MIG-3"
+        ],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-17",
+          "finish": "2026-11-17",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        "variance": {
+          "startDays": 1,
+          "finishDays": 1,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-5",
+        "summary": "Design",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-11-22",
+        "finish": "2026-12-10",
+        "durationDays": 14,
+        "effortMinutes": 7680,
+        "spentMinutes": 1440,
+        "remainingMinutes": 6240,
+        "percentComplete": 19,
+        "earlyStart": "2026-11-22",
+        "earlyFinish": "2026-12-10",
+        "lateStart": "2026-11-22",
+        "lateFinish": "2026-12-08",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [],
+        "plannedCost": 12800,
+        "actualCost": 2400,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-6",
+        "summary": "Target network design",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-11-22",
+        "finish": "2026-12-08",
+        "durationDays": 12,
+        "effortMinutes": 4800,
+        "spentMinutes": 1440,
+        "remainingMinutes": 3360,
+        "percentComplete": 30,
+        "earlyStart": "2026-11-22",
+        "earlyFinish": "2026-12-08",
+        "lateStart": "2026-11-22",
+        "lateFinish": "2026-12-04",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "actual",
+        "predecessors": [
+          "MIG-4"
+        ],
+        "plannedCost": 8000,
+        "actualCost": 2400,
+        "baseline": {
+          "start": "2026-11-18",
+          "finish": "2026-11-24",
+          "effortMinutes": 2400,
+          "cost": 4000
+        },
+        "variance": {
+          "startDays": 2,
+          "finishDays": 10,
+          "effortMinutes": 2400,
+          "cost": 4000
+        }
+      },
+      {
+        "id": "MIG-7",
+        "summary": "Storage and backup design",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-11-30",
+        "finish": "2026-12-03",
+        "durationDays": 4,
+        "effortMinutes": 1920,
+        "spentMinutes": 0,
+        "remainingMinutes": 1920,
+        "percentComplete": 0,
+        "earlyStart": "2026-11-30",
+        "earlyFinish": "2026-12-03",
+        "lateStart": "2026-12-01",
+        "lateFinish": "2026-12-04",
+        "slackDays": 1,
+        "critical": false,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "project_start",
+        "predecessors": [
+          "MIG-4"
+        ],
+        "plannedCost": 3200,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-18",
+          "finish": "2026-11-23",
+          "effortMinutes": 1920,
+          "cost": 3200
+        },
+        "variance": {
+          "startDays": 8,
+          "finishDays": 8,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-8",
+        "summary": "Security review of the design",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-12-09",
+        "finish": "2026-12-10",
+        "durationDays": 2,
+        "effortMinutes": 960,
+        "spentMinutes": 0,
+        "remainingMinutes": 960,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-09",
+        "earlyFinish": "2026-12-10",
+        "lateStart": "2026-12-07",
+        "lateFinish": "2026-12-08",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-6",
+          "MIG-7"
+        ],
+        "plannedCost": 1600,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-25",
+          "finish": "2026-11-27",
+          "effortMinutes": 960,
+          "cost": 1120
+        },
+        "variance": {
+          "startDays": 10,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 480
+        }
+      },
+      {
+        "id": "MIG-9",
+        "summary": "Design approved",
+        "parent": "MIG-5",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": true,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 1,
+        "start": "2026-12-10",
+        "finish": "2026-12-10",
+        "durationDays": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "remainingMinutes": 0,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-10",
+        "earlyFinish": "2026-12-10",
+        "lateStart": "2026-12-08",
+        "lateFinish": "2026-12-08",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-8"
+        ],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-27",
+          "finish": "2026-11-27",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-10",
+        "summary": "Migration",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-12-11",
+        "finish": "2026-12-30",
+        "durationDays": 14,
+        "effortMinutes": 9600,
+        "spentMinutes": 0,
+        "remainingMinutes": 9600,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-11",
+        "earlyFinish": "2026-12-30",
+        "lateStart": "2026-12-09",
+        "lateFinish": "2026-12-28",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [],
+        "plannedCost": 26800,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-11",
+        "summary": "Provision the target environment",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-12-11",
+        "finish": "2026-12-17",
+        "durationDays": 5,
+        "effortMinutes": 2400,
+        "spentMinutes": 0,
+        "remainingMinutes": 2400,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-11",
+        "earlyFinish": "2026-12-17",
+        "lateStart": "2026-12-09",
+        "lateFinish": "2026-12-15",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-9"
+        ],
+        "plannedCost": 16000,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-11-30",
+          "finish": "2026-12-04",
+          "effortMinutes": 2400,
+          "cost": 16000
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-12",
+        "summary": "Migrate databases",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "0revw0le9otxamoa",
+        "priorityOrdinal": 1,
+        "start": "2026-12-18",
+        "finish": "2026-12-25",
+        "durationDays": 6,
+        "effortMinutes": 2880,
+        "spentMinutes": 0,
+        "remainingMinutes": 2880,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-18",
+        "earlyFinish": "2026-12-25",
+        "lateStart": "2026-12-18",
+        "lateFinish": "2026-12-25",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-11"
+        ],
+        "plannedCost": 4560,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-07",
+          "finish": "2026-12-14",
+          "effortMinutes": 2880,
+          "cost": 4560
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-13",
+        "summary": "Migrate application servers",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "w42yr0c4rn7t543s",
+        "priorityOrdinal": 3,
+        "start": "2026-12-18",
+        "finish": "2026-12-29",
+        "durationDays": 8,
+        "effortMinutes": 3840,
+        "spentMinutes": 0,
+        "remainingMinutes": 3840,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-18",
+        "earlyFinish": "2026-12-29",
+        "lateStart": "2026-12-16",
+        "lateFinish": "2026-12-25",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-11"
+        ],
+        "plannedCost": 5440,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-07",
+          "finish": "2026-12-16",
+          "effortMinutes": 3840,
+          "cost": 5440
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-14",
+        "summary": "Cut over DNS and traffic",
+        "parent": "MIG-10",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 1,
+        "start": "2026-12-30",
+        "finish": "2026-12-30",
+        "durationDays": 1,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "remainingMinutes": 480,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-30",
+        "earlyFinish": "2026-12-30",
+        "lateStart": "2026-12-28",
+        "lateFinish": "2026-12-28",
+        "slackDays": -2,
+        "critical": true,
+        "deadline": "2026-12-28",
+        "late": true,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-12",
+          "MIG-13"
+        ],
+        "plannedCost": 800,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-17",
+          "finish": "2026-12-17",
+          "effortMinutes": 480,
+          "cost": 800
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-15",
+        "summary": "Closure",
+        "parent": null,
+        "depth": 0,
+        "isSummary": true,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 2,
+        "start": "2026-12-31",
+        "finish": "2027-01-04",
+        "durationDays": 3,
+        "effortMinutes": 1440,
+        "spentMinutes": 0,
+        "remainingMinutes": 1440,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-31",
+        "earlyFinish": "2027-01-04",
+        "lateStart": "2026-12-31",
+        "lateFinish": "2027-01-04",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [],
+        "plannedCost": 5400,
+        "actualCost": 0,
+        "baseline": null,
+        "variance": null
+      },
+      {
+        "id": "MIG-16",
+        "summary": "Decommission the Leeds data center",
+        "parent": "MIG-15",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": false,
+        "resolved": false,
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "priorityOrdinal": 3,
+        "start": "2026-12-31",
+        "finish": "2027-01-04",
+        "durationDays": 3,
+        "effortMinutes": 1440,
+        "spentMinutes": 0,
+        "remainingMinutes": 1440,
+        "percentComplete": 0,
+        "earlyStart": "2026-12-31",
+        "earlyFinish": "2027-01-04",
+        "lateStart": "2026-12-31",
+        "lateFinish": "2027-01-04",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": null,
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-14"
+        ],
+        "plannedCost": 5400,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-18",
+          "finish": "2026-12-22",
+          "effortMinutes": 1440,
+          "cost": 5400
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      },
+      {
+        "id": "MIG-17",
+        "summary": "Migration complete",
+        "parent": "MIG-15",
+        "depth": 1,
+        "isSummary": false,
+        "isMilestone": true,
+        "resolved": false,
+        "assigneeId": null,
+        "priorityOrdinal": 3,
+        "start": "2027-01-04",
+        "finish": "2027-01-04",
+        "durationDays": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "remainingMinutes": 0,
+        "percentComplete": 0,
+        "earlyStart": "2027-01-04",
+        "earlyFinish": "2027-01-04",
+        "lateStart": "2027-01-04",
+        "lateFinish": "2027-01-04",
+        "slackDays": 0,
+        "critical": true,
+        "deadline": "2027-01-07",
+        "late": false,
+        "scheduledFrom": "dependencies",
+        "predecessors": [
+          "MIG-16"
+        ],
+        "plannedCost": 0,
+        "actualCost": 0,
+        "baseline": {
+          "start": "2026-12-22",
+          "finish": "2026-12-22",
+          "effortMinutes": 0,
+          "cost": 0
+        },
+        "variance": {
+          "startDays": 9,
+          "finishDays": 9,
+          "effortMinutes": 0,
+          "cost": 0
+        }
+      }
+    ],
+    "criticalPath": [
+      "MIG-6",
+      "MIG-8",
+      "MIG-9",
+      "MIG-11",
+      "MIG-12",
+      "MIG-13",
+      "MIG-14",
+      "MIG-16",
+      "MIG-17"
+    ],
+    "warnings": [],
+    "baseline": {
+      "id": "mbq8vdyndwf16rnt",
+      "name": "Plan of record",
+      "finish": "2026-12-22",
+      "finishVarianceDays": 9
+    }
+  },
+  "whatIf 2": {
+    "before": {
+      "finish": "2026-12-31",
+      "criticalPath": [
+        "MIG-7",
+        "MIG-8",
+        "MIG-9",
+        "MIG-11",
+        "MIG-13",
+        "MIG-14",
+        "MIG-16",
+        "MIG-17"
+      ]
+    },
+    "after": {
+      "start": "2026-11-07",
+      "finish": "2027-01-04",
+      "today": "2026-11-28",
+      "tasks": [
+        {
+          "id": "MIG-1",
+          "summary": "Assessment",
+          "parent": null,
+          "depth": 0,
+          "isSummary": true,
+          "isMilestone": false,
+          "resolved": true,
+          "assigneeId": null,
+          "priorityOrdinal": 2,
+          "start": "2026-11-07",
+          "finish": "2026-11-18",
+          "durationDays": 8,
+          "effortMinutes": 3360,
+          "spentMinutes": 3600,
+          "remainingMinutes": 0,
+          "percentComplete": 100,
+          "earlyStart": "2026-11-07",
+          "earlyFinish": "2026-11-18",
+          "lateStart": "2026-11-07",
+          "lateFinish": "2026-11-18",
+          "slackDays": 0,
+          "critical": false,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [],
+          "plannedCost": 5480,
+          "actualCost": 5860,
+          "baseline": null,
+          "variance": null
+        },
+        {
+          "id": "MIG-2",
+          "summary": "Inventory servers and applications",
+          "parent": "MIG-1",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": true,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-11-07",
+          "finish": "2026-11-12",
+          "durationDays": 4,
+          "effortMinutes": 1920,
+          "spentMinutes": 1920,
+          "remainingMinutes": 0,
+          "percentComplete": 100,
+          "earlyStart": "2026-11-07",
+          "earlyFinish": "2026-11-12",
+          "lateStart": "2026-11-07",
+          "lateFinish": "2026-11-12",
+          "slackDays": 0,
+          "critical": false,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [],
+          "plannedCost": 3200,
+          "actualCost": 3200,
+          "baseline": {
+            "start": "2026-11-09",
+            "finish": "2026-11-12",
+            "effortMinutes": 1920,
+            "cost": 3200
+          },
+          "variance": {
+            "startDays": 0,
+            "finishDays": 0,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-3",
+          "summary": "Map application dependencies",
+          "parent": "MIG-1",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": true,
+          "assigneeId": "0revw0le9otxamoa",
+          "priorityOrdinal": 3,
+          "start": "2026-11-13",
+          "finish": "2026-11-18",
+          "durationDays": 4,
+          "effortMinutes": 1440,
+          "spentMinutes": 1680,
+          "remainingMinutes": 0,
+          "percentComplete": 100,
+          "earlyStart": "2026-11-13",
+          "earlyFinish": "2026-11-18",
+          "lateStart": "2026-11-13",
+          "lateFinish": "2026-11-18",
+          "slackDays": 0,
+          "critical": false,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [
+            "MIG-2"
+          ],
+          "plannedCost": 2280,
+          "actualCost": 2660,
+          "baseline": {
+            "start": "2026-11-13",
+            "finish": "2026-11-17",
+            "effortMinutes": 1440,
+            "cost": 2280
+          },
+          "variance": {
+            "startDays": 0,
+            "finishDays": 1,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-4",
+          "summary": "Assessment signed off",
+          "parent": "MIG-1",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": true,
+          "resolved": true,
+          "assigneeId": null,
+          "priorityOrdinal": 3,
+          "start": "2026-11-18",
+          "finish": "2026-11-18",
+          "durationDays": 0,
+          "effortMinutes": 0,
+          "spentMinutes": 0,
+          "remainingMinutes": 0,
+          "percentComplete": 100,
+          "earlyStart": "2026-11-18",
+          "earlyFinish": "2026-11-18",
+          "lateStart": "2026-11-18",
+          "lateFinish": "2026-11-18",
+          "slackDays": 0,
+          "critical": false,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [
+            "MIG-3"
+          ],
+          "plannedCost": 0,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-11-17",
+            "finish": "2026-11-17",
+            "effortMinutes": 0,
+            "cost": 0
+          },
+          "variance": {
+            "startDays": 1,
+            "finishDays": 1,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-5",
+          "summary": "Design",
+          "parent": null,
+          "depth": 0,
+          "isSummary": true,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": 2,
+          "start": "2026-11-22",
+          "finish": "2026-12-10",
+          "durationDays": 14,
+          "effortMinutes": 7680,
+          "spentMinutes": 1440,
+          "remainingMinutes": 6240,
+          "percentComplete": 19,
+          "earlyStart": "2026-11-22",
+          "earlyFinish": "2026-12-10",
+          "lateStart": "2026-11-22",
+          "lateFinish": "2026-12-08",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [],
+          "plannedCost": 12800,
+          "actualCost": 2400,
+          "baseline": null,
+          "variance": null
+        },
+        {
+          "id": "MIG-6",
+          "summary": "Target network design",
+          "parent": "MIG-5",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-11-22",
+          "finish": "2026-12-08",
+          "durationDays": 12,
+          "effortMinutes": 4800,
+          "spentMinutes": 1440,
+          "remainingMinutes": 3360,
+          "percentComplete": 30,
+          "earlyStart": "2026-11-22",
+          "earlyFinish": "2026-12-08",
+          "lateStart": "2026-11-22",
+          "lateFinish": "2026-12-04",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "actual",
+          "predecessors": [
+            "MIG-4"
+          ],
+          "plannedCost": 8000,
+          "actualCost": 2400,
+          "baseline": {
+            "start": "2026-11-18",
+            "finish": "2026-11-24",
+            "effortMinutes": 2400,
+            "cost": 4000
+          },
+          "variance": {
+            "startDays": 2,
+            "finishDays": 10,
+            "effortMinutes": 2400,
+            "cost": 4000
+          }
+        },
+        {
+          "id": "MIG-7",
+          "summary": "Storage and backup design",
+          "parent": "MIG-5",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-11-30",
+          "finish": "2026-12-03",
+          "durationDays": 4,
+          "effortMinutes": 1920,
+          "spentMinutes": 0,
+          "remainingMinutes": 1920,
+          "percentComplete": 0,
+          "earlyStart": "2026-11-30",
+          "earlyFinish": "2026-12-03",
+          "lateStart": "2026-12-01",
+          "lateFinish": "2026-12-04",
+          "slackDays": 1,
+          "critical": false,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "project_start",
+          "predecessors": [
+            "MIG-4"
+          ],
+          "plannedCost": 3200,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-11-18",
+            "finish": "2026-11-23",
+            "effortMinutes": 1920,
+            "cost": 3200
+          },
+          "variance": {
+            "startDays": 8,
+            "finishDays": 8,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-8",
+          "summary": "Security review of the design",
+          "parent": "MIG-5",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-12-09",
+          "finish": "2026-12-10",
+          "durationDays": 2,
+          "effortMinutes": 960,
+          "spentMinutes": 0,
+          "remainingMinutes": 960,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-09",
+          "earlyFinish": "2026-12-10",
+          "lateStart": "2026-12-07",
+          "lateFinish": "2026-12-08",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-6",
+            "MIG-7"
+          ],
+          "plannedCost": 1600,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-11-25",
+            "finish": "2026-11-27",
+            "effortMinutes": 960,
+            "cost": 1120
+          },
+          "variance": {
+            "startDays": 10,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 480
+          }
+        },
+        {
+          "id": "MIG-9",
+          "summary": "Design approved",
+          "parent": "MIG-5",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": true,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": 1,
+          "start": "2026-12-10",
+          "finish": "2026-12-10",
+          "durationDays": 0,
+          "effortMinutes": 0,
+          "spentMinutes": 0,
+          "remainingMinutes": 0,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-10",
+          "earlyFinish": "2026-12-10",
+          "lateStart": "2026-12-08",
+          "lateFinish": "2026-12-08",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-8"
+          ],
+          "plannedCost": 0,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-11-27",
+            "finish": "2026-11-27",
+            "effortMinutes": 0,
+            "cost": 0
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-10",
+          "summary": "Migration",
+          "parent": null,
+          "depth": 0,
+          "isSummary": true,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": 2,
+          "start": "2026-12-11",
+          "finish": "2026-12-30",
+          "durationDays": 14,
+          "effortMinutes": 9600,
+          "spentMinutes": 0,
+          "remainingMinutes": 9600,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-11",
+          "earlyFinish": "2026-12-30",
+          "lateStart": "2026-12-09",
+          "lateFinish": "2026-12-28",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [],
+          "plannedCost": 26800,
+          "actualCost": 0,
+          "baseline": null,
+          "variance": null
+        },
+        {
+          "id": "MIG-11",
+          "summary": "Provision the target environment",
+          "parent": "MIG-10",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-12-11",
+          "finish": "2026-12-17",
+          "durationDays": 5,
+          "effortMinutes": 2400,
+          "spentMinutes": 0,
+          "remainingMinutes": 2400,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-11",
+          "earlyFinish": "2026-12-17",
+          "lateStart": "2026-12-09",
+          "lateFinish": "2026-12-15",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-9"
+          ],
+          "plannedCost": 16000,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-11-30",
+            "finish": "2026-12-04",
+            "effortMinutes": 2400,
+            "cost": 16000
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-12",
+          "summary": "Migrate databases",
+          "parent": "MIG-10",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "0revw0le9otxamoa",
+          "priorityOrdinal": 1,
+          "start": "2026-12-18",
+          "finish": "2026-12-25",
+          "durationDays": 6,
+          "effortMinutes": 2880,
+          "spentMinutes": 0,
+          "remainingMinutes": 2880,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-18",
+          "earlyFinish": "2026-12-25",
+          "lateStart": "2026-12-18",
+          "lateFinish": "2026-12-25",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-11"
+          ],
+          "plannedCost": 4560,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-12-07",
+            "finish": "2026-12-14",
+            "effortMinutes": 2880,
+            "cost": 4560
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-13",
+          "summary": "Migrate application servers",
+          "parent": "MIG-10",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "w42yr0c4rn7t543s",
+          "priorityOrdinal": 3,
+          "start": "2026-12-18",
+          "finish": "2026-12-29",
+          "durationDays": 8,
+          "effortMinutes": 3840,
+          "spentMinutes": 0,
+          "remainingMinutes": 3840,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-18",
+          "earlyFinish": "2026-12-29",
+          "lateStart": "2026-12-16",
+          "lateFinish": "2026-12-25",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-11"
+          ],
+          "plannedCost": 5440,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-12-07",
+            "finish": "2026-12-16",
+            "effortMinutes": 3840,
+            "cost": 5440
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-14",
+          "summary": "Cut over DNS and traffic",
+          "parent": "MIG-10",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 1,
+          "start": "2026-12-30",
+          "finish": "2026-12-30",
+          "durationDays": 1,
+          "effortMinutes": 480,
+          "spentMinutes": 0,
+          "remainingMinutes": 480,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-30",
+          "earlyFinish": "2026-12-30",
+          "lateStart": "2026-12-28",
+          "lateFinish": "2026-12-28",
+          "slackDays": -2,
+          "critical": true,
+          "deadline": "2026-12-28",
+          "late": true,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-12",
+            "MIG-13"
+          ],
+          "plannedCost": 800,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-12-17",
+            "finish": "2026-12-17",
+            "effortMinutes": 480,
+            "cost": 800
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-15",
+          "summary": "Closure",
+          "parent": null,
+          "depth": 0,
+          "isSummary": true,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": 2,
+          "start": "2026-12-31",
+          "finish": "2027-01-04",
+          "durationDays": 3,
+          "effortMinutes": 1440,
+          "spentMinutes": 0,
+          "remainingMinutes": 1440,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-31",
+          "earlyFinish": "2027-01-04",
+          "lateStart": "2026-12-31",
+          "lateFinish": "2027-01-04",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [],
+          "plannedCost": 5400,
+          "actualCost": 0,
+          "baseline": null,
+          "variance": null
+        },
+        {
+          "id": "MIG-16",
+          "summary": "Decommission the Leeds data center",
+          "parent": "MIG-15",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": false,
+          "resolved": false,
+          "assigneeId": "lwzbq3lk1e2ysjme",
+          "priorityOrdinal": 3,
+          "start": "2026-12-31",
+          "finish": "2027-01-04",
+          "durationDays": 3,
+          "effortMinutes": 1440,
+          "spentMinutes": 0,
+          "remainingMinutes": 1440,
+          "percentComplete": 0,
+          "earlyStart": "2026-12-31",
+          "earlyFinish": "2027-01-04",
+          "lateStart": "2026-12-31",
+          "lateFinish": "2027-01-04",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": null,
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-14"
+          ],
+          "plannedCost": 5400,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-12-18",
+            "finish": "2026-12-22",
+            "effortMinutes": 1440,
+            "cost": 5400
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        },
+        {
+          "id": "MIG-17",
+          "summary": "Migration complete",
+          "parent": "MIG-15",
+          "depth": 1,
+          "isSummary": false,
+          "isMilestone": true,
+          "resolved": false,
+          "assigneeId": null,
+          "priorityOrdinal": 3,
+          "start": "2027-01-04",
+          "finish": "2027-01-04",
+          "durationDays": 0,
+          "effortMinutes": 0,
+          "spentMinutes": 0,
+          "remainingMinutes": 0,
+          "percentComplete": 0,
+          "earlyStart": "2027-01-04",
+          "earlyFinish": "2027-01-04",
+          "lateStart": "2027-01-04",
+          "lateFinish": "2027-01-04",
+          "slackDays": 0,
+          "critical": true,
+          "deadline": "2027-01-07",
+          "late": false,
+          "scheduledFrom": "dependencies",
+          "predecessors": [
+            "MIG-16"
+          ],
+          "plannedCost": 0,
+          "actualCost": 0,
+          "baseline": {
+            "start": "2026-12-22",
+            "finish": "2026-12-22",
+            "effortMinutes": 0,
+            "cost": 0
+          },
+          "variance": {
+            "startDays": 9,
+            "finishDays": 9,
+            "effortMinutes": 0,
+            "cost": 0
+          }
+        }
+      ],
+      "criticalPath": [
+        "MIG-6",
+        "MIG-8",
+        "MIG-9",
+        "MIG-11",
+        "MIG-12",
+        "MIG-13",
+        "MIG-14",
+        "MIG-16",
+        "MIG-17"
+      ],
+      "warnings": [],
+      "baseline": {
+        "id": "mbq8vdyndwf16rnt",
+        "name": "Plan of record",
+        "finish": "2026-12-22",
+        "finishVarianceDays": 9
+      }
+    },
+    "finishDeltaDays": 2,
+    "impacted": [
+      {
+        "id": "MIG-5",
+        "summary": "Design",
+        "startDeltaDays": 0,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-6",
+        "summary": "Target network design",
+        "startDeltaDays": 0,
+        "finishDeltaDays": 5
+      },
+      {
+        "id": "MIG-8",
+        "summary": "Security review of the design",
+        "startDeltaDays": 3,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-9",
+        "summary": "Design approved",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-10",
+        "summary": "Migration",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-11",
+        "summary": "Provision the target environment",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-12",
+        "summary": "Migrate databases",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-13",
+        "summary": "Migrate application servers",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-14",
+        "summary": "Cut over DNS and traffic",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-15",
+        "summary": "Closure",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-16",
+        "summary": "Decommission the Leeds data center",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      },
+      {
+        "id": "MIG-17",
+        "summary": "Migration complete",
+        "startDeltaDays": 2,
+        "finishDeltaDays": 2
+      }
+    ]
+  },
+  "computeLoad": {
+    "from": "2026-11-28",
+    "to": "2026-12-31",
+    "resources": [
+      {
+        "resourceId": "lwzbq3lk1e2ysjme",
+        "capacityHoursPerDay": 8,
+        "totalHours": 120,
+        "overallocatedDays": 2,
+        "peakLoadPct": 200,
+        "days": [
+          {
+            "date": "2026-11-30",
+            "hours": 16,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-6",
+                "hours": 8
+              },
+              {
+                "issue": "MIG-7",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-01",
+            "hours": 16,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-6",
+                "hours": 8
+              },
+              {
+                "issue": "MIG-7",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-02",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-7",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-03",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-7",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-04",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-07",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-08",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-09",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-11",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-10",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-11",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-11",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-11",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-14",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-11",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-15",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-11",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-17",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-18",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-21",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-22",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-23",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-24",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-25",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-28",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-14",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-29",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-16",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-30",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-16",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-31",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-16",
+                "hours": 8
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "resourceId": "0revw0le9otxamoa",
+        "capacityHoursPerDay": 8,
+        "totalHours": 48,
+        "overallocatedDays": 0,
+        "peakLoadPct": 100,
+        "days": [
+          {
+            "date": "2026-11-30",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-01",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-02",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-03",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-04",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-07",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-08",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-09",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-10",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-11",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-14",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-15",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-16",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-17",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-18",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-21",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-22",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-23",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-24",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-25",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-28",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-29",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-30",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-31",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      },
+      {
+        "resourceId": "7rfimc1f0xsan3b7",
+        "capacityHoursPerDay": 6,
+        "totalHours": 16,
+        "overallocatedDays": 0,
+        "peakLoadPct": 88.9,
+        "days": [
+          {
+            "date": "2026-11-30",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-01",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-02",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-03",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-04",
+            "hours": 5.33,
+            "capacity": 6,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-8",
+                "hours": 5.33
+              }
+            ]
+          },
+          {
+            "date": "2026-12-07",
+            "hours": 5.33,
+            "capacity": 6,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-8",
+                "hours": 5.33
+              }
+            ]
+          },
+          {
+            "date": "2026-12-08",
+            "hours": 5.33,
+            "capacity": 6,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-8",
+                "hours": 5.33
+              }
+            ]
+          },
+          {
+            "date": "2026-12-09",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-10",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-11",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-14",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-15",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-16",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-17",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-18",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-21",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-22",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-23",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-24",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-25",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-28",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-29",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-30",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-31",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      },
+      {
+        "resourceId": "w42yr0c4rn7t543s",
+        "capacityHoursPerDay": 8,
+        "totalHours": 64,
+        "overallocatedDays": 0,
+        "peakLoadPct": 100,
+        "days": [
+          {
+            "date": "2026-11-30",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-01",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-02",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-03",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-04",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-07",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-08",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-09",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-10",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-11",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-14",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-15",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-16",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-17",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-18",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-21",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-22",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-23",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-24",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-25",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-28",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-29",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-30",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-31",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      }
+    ],
+    "unassignedHours": 0
+  },
+  "computeLoad window 1": {
+    "from": "2026-11-07",
+    "to": "2026-12-31",
+    "resources": [
+      {
+        "resourceId": "lwzbq3lk1e2ysjme",
+        "capacityHoursPerDay": 8,
+        "totalHours": 120,
+        "overallocatedDays": 2,
+        "peakLoadPct": 200,
+        "days": [
+          {
+            "date": "2026-11-09",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-10",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-11",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-12",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-13",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-17",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-18",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-19",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-20",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-23",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-24",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-25",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-26",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-27",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-30",
+            "hours": 16,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-6",
+                "hours": 8
+              },
+              {
+                "issue": "MIG-7",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-01",
+            "hours": 16,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-6",
+                "hours": 8
+              },
+              {
+                "issue": "MIG-7",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-02",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-7",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-03",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-7",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-04",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-07",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-08",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-09",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-11",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-10",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-11",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-11",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-11",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-14",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-11",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-15",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-11",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-17",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-18",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-21",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-22",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-23",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-24",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-25",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-28",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-14",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-29",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-16",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-30",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-16",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-31",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-16",
+                "hours": 8
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "resourceId": "0revw0le9otxamoa",
+        "capacityHoursPerDay": 8,
+        "totalHours": 48,
+        "overallocatedDays": 0,
+        "peakLoadPct": 100,
+        "days": [
+          {
+            "date": "2026-11-09",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-10",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-11",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-12",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-13",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-17",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-18",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-19",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-20",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-23",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-24",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-25",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-26",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-27",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-30",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-01",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-02",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-03",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-04",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-07",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-08",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-09",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-10",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-11",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-14",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-15",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-16",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-17",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-18",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-21",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-22",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-23",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-12",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-24",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-25",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-28",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-29",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-30",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-31",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      },
+      {
+        "resourceId": "7rfimc1f0xsan3b7",
+        "capacityHoursPerDay": 6,
+        "totalHours": 16,
+        "overallocatedDays": 0,
+        "peakLoadPct": 88.9,
+        "days": [
+          {
+            "date": "2026-11-09",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-10",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-11",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-12",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-13",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-16",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-17",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-18",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-19",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-20",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-23",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-24",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-25",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-26",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-27",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-30",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-01",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-02",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-03",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-04",
+            "hours": 5.33,
+            "capacity": 6,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-8",
+                "hours": 5.33
+              }
+            ]
+          },
+          {
+            "date": "2026-12-07",
+            "hours": 5.33,
+            "capacity": 6,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-8",
+                "hours": 5.33
+              }
+            ]
+          },
+          {
+            "date": "2026-12-08",
+            "hours": 5.33,
+            "capacity": 6,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-8",
+                "hours": 5.33
+              }
+            ]
+          },
+          {
+            "date": "2026-12-09",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-10",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-11",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-14",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-15",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-16",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-17",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-18",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-21",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-22",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-23",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-24",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-25",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-28",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-29",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-30",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-31",
+            "hours": 0,
+            "capacity": 6,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      },
+      {
+        "resourceId": "w42yr0c4rn7t543s",
+        "capacityHoursPerDay": 8,
+        "totalHours": 64,
+        "overallocatedDays": 0,
+        "peakLoadPct": 100,
+        "days": [
+          {
+            "date": "2026-11-09",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-10",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-11",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-12",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-13",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-16",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-17",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-18",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-19",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-20",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-23",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-24",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-25",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-26",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-27",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-11-30",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-01",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-02",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-03",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-04",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-07",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-08",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-09",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-10",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-11",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-14",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-15",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-16",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-17",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-18",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-21",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-22",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-23",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-24",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-25",
+            "hours": 8,
+            "capacity": 8,
+            "away": null,
+            "tasks": [
+              {
+                "issue": "MIG-13",
+                "hours": 8
+              }
+            ]
+          },
+          {
+            "date": "2026-12-28",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-29",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-30",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          },
+          {
+            "date": "2026-12-31",
+            "hours": 0,
+            "capacity": 8,
+            "away": null,
+            "tasks": []
+          }
+        ]
+      }
+    ],
+    "unassignedHours": 0
+  },
+  "levelResources within_slack": {
+    "mode": "within_slack",
+    "finishBefore": "2026-12-31",
+    "finishAfter": "2026-12-31",
+    "overallocatedDaysBefore": 2,
+    "overallocatedDaysAfter": 2,
+    "changes": [],
+    "unresolved": [
+      "MIG-7"
+    ],
+    "levelledStarts": {},
+    "keepStart": null
+  },
+  "levelResources allow_delay": {
+    "mode": "allow_delay",
+    "finishBefore": "2026-12-31",
+    "finishAfter": "2027-01-04",
+    "overallocatedDaysBefore": 2,
+    "overallocatedDaysAfter": 0,
+    "changes": [
+      {
+        "id": "MIG-7",
+        "summary": "Storage and backup design",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "fromStart": "2026-11-30",
+        "fromFinish": "2026-12-03",
+        "toStart": "2026-12-02",
+        "toFinish": "2026-12-07",
+        "delayDays": 2,
+        "movedBy": "resources"
+      },
+      {
+        "id": "MIG-8",
+        "summary": "Security review of the design",
+        "assigneeId": "7rfimc1f0xsan3b7",
+        "fromStart": "2026-12-04",
+        "fromFinish": "2026-12-08",
+        "toStart": "2026-12-08",
+        "toFinish": "2026-12-10",
+        "delayDays": 2,
+        "movedBy": "dependencies"
+      },
+      {
+        "id": "MIG-9",
+        "summary": "Design approved",
+        "assigneeId": null,
+        "fromStart": "2026-12-08",
+        "fromFinish": "2026-12-08",
+        "toStart": "2026-12-10",
+        "toFinish": "2026-12-10",
+        "delayDays": 2,
+        "movedBy": "dependencies"
+      },
+      {
+        "id": "MIG-11",
+        "summary": "Provision the target environment",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "fromStart": "2026-12-09",
+        "fromFinish": "2026-12-15",
+        "toStart": "2026-12-11",
+        "toFinish": "2026-12-17",
+        "delayDays": 2,
+        "movedBy": "dependencies"
+      },
+      {
+        "id": "MIG-12",
+        "summary": "Migrate databases",
+        "assigneeId": "0revw0le9otxamoa",
+        "fromStart": "2026-12-16",
+        "fromFinish": "2026-12-23",
+        "toStart": "2026-12-18",
+        "toFinish": "2026-12-25",
+        "delayDays": 2,
+        "movedBy": "dependencies"
+      },
+      {
+        "id": "MIG-13",
+        "summary": "Migrate application servers",
+        "assigneeId": "w42yr0c4rn7t543s",
+        "fromStart": "2026-12-16",
+        "fromFinish": "2026-12-25",
+        "toStart": "2026-12-18",
+        "toFinish": "2026-12-29",
+        "delayDays": 2,
+        "movedBy": "dependencies"
+      },
+      {
+        "id": "MIG-14",
+        "summary": "Cut over DNS and traffic",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "fromStart": "2026-12-28",
+        "fromFinish": "2026-12-28",
+        "toStart": "2026-12-30",
+        "toFinish": "2026-12-30",
+        "delayDays": 2,
+        "movedBy": "dependencies"
+      },
+      {
+        "id": "MIG-16",
+        "summary": "Decommission the Leeds data center",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "fromStart": "2026-12-29",
+        "fromFinish": "2026-12-31",
+        "toStart": "2026-12-31",
+        "toFinish": "2027-01-04",
+        "delayDays": 2,
+        "movedBy": "dependencies"
+      },
+      {
+        "id": "MIG-17",
+        "summary": "Migration complete",
+        "assigneeId": null,
+        "fromStart": "2026-12-31",
+        "fromFinish": "2026-12-31",
+        "toStart": "2027-01-04",
+        "toFinish": "2027-01-04",
+        "delayDays": 2,
+        "movedBy": "dependencies"
+      }
+    ],
+    "unresolved": [],
+    "levelledStarts": {
+      "MIG-7": "2026-12-02"
+    },
+    "keepStart": null
+  },
+  "computeCosts": {
+    "currency": "USD",
+    "budget": 60000,
+    "plannedCost": 46000,
+    "actualCost": 8260,
+    "forecastCost": 46380,
+    "budgetVariance": 13620,
+    "byTask": [
+      {
+        "id": "MIG-2",
+        "summary": "Inventory servers and applications",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "plannedCost": 3200,
+        "actualCost": 3200,
+        "fixedCost": 0,
+        "effortMinutes": 1920,
+        "spentMinutes": 1920,
+        "resolved": true
+      },
+      {
+        "id": "MIG-3",
+        "summary": "Map application dependencies",
+        "assigneeId": "0revw0le9otxamoa",
+        "plannedCost": 2280,
+        "actualCost": 2660,
+        "fixedCost": 0,
+        "effortMinutes": 1440,
+        "spentMinutes": 1680,
+        "resolved": true
+      },
+      {
+        "id": "MIG-4",
+        "summary": "Assessment signed off",
+        "assigneeId": null,
+        "plannedCost": 0,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "resolved": true
+      },
+      {
+        "id": "MIG-6",
+        "summary": "Target network design",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "plannedCost": 4000,
+        "actualCost": 2400,
+        "fixedCost": 0,
+        "effortMinutes": 2400,
+        "spentMinutes": 1440,
+        "resolved": false
+      },
+      {
+        "id": "MIG-7",
+        "summary": "Storage and backup design",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "plannedCost": 3200,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 1920,
+        "spentMinutes": 0,
+        "resolved": false
+      },
+      {
+        "id": "MIG-8",
+        "summary": "Security review of the design",
+        "assigneeId": "7rfimc1f0xsan3b7",
+        "plannedCost": 1120,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 960,
+        "spentMinutes": 0,
+        "resolved": false
+      },
+      {
+        "id": "MIG-9",
+        "summary": "Design approved",
+        "assigneeId": null,
+        "plannedCost": 0,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "resolved": false
+      },
+      {
+        "id": "MIG-11",
+        "summary": "Provision the target environment",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "plannedCost": 16000,
+        "actualCost": 0,
+        "fixedCost": 12000,
+        "effortMinutes": 2400,
+        "spentMinutes": 0,
+        "resolved": false
+      },
+      {
+        "id": "MIG-12",
+        "summary": "Migrate databases",
+        "assigneeId": "0revw0le9otxamoa",
+        "plannedCost": 4560,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 2880,
+        "spentMinutes": 0,
+        "resolved": false
+      },
+      {
+        "id": "MIG-13",
+        "summary": "Migrate application servers",
+        "assigneeId": "w42yr0c4rn7t543s",
+        "plannedCost": 5440,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 3840,
+        "spentMinutes": 0,
+        "resolved": false
+      },
+      {
+        "id": "MIG-14",
+        "summary": "Cut over DNS and traffic",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "plannedCost": 800,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 480,
+        "spentMinutes": 0,
+        "resolved": false
+      },
+      {
+        "id": "MIG-16",
+        "summary": "Decommission the Leeds data center",
+        "assigneeId": "lwzbq3lk1e2ysjme",
+        "plannedCost": 5400,
+        "actualCost": 0,
+        "fixedCost": 3000,
+        "effortMinutes": 1440,
+        "spentMinutes": 0,
+        "resolved": false
+      },
+      {
+        "id": "MIG-17",
+        "summary": "Migration complete",
+        "assigneeId": null,
+        "plannedCost": 0,
+        "actualCost": 0,
+        "fixedCost": 0,
+        "effortMinutes": 0,
+        "spentMinutes": 0,
+        "resolved": false
+      }
+    ],
+    "byPerson": [
+      {
+        "resourceId": "lwzbq3lk1e2ysjme",
+        "hourlyRate": 100,
+        "plannedHours": 176,
+        "actualHours": 56,
+        "plannedCost": 17600,
+        "actualCost": 5600
+      },
+      {
+        "resourceId": "0revw0le9otxamoa",
+        "hourlyRate": 95,
+        "plannedHours": 72,
+        "actualHours": 28,
+        "plannedCost": 6840,
+        "actualCost": 2660
+      },
+      {
+        "resourceId": "7rfimc1f0xsan3b7",
+        "hourlyRate": 70,
+        "plannedHours": 16,
+        "actualHours": 0,
+        "plannedCost": 1120,
+        "actualCost": 0
+      },
+      {
+        "resourceId": "w42yr0c4rn7t543s",
+        "hourlyRate": 85,
+        "plannedHours": 64,
+        "actualHours": 0,
+        "plannedCost": 5440,
+        "actualCost": 0
+      }
+    ],
+    "evm": {
+      "asOf": "2026-11-28",
+      "bac": 46000,
+      "pv": 13800,
+      "ev": 7880,
+      "ac": 8260,
+      "cv": -380,
+      "sv": -5920,
+      "cpi": 0.954,
+      "spi": 0.571,
+      "eac": 48218.27,
+      "etc": 39958.27,
+      "vac": -2218.27
+    },
+    "warnings": []
+  }
+}

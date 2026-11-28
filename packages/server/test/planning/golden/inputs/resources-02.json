@@ -1,0 +1,79 @@
+{
+  "source": "resources.test.ts › computeLoad > places the remaining work of a task in progress from today on",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": null,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "P",
+        "summary": "Task P",
+        "parent": null,
+        "assigneeId": "u-anna",
+        "effortMinutes": 1440,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": "2026-11-12",
+        "spentMinutes": 480,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-anna",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 100
+      },
+      {
+        "id": "u-ben",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 80
+      }
+    ],
+    "workItems": [],
+    "baseline": null
+  },
+  "overrides": [
+    [
+      {
+        "id": "P",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "P",
+        "effortMinutes": 2880
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2026-11-12",
+      null
+    ]
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "source": "absences.test.ts › scheduling around days away > takes no account of days away beyond what it looks at, and never runs out of days",
+  "input": {
+    "today": "2026-11-16",
+    "calendar": {
+      "startDate": null,
+      "workingDays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hoursPerDay": 8,
+      "holidays": [
+        "2026-11-19"
+      ],
+      "budget": null,
+      "currency": "EUR"
+    },
+    "tasks": [
+      {
+        "id": "A",
+        "summary": "Task A",
+        "parent": null,
+        "assigneeId": "u-anna",
+        "effortMinutes": 480,
+        "startConstraint": null,
+        "deadline": null,
+        "resolved": false,
+        "resolvedAt": null,
+        "firstWorkDate": null,
+        "spentMinutes": 0,
+        "priorityOrdinal": null,
+        "fixedCost": null,
+        "predecessors": [],
+        "isMilestone": false
+      }
+    ],
+    "resources": [
+      {
+        "id": "u-anna",
+        "login": "anna",
+        "name": "Anna Schmidt",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 100
+      },
+      {
+        "id": "u-ben",
+        "login": "ben",
+        "name": "Ben Okafor",
+        "capacityHoursPerDay": 8,
+        "hourlyRate": 80
+      }
+    ],
+    "workItems": [],
+    "baseline": null,
+    "absences": [
+      {
+        "resourceId": "u-anna",
+        "from": "2026-11-16",
+        "to": "2036-11-16",
+        "half": null
+      }
+    ]
+  },
+  "overrides": [
+    [
+      {
+        "id": "A",
+        "delayDays": 2
+      }
+    ],
+    [
+      {
+        "id": "A",
+        "effortMinutes": 960
+      }
+    ]
+  ],
+  "windows": [
+    [
+      "2031-11-21",
+      "2031-11-21"
+    ]
+  ]
+}
