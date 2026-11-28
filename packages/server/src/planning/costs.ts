@@ -3,13 +3,22 @@
  * budget variance, and earned value (EVM) against a baseline. Figures are
  * computed unrounded and rounded at the output boundary (money to cents,
  * indices to three decimals).
+ *
+ * Across projects (D73) a task's money is in its own calendar's currency, and
+ * budgets are each calendar's. Money is totalled per currency, never converted:
+ * a summary counts what is in its own currency, and a plan of several
+ * currencies says the rest apart (`byCurrency`).
  */
 import { isISODate } from '../lib/dates';
-import { normalizeCalendar, workingDaysInclusive } from './calendar';
+import { workingDaysInclusive } from './calendar';
+import { planCalendars } from './plan-calendars';
 import type {
+  CalendarCostRow,
   CostResult,
+  CurrencyCostRow,
   EvmResult,
   PersonCostRow,
+  PersonCurrencyCost,
   PlanBaseline,
   PlanCalendar,
   PlanInput,
@@ -72,52 +81,86 @@ function ownCost(t: ScheduledTask, basis: CostBasis): TaskCost {
   };
 }
 
+/** Every task's money in its own currency (D73); one currency for a plan of one. */
+type CurrencyOf = (taskId: string) => string;
+const ONE_CURRENCY: CurrencyOf = () => '';
+
 /**
- * Planned, actual and forecast cost of every task in `tasks` (unrounded).
- * Summaries add their subtasks' figures to their own, so nothing is counted twice.
+ * Planned, actual and forecast cost of every task in `tasks` (unrounded), in its own currency.
+ * Summaries add their subtasks' figures in that currency to their own, so nothing is counted twice.
  */
-export function taskCosts(input: PlanInput, tasks: readonly ScheduledTask[]): Map<string, TaskCost> {
-  return rollUp(basisOf(input, new Set(tasks.map((t) => t.id))), tasks);
+export function taskCosts(input: PlanInput, tasks: readonly ScheduledTask[], currencyOf: CurrencyOf = ONE_CURRENCY): Map<string, TaskCost> {
+  return rollUp(basisOf(input, new Set(tasks.map((t) => t.id))), tasks, currencyOf).costs;
 }
 
-function rollUp(basis: CostBasis, tasks: readonly ScheduledTask[]): Map<string, TaskCost> {
+interface RolledUp {
+  /** Each task's figures in its own currency, its subtasks' in that currency included. */
+  costs: Map<string, TaskCost>;
+  /** Each task's and its subtasks' figures, by currency. */
+  subtree: Map<string, Map<string, TaskCost>>;
+}
+
+function rollUp(basis: CostBasis, tasks: readonly ScheduledTask[], currencyOf: CurrencyOf): RolledUp {
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const children = new Map<string, string[]>();
   for (const t of tasks) if (t.parent && byId.has(t.parent)) pushTo(children, t.parent, t.id);
-  const result = new Map<string, TaskCost>();
-  const visit = (t: ScheduledTask): TaskCost => {
-    const done = result.get(t.id);
+  const subtree = new Map<string, Map<string, TaskCost>>();
+  const visit = (t: ScheduledTask): Map<string, TaskCost> => {
+    const done = subtree.get(t.id);
     if (done) return done;
-    const cost = ownCost(t, basis);
+    const sums = new Map<string, TaskCost>([[currencyOf(t.id), ownCost(t, basis)]]);
     for (const id of children.get(t.id) ?? []) {
-      const c = visit(byId.get(id)!);
-      cost.planned += c.planned;
-      cost.actual += c.actual;
-      cost.forecast += c.forecast;
+      for (const [currency, c] of visit(byId.get(id)!)) {
+        const cost = sums.get(currency);
+        if (!cost) {
+          sums.set(currency, { ...c });
+          continue;
+        }
+        cost.planned += c.planned;
+        cost.actual += c.actual;
+        cost.forecast += c.forecast;
+      }
     }
-    result.set(t.id, cost);
-    return cost;
+    subtree.set(t.id, sums);
+    return sums;
   };
   for (const t of tasks) visit(t);
-  return result;
+  return { costs: new Map(tasks.map((t) => [t.id, subtree.get(t.id)!.get(currencyOf(t.id))!])), subtree };
 }
 
-/** The cost report for a schedule (which may be a what-if schedule). */
+const nothing = (): TaskCost => ({ planned: 0, actual: 0, forecast: 0 });
+
+/**
+ * The cost report for a schedule (which may be a what-if schedule). A plan of one calendar has its budget
+ * and currency; a plan of several has each calendar's (D73), and totals per currency, never converted.
+ */
 export function computeCosts(input: PlanInput, schedule: ScheduleResult): CostResult {
   const tasks = schedule.tasks;
   const inPlan = new Set(tasks.map((t) => t.id));
   const basis = basisOf(input, inPlan);
-  const costs = rollUp(basis, tasks);
+  const cals = planCalendars(input);
+  const currencyOf: CurrencyOf = (id) => cals.of(id).currency;
+  const { costs, subtree } = rollUp(basis, tasks, currencyOf);
   const leaves = tasks.filter((t) => !t.isSummary);
-  const total = { planned: 0, actual: 0, forecast: 0 };
+  const totals = new Map<string, TaskCost>();
   for (const t of tasks) {
     if (t.parent && inPlan.has(t.parent)) continue;
-    const c = costs.get(t.id)!;
-    total.planned += c.planned;
-    total.actual += c.actual;
-    total.forecast += c.forecast;
+    for (const [currency, c] of subtree.get(t.id)!) {
+      const total = totals.get(currency) ?? nothing();
+      totals.set(currency, total);
+      total.planned += c.planned;
+      total.actual += c.actual;
+      total.forecast += c.forecast;
+    }
   }
-  const calendar = normalizeCalendar(input.calendar);
+  const currencies = [...new Set(cals.keys.map((k) => cals.byKey.get(k)!.currency))].sort();
+  // Totals in one currency: the one its calendars use, or with several, the plan's own calendar's.
+  const severalCurrencies = currencies.length > 1;
+  const currency = severalCurrencies ? input.calendar.currency : currencies[0]!;
+  const total = totals.get(currency) ?? nothing();
+  // A plan of one calendar has its budget; a plan of several has each calendar's, and none of its own.
+  const budget = cals.several ? null : cals.byKey.get(cals.keys[0]!)!.budget;
+  const counted = (id: string): boolean => !severalCurrencies || currencyOf(id) === currency;
   const byTask: TaskCostRow[] = leaves.map((t) => ({
     id: t.id,
     summary: t.summary,
@@ -129,23 +172,78 @@ export function computeCosts(input: PlanInput, schedule: ScheduleResult): CostRe
     spentMinutes: t.spentMinutes,
     resolved: t.resolved,
   }));
+  const evmOf = (actual: number, counts: (id: string) => boolean): EvmResult | null =>
+    input.baseline ? earnedValue(cals.of, input.baseline, schedule, actual, counts) : null;
+  const warnings = rateWarnings(leaves, basis);
+  for (const other of currencies) {
+    if (other !== currency) warnings.push(`Some costs are in ${other}: the totals are in ${currency}, and each currency is totalled on its own, never converted`);
+  }
   return {
-    currency: input.calendar.currency,
-    budget: calendar.budget,
+    currency,
+    budget,
     plannedCost: money(total.planned),
     actualCost: money(total.actual),
     forecastCost: money(total.forecast),
-    budgetVariance: calendar.budget === null ? null : money(calendar.budget - total.forecast),
+    budgetVariance: budget === null ? null : money(budget - total.forecast),
     byTask,
-    byPerson: personRows(input, leaves, basis),
-    evm: input.baseline ? earnedValue(calendar, input.baseline, schedule, total.actual) : null,
-    warnings: rateWarnings(leaves, basis),
+    byPerson: personRows(input, leaves, basis, { currencyOf, currency, split: severalCurrencies, keyed: cals.keyed }),
+    evm: evmOf(total.actual, counted),
+    warnings,
+    ...(cals.keyed
+      ? {
+          byCalendar: cals.keys.map((key) => calendarRow(key, cals.byKey.get(key)!, tasks.filter((t) => cals.keyOf(t.id) === key), basis)),
+          byCurrency: currencies.map((c): CurrencyCostRow => {
+            const sum = totals.get(c) ?? nothing();
+            return {
+              currency: c,
+              plannedCost: money(sum.planned),
+              actualCost: money(sum.actual),
+              forecastCost: money(sum.forecast),
+              evm: evmOf(sum.actual, (id) => currencyOf(id) === c),
+            };
+          }),
+        }
+      : {}),
   };
 }
 
-/** Planned (estimates of their leaf tasks) and actual (their logged work) hours and cost per person. */
-function personRows(input: PlanInput, leaves: readonly ScheduledTask[], basis: CostBasis): PersonCostRow[] {
+/** One calendar's budget and its tasks' own money, in its currency. */
+function calendarRow(key: string, cal: PlanCalendar, tasks: readonly ScheduledTask[], basis: CostBasis): CalendarCostRow {
+  const sum = nothing();
+  for (const t of tasks) {
+    const c = ownCost(t, basis);
+    sum.planned += c.planned;
+    sum.actual += c.actual;
+    sum.forecast += c.forecast;
+  }
+  return {
+    calendarId: key,
+    currency: cal.currency,
+    budget: cal.budget,
+    plannedCost: money(sum.planned),
+    actualCost: money(sum.actual),
+    forecastCost: money(sum.forecast),
+    budgetVariance: cal.budget === null ? null : money(cal.budget - sum.forecast),
+  };
+}
+
+interface PersonMoney {
+  currencyOf: CurrencyOf;
+  /** The report's currency. */
+  currency: string;
+  /** Several currencies: a person's figures are those in the report's currency. */
+  split: boolean;
+  /** Each person's money also by currency. */
+  keyed: boolean;
+}
+
+/**
+ * Planned (estimates of their leaf tasks) and actual (their logged work) hours and cost per person. Their
+ * rate is read in the currency of the project the work is in; nothing converts it (D73).
+ */
+function personRows(input: PlanInput, leaves: readonly ScheduledTask[], basis: CostBasis, m: PersonMoney): PersonCostRow[] {
   const rows = new Map<string, PersonCostRow>();
+  const split = new Map<string, Map<string, PersonCurrencyCost>>();
   const row = (id: string): PersonCostRow => {
     let r = rows.get(id);
     if (!r) {
@@ -154,30 +252,44 @@ function personRows(input: PlanInput, leaves: readonly ScheduledTask[], basis: C
     }
     return r;
   };
+  const inCurrency = (id: string, currency: string): PersonCurrencyCost => {
+    const byCurrency = split.get(id) ?? new Map<string, PersonCurrencyCost>();
+    split.set(id, byCurrency);
+    const c = byCurrency.get(currency) ?? { currency, plannedCost: 0, actualCost: 0 };
+    byCurrency.set(currency, c);
+    return c;
+  };
   for (const t of leaves) {
     if (!t.assigneeId) continue;
     const r = row(t.assigneeId);
+    const cost = (t.effortMinutes / 60) * (r.hourlyRate ?? 0);
     r.plannedHours += t.effortMinutes / 60;
-    r.plannedCost += (t.effortMinutes / 60) * (r.hourlyRate ?? 0);
+    r.plannedCost += cost;
+    inCurrency(t.assigneeId, m.currencyOf(t.id)).plannedCost += cost;
   }
   for (const items of basis.items.values()) {
     for (const w of items) {
       if (!w.authorId) continue;
       const r = row(w.authorId);
+      const cost = workItemCost(basis, w);
       r.actualHours += w.minutes / 60;
-      r.actualCost += workItemCost(basis, w);
+      r.actualCost += cost;
+      inCurrency(w.authorId, m.currencyOf(w.taskId)).actualCost += cost;
     }
   }
   const known = input.resources.map((r) => r.id).filter((id) => rows.has(id));
   const unknown = [...rows.keys()].filter((id) => !basis.resources.has(id)).sort(compareIds);
   return [...new Set([...known, ...unknown])].map((id) => {
     const r = rows.get(id)!;
+    const byCurrency = [...(split.get(id)?.values() ?? [])].sort((a, b) => (a.currency < b.currency ? -1 : a.currency > b.currency ? 1 : 0));
+    const own = m.split ? byCurrency.find((c) => c.currency === m.currency) : undefined;
     return {
       ...r,
       plannedHours: hours2(r.plannedHours),
       actualHours: hours2(r.actualHours),
-      plannedCost: money(r.plannedCost),
-      actualCost: money(r.actualCost),
+      plannedCost: money(m.split ? (own?.plannedCost ?? 0) : r.plannedCost),
+      actualCost: money(m.split ? (own?.actualCost ?? 0) : r.actualCost),
+      ...(m.keyed ? { byCurrency: byCurrency.map((c) => ({ currency: c.currency, plannedCost: money(c.plannedCost), actualCost: money(c.actualCost) })) } : {}),
     };
   });
 }
@@ -222,9 +334,17 @@ export function plannedFraction(cal: PlanCalendar, start: string, finish: string
 /**
  * Earned value over the baseline rows that are leaf tasks of this plan
  * (summary rows would count their subtasks twice; rows for tasks no longer in
- * the plan have nothing to earn). AC is the plan's total actual cost.
+ * the plan have nothing to earn), and of them those `counts` keeps: a
+ * currency's (D73). Each row's planned share counts its task's own calendar's
+ * days. AC is the actual cost in the same money.
  */
-function earnedValue(cal: PlanCalendar, baseline: PlanBaseline, schedule: ScheduleResult, actualCost: number): EvmResult {
+function earnedValue(
+  calendarOf: (taskId: string) => PlanCalendar,
+  baseline: PlanBaseline,
+  schedule: ScheduleResult,
+  actualCost: number,
+  counts: (taskId: string) => boolean,
+): EvmResult {
   const leaves = new Map(schedule.tasks.filter((t) => !t.isSummary).map((t) => [t.id, t]));
   const seen = new Set<string>();
   let bac = 0;
@@ -234,9 +354,10 @@ function earnedValue(cal: PlanCalendar, baseline: PlanBaseline, schedule: Schedu
     const t = leaves.get(b.id);
     if (!t || seen.has(b.id) || !isISODate(b.start) || !isISODate(b.finish)) continue;
     seen.add(b.id);
+    if (!counts(b.id)) continue;
     const cost = finite(b.cost, 0);
     bac += cost;
-    pv += cost * plannedFraction(cal, b.start, b.finish, schedule.today);
+    pv += cost * plannedFraction(calendarOf(b.id), b.start, b.finish, schedule.today);
     ev += (cost * t.percentComplete) / 100;
   }
   const ac = actualCost;

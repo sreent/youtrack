@@ -26,9 +26,17 @@ interface CalendarIndex {
   sourceDays: readonly number[];
   sourceHolidays: readonly string[];
   sourceLengths: string;
+  source: PlanCalendar;
 }
 
 const indexes = new WeakMap<PlanCalendar, CalendarIndex>();
+/** What a plan of several calendars calls each (D73), so an error can say which to check. */
+const names = new WeakMap<PlanCalendar, string>();
+
+/** Names a calendar for the errors working-day arithmetic throws on it. */
+export function nameCalendar(cal: PlanCalendar, name: string): void {
+  names.set(cal, name);
+}
 
 function validWorkingDays(days: readonly number[]): number[] {
   const valid = [...new Set(days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort((a, b) => a - b);
@@ -67,6 +75,7 @@ function buildIndex(cal: PlanCalendar): CalendarIndex {
     sourceDays: cal.workingDays,
     sourceHolidays: cal.holidays,
     sourceLengths: lengthsOf(cal),
+    source: cal,
   };
 }
 
@@ -103,9 +112,10 @@ function step(idx: CalendarIndex, d: string, dir: 1 | -1): string {
       return cur;
     }
   }
+  const name = names.get(idx.source);
   throw new Error(
     `No working day within ${MAX_CALENDAR_STEPS} days ${dir === 1 ? 'after' : 'before'} ${d}: ` +
-      'check the plan calendar (working days and holidays)',
+      `check ${name ? `the calendar ${name}` : 'the plan calendar'} (working days and holidays)`,
   );
 }
 

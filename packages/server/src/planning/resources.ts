@@ -3,10 +3,16 @@
  * against capacity) and resource levelling: a priority-based serial schedule
  * generation heuristic, the family MS Project's levelling belongs to. It
  * delays tasks until their assignee has room; it is not an optimiser.
+ *
+ * Across projects (D73) each task's hours lie on its own calendar's days, and
+ * a person's capacity on a day is theirs (their week, less days away),
+ * whichever project's work fills it: levelling books their hours by the day
+ * across calendars, so two projects can't both take the same day.
  */
 import { isISODate, maxDate, minDate } from '../lib/dates';
-import { availabilities, type Availability } from './availability';
-import { addWorkingDays, listWorkingDays, nextWorkingDay, normalizeCalendar, workingDaysBetween } from './calendar';
+import { availabilityByCalendar, type Availability } from './availability';
+import { addWorkingDays, listWorkingDays, nextWorkingDay, workingDaysBetween } from './calendar';
+import { planCalendars } from './plan-calendars';
 import { buildPlan, type PlanModel } from './schedule';
 import type {
   LevelingChange,
@@ -69,7 +75,10 @@ function capacityOf(r: PlanResource): number {
   return Math.max(0, finite(r.capacityHoursPerDay, 0));
 }
 
-/** Hours they can work on a day: all their capacity, half of it on a half day away, none on a day away. */
+/**
+ * Hours they can work on a day: all their capacity, half of it on a half day away, none on a day away, times
+ * their week's share. `a` is theirs on the plan's (union) calendar: the share is the same on every calendar.
+ */
 function capacityOn(r: PlanResource, a: Availability, d: string): number {
   return capacityOf(r) * a.share(d);
 }
@@ -88,19 +97,19 @@ function ownerOf(t: ScheduledTask, resources: Map<string, PlanResource>): string
  * today (kept within the schedule's span: remaining work is never placed in
  * the past) to the schedule's finish, at most DEFAULT_LOAD_DAYS working days;
  * at most MAX_LOAD_DAYS when `to` is given. `to` in the result is the last day
- * actually covered.
+ * actually covered. Its days are those any of the plan's calendars works (D73).
  */
 export function computeLoad(input: PlanInput, schedule: ScheduleResult, from?: string, to?: string): ResourceLoadResult {
-  const cal = normalizeCalendar(input.calendar);
-  const availabilityOf = availabilities(cal, input.absences, input.today, input.resources);
-  const window = loadWindow(cal, schedule, from, to);
+  const cals = planCalendars(input);
+  const availabilityOn = availabilityByCalendar(input.absences, input.today, input.resources);
+  const window = loadWindow(cals.union, schedule, from, to);
   const inWindow = new Set(window.days);
   const resources = resourceMap(input.resources);
   const load = new Map<string, Map<string, Map<string, number>>>();
   let unassigned = 0;
   for (const t of schedule.tasks) {
     const owner = ownerOf(t, resources);
-    const spread = spreadOf(availabilityOf(owner), schedule.today, t);
+    const spread = spreadOf(availabilityOn(cals.of(t.id), owner), schedule.today, t);
     if (!spread) continue;
     spread.days.forEach((d, i) => {
       if (!inWindow.has(d)) return;
@@ -119,7 +128,7 @@ export function computeLoad(input: PlanInput, schedule: ScheduleResult, from?: s
   return {
     from: window.from,
     to: window.to,
-    resources: [...resources.values()].map((r) => loadRow(r, availabilityOf(r.id), window.days, load.get(r.id))),
+    resources: [...resources.values()].map((r) => loadRow(r, availabilityOn(cals.union, r.id), window.days, load.get(r.id))),
     unassignedHours: hours2(unassigned),
   };
 }
@@ -182,6 +191,8 @@ interface Placement {
  * working day its assignee has room for it on every day it spans. In
  * `within_slack` mode no task may start after its late start, so the finish
  * date never moves; tasks that cannot fit are left in place and reported.
+ * Each task waits on its own calendar's days and its assignee's; their room on
+ * a day is what their own capacity leaves, in whichever project (D73).
  */
 export function levelResources(
   input: PlanInput,
@@ -189,12 +200,14 @@ export function levelResources(
   overrides: readonly PlanOverride[] = [],
 ): LevelingProposal {
   const model = buildPlan(input, overrides);
-  const { schedule, calendar: cal, graph, tasks, anchor, anchorWith } = model;
+  const { schedule, calendars: cals, graph, tasks, anchor, anchorWith } = model;
   const resources = resourceMap(input.resources);
   const today = schedule.today;
   const leaves = graph.leaves.map((id) => tasks.get(id)!);
   const planned = new Set(leaves.filter((t) => !t.resolved && t.scheduledFrom !== 'actual').map((t) => t.id));
-  const ofOwner = (t: ScheduledTask): Availability => model.availabilityOf(ownerOf(t, resources));
+  // A task's days are its own calendar's and its assignee's; their capacity on a day is theirs on any calendar.
+  const ofOwner = (t: ScheduledTask): Availability => model.availabilityOf(ownerOf(t, resources), cals.of(t.id));
+  const ofPerson = (resourceId: string): Availability => model.availabilityOf(resourceId, cals.union);
 
   const booked: Bookings = new Map();
   for (const t of leaves) if (!planned.has(t.id)) book(booked, ofOwner(t), today, t, resources, t);
@@ -204,9 +217,10 @@ export function levelResources(
   const delayedForResources = new Set<string>();
   const earliestOf = (t: ScheduledTask): string => {
     let earliest = t.earlyStart;
+    const own = cals.of(t.id);
     for (const p of graph.leafPreds.get(t.id)!) {
       const finish = placed.get(p)?.finish ?? tasks.get(p)!.finish;
-      const after = t.isMilestone ? nextWorkingDay(cal, finish) : addWorkingDays(cal, finish, 1);
+      const after = t.isMilestone ? nextWorkingDay(own, finish) : addWorkingDays(own, finish, 1);
       if (after > earliest) earliest = after;
     }
     return earliest;
@@ -227,9 +241,10 @@ export function levelResources(
       const latest =
         mode === 'within_slack'
           ? maxDate(task.lateStart, earliest)
-          : addWorkingDays(cal, earliest, LEVEL_SEARCH_DAYS);
+          : addWorkingDays(cals.of(task.id), earliest, LEVEL_SEARCH_DAYS);
       const r = resources.get(owner)!;
-      const slot = findSlot(avail, booked.get(owner), (d) => capacityOn(r, avail, d), earliest, latest, (s) => loadAt(model, avail, today, task, s));
+      const person = ofPerson(owner);
+      const slot = findSlot(avail, booked.get(owner), (d) => capacityOn(r, person, d), earliest, latest, (s) => loadAt(model, avail, today, task, s));
       if (slot === null) unresolved.add(task.id);
       else start = slot;
       if (start > earliest) delayedForResources.add(task.id);
@@ -257,24 +272,31 @@ export function levelResources(
       fromFinish: t.finish,
       toStart: datesAfter(t).start,
       toFinish: datesAfter(t).finish,
-      delayDays: workingDaysBetween(cal, t.start, datesAfter(t).start),
+      delayDays: workingDaysBetween(cals.of(t.id), t.start, datesAfter(t).start),
       movedBy: delayedForResources.has(t.id) ? ('resources' as const) : ('dependencies' as const),
     }));
   // Writing a Start date on a task that only follows its predecessors would pin it there
   // (and turn a task with a due date but no estimate into a start-to-due window).
   const levelledStarts = Object.fromEntries(changes.filter((c) => c.movedBy === 'resources').map((c) => [c.id, c.toStart]));
+  // The plan applied must be the plan proposed: if the written starts would move where it
+  // begins, it keeps beginning where it did. Each calendar begins where its own work does (D73),
+  // so a plan of several keeps each one's start, and has none of its own to keep.
+  const keepStarts: Record<string, string> = {};
+  for (const key of cals.keys) {
+    const was = model.anchorOf(key);
+    if (model.anchorOf(key, levelledStarts) !== was) keepStarts[key] = was;
+  }
   return {
     mode,
     finishBefore: schedule.finish,
     finishAfter: leaves.map((t) => datesAfter(t).finish).reduce(maxDate, schedule.finish),
-    overallocatedDaysBefore: overallocatedDays(today, leaves, resources, ofOwner, (t) => t),
-    overallocatedDaysAfter: overallocatedDays(today, leaves, resources, ofOwner, datesAfter),
+    overallocatedDaysBefore: overallocatedDays(today, leaves, resources, ofOwner, ofPerson, (t) => t),
+    overallocatedDaysAfter: overallocatedDays(today, leaves, resources, ofOwner, ofPerson, datesAfter),
     changes,
     unresolved: order.filter((t) => unresolved.has(t.id)).map((t) => t.id),
     levelledStarts,
-    // The plan applied must be the plan proposed: if the written starts would move where it
-    // begins, it keeps beginning where it did.
-    keepStart: anchorWith(levelledStarts) !== anchor ? anchor : null,
+    keepStart: cals.several ? null : anchorWith(levelledStarts) !== anchor ? anchor : null,
+    ...(cals.keyed ? { keepStarts } : {}),
   };
 }
 
@@ -343,20 +365,15 @@ function overallocatedDays(
   leaves: readonly ScheduledTask[],
   resources: Map<string, PlanResource>,
   availabilityOf: (t: ScheduledTask) => Availability,
+  personOf: (resourceId: string) => Availability,
   datesOf: (t: ScheduledTask) => Placement,
 ): number {
   const booked: Bookings = new Map();
-  const ofPerson = new Map<string, Availability>();
-  for (const t of leaves) {
-    const a = availabilityOf(t);
-    const owner = ownerOf(t, resources);
-    if (owner) ofPerson.set(owner, a);
-    book(booked, a, today, t, resources, datesOf(t));
-  }
+  for (const t of leaves) book(booked, availabilityOf(t), today, t, resources, datesOf(t));
   let count = 0;
   for (const [id, days] of booked) {
     const r = resources.get(id)!;
-    const a = ofPerson.get(id)!;
+    const a = personOf(id);
     for (const [d, hours] of days) if (hours > capacityOn(r, a, d) + TOLERANCE) count++;
   }
   return count;

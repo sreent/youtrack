@@ -14,6 +14,7 @@ export {
   workingDaysInclusive,
 } from './calendar';
 export { computeCosts } from './costs';
+export { PLAN_CALENDAR_KEY, planCalendars, type PlanCalendars } from './plan-calendars';
 export { computeLoad, levelResources } from './resources';
 export { computeSchedule, isAwayWarning, whatIf } from './schedule';
 export type * from './types';

@@ -3,19 +3,18 @@
  * capacity, a forward pass (early dates), a backward pass (late dates, slack,
  * critical path), summary roll-ups and baseline variance. Leaf tasks are
  * scheduled; summary tasks span their subtasks.
+ *
+ * Each task is planned on its own calendar (its project's, D73) and its
+ * assignee's days. A dependency is measured on the successor's calendar, then
+ * snapped to its assignee's days; going back, a predecessor's bound snaps to
+ * its own days. Numbers of the whole plan count the union calendar's days.
  */
 import { isISODate, maxDate } from '../lib/dates';
-import { availabilities, everyone, spanFrom, type Availability } from './availability';
-import {
-  addWorkingDays,
-  nextWorkingDay,
-  normalizeCalendar,
-  prevWorkingDay,
-  workingDaysBetween,
-  workingDaysInclusive,
-} from './calendar';
+import { availabilityByCalendar, everyone, spanFrom, type Availability } from './availability';
+import { addWorkingDays, nextWorkingDay, prevWorkingDay, workingDaysBetween, workingDaysInclusive } from './calendar';
 import { taskCosts, type TaskCost } from './costs';
 import { buildGraph, type PlanGraph } from './graph';
+import { planCalendars, type PlanCalendars } from './plan-calendars';
 import type {
   PlanBaseline,
   PlanBaselineTask,
@@ -39,16 +38,26 @@ export const MAX_TASK_DAYS = 5_000;
 /** The schedule plus what levelling needs to replay it. */
 export interface PlanModel {
   schedule: ScheduleResult;
-  /** Where the plan begins: its own start date, else its earliest start date or logged work, else today. */
+  /** Where the plan begins: the earliest of where its calendars' work begins (`anchorOf`). */
   anchor: string;
   /** Where it would begin if these tasks had these Start dates (as levelling writes them). */
   anchorWith(starts: Readonly<Record<string, string>>): string;
-  /** Normalised calendar the schedule was computed with. */
+  /**
+   * Where a calendar's work begins (D73): its own start date, else the earliest Start date or logged work
+   * of its tasks (`starts` standing in for theirs), else its first working day from today.
+   */
+  anchorOf(key: string, starts?: Readonly<Record<string, string>>): string;
+  /** The calendar numbers of the whole plan count on: its one calendar, normalised, or the union of its several (D73). */
   calendar: PlanCalendar;
+  /** Its calendars: each task's own, and that union. */
+  calendars: PlanCalendars;
   graph: PlanGraph;
   tasks: Map<string, ScheduledTask>;
-  /** When each person can work: the plan's calendar without their days away (D36). */
-  availabilityOf(resourceId: string | null): Availability;
+  /**
+   * When a person can work on a calendar, by default the plan's (`calendar`): its days without their days
+   * away, on their week (D36, D43). Its share of a day is theirs on every calendar.
+   */
+  availabilityOf(resourceId: string | null, cal?: PlanCalendar): Availability;
   /**
    * Where a task not yet started would run if it began no earlier than `from`: its assignee's
    * first working day from then, and the day its work would be done.
@@ -69,6 +78,9 @@ interface TaskEdit {
 /** Scheduling state of one leaf task. */
 interface Leaf {
   task: PlanTaskInput;
+  /** Its calendar (its project's, D73): its key and the calendar, normalised. */
+  key: string;
+  cal: PlanCalendar;
   kind: LeafKind;
   assigneeId: string | null;
   effort: number;
@@ -81,7 +93,7 @@ interface Leaf {
   startFloor: string | null;
   /** Earliest of its own due date and its ancestors'. */
   deadlineCap: string | null;
-  /** When its assignee works; a milestone, or work with nobody to do it, keeps the plan's calendar. */
+  /** When its assignee works on its calendar; a milestone, or work with nobody to do it, keeps the calendar. */
   avail: Availability;
   delay: number;
   es: string;
@@ -94,13 +106,13 @@ interface Leaf {
 
 interface Context {
   today: string;
-  cal: PlanCalendar;
+  cals: PlanCalendars;
   graph: PlanGraph;
   tasks: Map<string, PlanTaskInput>;
   resources: Map<string, PlanResource>;
   edits: Map<string, TaskEdit>;
   warn: (message: string) => void;
-  availabilityOf: (resourceId: string | null) => Availability;
+  availabilityOf: (cal: PlanCalendar, resourceId: string | null) => Availability;
 }
 
 /** When two start terms give the same date, the more specific reason wins. */
@@ -121,12 +133,14 @@ export function computeSchedule(input: PlanInput, overrides: readonly PlanOverri
 export function whatIf(input: PlanInput, overrides: readonly PlanOverride[]): WhatIfAnalysis {
   const before = computeSchedule(input);
   const after = computeSchedule(input, overrides);
-  const cal = normalizeCalendar(input.calendar);
+  // Each task moves by days of its own calendar; the plan, by days of the union of its calendars (D73).
+  const cals = planCalendars(input);
   const prior = new Map(before.tasks.map((t) => [t.id, t]));
   const impacted: WhatIfImpact[] = [];
   for (const t of after.tasks) {
     const b = prior.get(t.id);
     if (!b || (b.start === t.start && b.finish === t.finish)) continue;
+    const cal = cals.of(t.id);
     impacted.push({
       id: t.id,
       summary: t.summary,
@@ -137,7 +151,7 @@ export function whatIf(input: PlanInput, overrides: readonly PlanOverride[]): Wh
   return {
     before: { finish: before.finish, criticalPath: before.criticalPath },
     after,
-    finishDeltaDays: workingDaysBetween(cal, before.finish, after.finish),
+    finishDeltaDays: workingDaysBetween(cals.union, before.finish, after.finish),
     impacted,
   };
 }
@@ -148,22 +162,24 @@ export function buildPlan(input: PlanInput, overrides: readonly PlanOverride[] =
   const warnings = new Warnings();
   const tasks = sanitizeTasks(input.tasks, warnings.add);
   const graph = buildGraph(tasks, warnings.add);
-  const cal = normalizeCalendar(input.calendar);
+  const cals = planCalendars(input, tasks, warnings.add);
   const ctx: Context = {
     today: input.today,
-    cal,
+    cals,
     graph,
     tasks: new Map(tasks.map((t) => [t.id, t])),
     resources: new Map(input.resources.map((r) => [r.id, r])),
     edits: new Map(),
     warn: warnings.add,
-    availabilityOf: availabilities(cal, input.absences, input.today, input.resources),
+    availabilityOf: availabilityByCalendar(input.absences, input.today, input.resources),
   };
   collectEdits(ctx, overrides);
 
   const leaves = new Map(graph.leaves.map((id) => [id, setUpLeaf(ctx, id)]));
-  const planStart = projectStart(ctx);
-  forwardPass(ctx, leaves, planStart);
+  // Each calendar's work begins where that calendar's does; the plan, at the earliest of them (D73).
+  const starts = new Map(cals.keys.map((k) => [k, calendarStart(ctx, k)]));
+  const planStart = minOf([...starts.values()])!;
+  forwardPass(ctx, leaves, starts);
   const projectFinish = maxOf([...leaves.values()].map((l) => l.ef)) ?? planStart;
   backwardPass(ctx, leaves, projectFinish);
 
@@ -171,13 +187,13 @@ export function buildPlan(input: PlanInput, overrides: readonly PlanOverride[] =
   for (const leaf of leaves.values()) byId.set(leaf.task.id, leafTask(ctx, leaf));
   for (const id of graph.ids) if (!graph.isLeaf(id)) byId.set(id, summaryTask(ctx, id, byId));
   const ordered = orderTasks(graph, byId);
-  const costs = taskCosts(input, ordered);
+  const costs = taskCosts(input, ordered, (id) => cals.of(id).currency);
   for (const t of ordered) {
     t.plannedCost = money(costs.get(t.id)!.planned);
     t.actualCost = money(costs.get(t.id)!.actual);
   }
 
-  const start = minOf([ctx.cal.startDate, ...ordered.map((t) => t.start)]) ?? planStart;
+  const start = minOf([...cals.keys.map((k) => cals.byKey.get(k)!.startDate), ...ordered.map((t) => t.start)]) ?? planStart;
   const finish = leaves.size > 0 ? projectFinish : start;
   const baseline = compareBaseline(ctx, input.baseline ?? null, ordered, costs, finish);
   const topo = new Map(graph.order.map((id, i) => [id, i]));
@@ -196,12 +212,14 @@ export function buildPlan(input: PlanInput, overrides: readonly PlanOverride[] =
   };
   return {
     schedule,
-    calendar: ctx.cal,
+    calendar: cals.union,
+    calendars: cals,
     graph,
     tasks: byId,
     anchor: planStart,
-    anchorWith: (starts) => projectStart(ctx, starts),
-    availabilityOf: ctx.availabilityOf,
+    anchorWith: (written) => minOf(cals.keys.map((k) => calendarStart(ctx, k, written)))!,
+    anchorOf: (key, written = {}) => calendarStart(ctx, key, written),
+    availabilityOf: (resourceId, cal = cals.union) => ctx.availabilityOf(cal, resourceId),
     spanOf: (id, from) => {
       const leaf = leaves.get(id);
       if (!leaf) throw new Error(`${id} is not a task of this plan's to schedule`);
@@ -271,11 +289,16 @@ function collectEdits(ctx: Context, overrides: readonly PlanOverride[]): void {
   }
 }
 
-/** The calendar's start date, else the earliest start date or logged work, else today. */
-function projectStart(ctx: Context, starts: Readonly<Record<string, string>> = {}): string {
-  if (ctx.cal.startDate) return ctx.cal.startDate;
+/**
+ * Where a calendar's work begins: its start date, else the earliest start date or logged work of its tasks,
+ * else today. Each project keeps its own start (D73); a plan of one calendar begins where it always did.
+ */
+function calendarStart(ctx: Context, key: string, starts: Readonly<Record<string, string>> = {}): string {
+  const cal = ctx.cals.byKey.get(key)!;
+  if (cal.startDate) return cal.startDate;
+  const own = [...ctx.tasks.values()].filter((t) => ctx.cals.keyOf(t.id) === key);
   // Not the raw today: a plan can only begin on a working day, so the fallback is the first one (D43's revisit).
-  return minOf([...ctx.tasks.values()].flatMap((t) => [starts[t.id] ?? t.startConstraint, t.firstWorkDate])) ?? nextWorkingDay(ctx.cal, ctx.today);
+  return minOf(own.flatMap((t) => [starts[t.id] ?? t.startConstraint, t.firstWorkDate])) ?? nextWorkingDay(cal, ctx.today);
 }
 
 // ---------------------------------------------------------------------------
@@ -289,14 +312,18 @@ function setUpLeaf(ctx: Context, id: string): Leaf {
   const kind: LeafKind = t.resolved ? 'resolved' : !t.isMilestone && t.firstWorkDate ? 'in_progress' : 'planned';
   const assigneeId = edit.assigneeId !== undefined ? edit.assigneeId : t.assigneeId;
   const ownStart = edit.start ?? t.startConstraint;
+  const key = ctx.cals.keyOf(id);
+  const cal = ctx.cals.byKey.get(key)!;
   // A milestone is a point in time, not anybody's work; nor is work with nobody to do it.
-  const avail = t.isMilestone ? everyone(ctx.cal) : ctx.availabilityOf(assigneeId && ctx.resources.has(assigneeId) ? assigneeId : null);
+  const avail = t.isMilestone ? everyone(cal) : ctx.availabilityOf(cal, assigneeId && ctx.resources.has(assigneeId) ? assigneeId : null);
   const leaf: Leaf = {
     task: t,
+    key,
+    cal,
     kind,
     assigneeId,
     effort: edit.effort ?? t.effortMinutes ?? 0,
-    dailyHours: dailyHours(ctx, id, assigneeId, kind !== 'resolved'),
+    dailyHours: dailyHours(ctx, cal, id, assigneeId, kind !== 'resolved'),
     duration: 0,
     pinned: false,
     startFloor: maxOf([ownStart, ...ancestors.map((a) => ctx.edits.get(a)?.start ?? ctx.tasks.get(a)!.startConstraint)]),
@@ -315,14 +342,14 @@ function setUpLeaf(ctx: Context, id: string): Leaf {
   return leaf;
 }
 
-/** Hours a day the assignee can give the task: min(capacity, calendar day), else a calendar day. */
-function dailyHours(ctx: Context, id: string, assigneeId: string | null, report: boolean): number {
+/** Hours a day the assignee can give the task: min(capacity, its calendar's day), else a calendar day. */
+function dailyHours(ctx: Context, cal: PlanCalendar, id: string, assigneeId: string | null, report: boolean): number {
   const r = assigneeId ? ctx.resources.get(assigneeId) : undefined;
   if (assigneeId && !r && report) {
-    ctx.warn(`${id} is assigned to ${assigneeId}, who is not a plan resource; planned at ${ctx.cal.hoursPerDay}h a day`);
+    ctx.warn(`${id} is assigned to ${assigneeId}, who is not a plan resource; planned at ${cal.hoursPerDay}h a day`);
   }
-  const hours = r ? Math.min(finite(r.capacityHoursPerDay, 0), ctx.cal.hoursPerDay) : ctx.cal.hoursPerDay;
-  return hours > 0 ? hours : ctx.cal.hoursPerDay;
+  const hours = r ? Math.min(finite(r.capacityHoursPerDay, 0), cal.hoursPerDay) : cal.hoursPerDay;
+  return hours > 0 ? hours : cal.hoursPerDay;
 }
 
 /** Its own delay, plus that of each ancestor it opens (no predecessor inside that ancestor). */
@@ -346,7 +373,7 @@ function plannedDuration(ctx: Context, leaf: Leaf, ownStart: string | null): { d
   }
   if (ownStart && t.deadline) {
     const theirs = workingDaysInclusive(leaf.avail.cal, ownStart, t.deadline);
-    if (theirs === 0 && workingDaysInclusive(ctx.cal, ownStart, t.deadline) > 0) {
+    if (theirs === 0 && workingDaysInclusive(leaf.cal, ownStart, t.deadline) > 0) {
       ctx.warn(awayWarning(t.id));
     }
     return { duration: clampDays(ctx, t.id, theirs), pinned: true };
@@ -368,13 +395,13 @@ function clampDays(ctx: Context, id: string, days: number): number {
   return MAX_TASK_DAYS;
 }
 
-/** Early dates, in topological order. */
-function forwardPass(ctx: Context, leaves: Map<string, Leaf>, planStart: string): void {
+/** Early dates, in topological order; each task from where its calendar's work begins. */
+function forwardPass(ctx: Context, leaves: Map<string, Leaf>, starts: ReadonlyMap<string, string>): void {
   for (const id of ctx.graph.order) {
     const leaf = leaves.get(id)!;
     if (leaf.kind === 'resolved') placeResolved(ctx, leaf);
     else if (leaf.kind === 'in_progress') placeInProgress(ctx, leaf);
-    else placePlanned(ctx, leaf, planStart, ctx.graph.leafPreds.get(id)!.map((p) => leaves.get(p)!));
+    else placePlanned(ctx, leaf, starts.get(leaf.key)!, ctx.graph.leafPreds.get(id)!.map((p) => leaves.get(p)!));
   }
 }
 
@@ -388,7 +415,7 @@ function placeResolved(ctx: Context, leaf: Leaf): void {
   leaf.ef = leaf.lf = finish;
   leaf.slack = 0;
   leaf.from = 'actual';
-  leaf.duration = t.isMilestone ? 0 : Math.max(1, workingDaysInclusive(ctx.cal, start, finish));
+  leaf.duration = t.isMilestone ? 0 : Math.max(1, workingDaysInclusive(leaf.cal, start, finish));
 }
 
 /** Started on its first logged work; the remaining work runs from today, on its assignee's days. */
@@ -409,7 +436,9 @@ function placeInProgress(ctx: Context, leaf: Leaf): void {
 /**
  * Not started: the next working day on or after the latest of the project
  * start, today, its start date and the day after each predecessor finishes
- * (a milestone sits on its predecessors' finish day), then any delay.
+ * (a milestone sits on its predecessors' finish day), then any delay. "The day
+ * after" is its own calendar's next working day (D73), and then it waits for
+ * its assignee's next day.
  */
 function placePlanned(ctx: Context, leaf: Leaf, planStart: string, preds: readonly Leaf[]): void {
   const milestone = leaf.task.isMilestone;
@@ -418,7 +447,7 @@ function placePlanned(ctx: Context, leaf: Leaf, planStart: string, preds: readon
     [ctx.today, 'project_start'],
   ];
   if (leaf.startFloor) terms.push([leaf.startFloor, leaf.pinned ? 'fixed' : 'start']);
-  for (const p of preds) terms.push([milestone ? p.ef : addWorkingDays(ctx.cal, p.ef, 1), 'dependencies']);
+  for (const p of preds) terms.push([milestone ? p.ef : addWorkingDays(leaf.cal, p.ef, 1), 'dependencies']);
   let [date, from] = terms[0]!;
   for (const [d, f] of terms) if (d > date || (d === date && REASON_RANK[f] > REASON_RANK[from])) [date, from] = [d, f];
   let es = nextWorkingDay(leaf.avail.cal, date);
@@ -452,7 +481,7 @@ function spanAt(leaf: Leaf, from: string): { start: string; finish: string; days
  * what makes slack negative when a task cannot meet it.
  */
 function backwardPass(ctx: Context, leaves: Map<string, Leaf>, projectFinish: string): void {
-  const finishLine = prevWorkingDay(ctx.cal, projectFinish);
+  const finishLine = prevWorkingDay(ctx.cals.union, projectFinish);
   for (const id of [...ctx.graph.order].reverse()) {
     const leaf = leaves.get(id)!;
     if (leaf.kind === 'resolved') continue;
@@ -460,7 +489,9 @@ function backwardPass(ctx: Context, leaves: Map<string, Leaf>, projectFinish: st
     for (const s of ctx.graph.leafSuccs.get(id)!) {
       const succ = leaves.get(s)!;
       if (succ.kind !== 'planned') continue;
-      const bound = succ.task.isMilestone ? succ.ls : addWorkingDays(ctx.cal, succ.ls, -1);
+      // The last day before its successor starts is its own calendar's, as forward its successor's is (D73):
+      // a Friday can come before a Sunday start, where neither calendar works the Saturday.
+      const bound = succ.task.isMilestone ? succ.ls : addWorkingDays(leaf.cal, succ.ls, -1);
       if (bound < lf) lf = bound;
     }
     if (leaf.deadlineCap && leaf.deadlineCap < lf) lf = leaf.deadlineCap;
@@ -537,7 +568,8 @@ function summaryTask(ctx: Context, id: string, byId: Map<string, ScheduledTask>)
     priorityOrdinal: t.priorityOrdinal,
     start: first.start,
     finish,
-    durationDays: leaves.every((l) => l.isMilestone) ? 0 : Math.max(1, workingDaysInclusive(ctx.cal, first.start, finish)),
+    // Its span is its subtasks', counted on its own calendar (D73).
+    durationDays: leaves.every((l) => l.isMilestone) ? 0 : Math.max(1, workingDaysInclusive(ctx.cals.of(id), first.start, finish)),
     effortMinutes: sum((l) => l.effortMinutes),
     spentMinutes: [id, ...ctx.graph.descendants.get(id)!].reduce((s, d) => s + ctx.tasks.get(d)!.spentMinutes, 0),
     remainingMinutes: sum((l) => l.remainingMinutes),
@@ -604,9 +636,10 @@ function compareBaseline(
     const b = rows.get(t.id);
     if (!b) continue;
     t.baseline = { start: b.start, finish: b.finish, effortMinutes: b.effortMinutes, cost: b.cost };
+    const cal = ctx.cals.of(t.id);
     t.variance = {
-      startDays: workingDaysBetween(ctx.cal, b.start, t.start),
-      finishDays: workingDaysBetween(ctx.cal, b.finish, t.finish),
+      startDays: workingDaysBetween(cal, b.start, t.start),
+      finishDays: workingDaysBetween(cal, b.finish, t.finish),
       effortMinutes: t.effortMinutes - finite(b.effortMinutes, 0),
       cost: money(costs.get(t.id)!.planned - finite(b.cost, 0)),
     };
@@ -616,7 +649,7 @@ function compareBaseline(
     id: baseline.id,
     name: baseline.name,
     finish: baselineFinish,
-    finishVarianceDays: workingDaysBetween(ctx.cal, baselineFinish, finish),
+    finishVarianceDays: workingDaysBetween(ctx.cals.union, baselineFinish, finish),
   };
 }
 

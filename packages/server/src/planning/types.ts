@@ -5,14 +5,20 @@
  * ResourceLoad, LevelingResult, CostReport, Evm, WhatIfResult) but carry ids
  * instead of DTOs: `id` is a task's readable id, `assigneeId` / `resourceId`
  * a person's id. All dates are ISO calendar dates (YYYY-MM-DD).
+ *
+ * A plan can span projects (D73): each task is planned on its own project's
+ * calendar (`PlanInput.calendars`, named by `PlanTaskInput.calendarId`), then
+ * on its assignee's week and days away. A plan whose tasks name no calendar is
+ * planned on `PlanInput.calendar`, exactly as before.
  */
 
 // ---------------------------------------------------------------------------
 // Inputs
 // ---------------------------------------------------------------------------
 
+/** A project's calendar, and its money. In a plan across projects each keeps its own (D73). */
 export interface PlanCalendar {
-  /** Project start; null = the earliest start constraint or logged work, else today. */
+  /** Project start; null = the earliest start constraint or logged work of its tasks, else its first working day from today. */
   startDate: string | null;
   /** 0 = Sunday … 6 = Saturday. Empty (or invalid) means Monday–Friday. */
   workingDays: number[];
@@ -59,6 +65,11 @@ export interface PlanTaskInput {
   /** Finish-to-start predecessors; may reference ids outside the plan. */
   predecessors: string[];
   isMilestone: boolean;
+  /**
+   * The key in `PlanInput.calendars` of its project's calendar (D73). None, or one the plan doesn't have
+   * (with a warning), is the plan's own calendar, `PlanInput.calendar`.
+   */
+  calendarId?: string;
 }
 
 export interface PlanWorkItem {
@@ -101,12 +112,22 @@ export interface PlanAbsence {
 export interface PlanInput {
   /** The status date. The engine never reads the clock. */
   today: string;
+  /**
+   * The plan's own calendar: of each task that names none, of a plan that holds no task, and the currency
+   * a plan's costs are totalled in when its calendars have several (D73).
+   */
   calendar: PlanCalendar;
+  /**
+   * The calendars of the plan's projects, by the key their tasks name (D73). Given, results also say what
+   * they say per calendar: levelling's `keepStarts`, the cost report's `byCalendar` and `byCurrency`. Where
+   * those name the plan's own calendar, its key is `PLAN_CALENDAR_KEY` (the empty string).
+   */
+  calendars?: Record<string, PlanCalendar>;
   tasks: PlanTaskInput[];
   resources: PlanResource[];
   workItems: PlanWorkItem[];
   baseline?: PlanBaseline | null;
-  /** People's days away. Without any, everyone works on the plan's calendar. */
+  /** People's days away. Without any, everyone works on their tasks' calendars. */
   absences?: PlanAbsence[];
 }
 
@@ -150,6 +171,10 @@ export interface TaskVariance {
   cost: number;
 }
 
+/**
+ * Working-day figures (duration, slack, variance) count the task's own days: its calendar's, and for work
+ * someone does, theirs (D36, D43, D73).
+ */
 export interface ScheduledTask {
   id: string;
   summary: string;
@@ -195,6 +220,7 @@ export interface ScheduleBaselineSummary {
   finishVarianceDays: number;
 }
 
+/** Plan-level day counts (a baseline's finish variance) are on the plan's union calendar: any of its calendars' working days (D73). */
 export interface ScheduleResult {
   start: string;
   finish: string;
@@ -217,7 +243,7 @@ export interface WhatIfImpact {
 export interface WhatIfAnalysis {
   before: { finish: string; criticalPath: string[] };
   after: ScheduleResult;
-  /** Signed working days. */
+  /** Signed working days of the plan's union calendar (D73); each impacted task's, of its own calendar. */
   finishDeltaDays: number;
   impacted: WhatIfImpact[];
 }
@@ -260,7 +286,7 @@ export interface LevelingChange {
   fromFinish: string;
   toStart: string;
   toFinish: string;
-  /** Working days. */
+  /** Working days of its own calendar. */
   delayDays: number;
   /**
    * `resources`: delayed to find room for its assignee; `dependencies`: it only
@@ -287,9 +313,12 @@ export interface LevelingProposal {
   /**
    * For a plan with no start date of its own, which begins at its earliest Start date: written,
    * the levelled starts would become that earliest date, and everything else would move to it.
-   * Then this is where the plan began, to keep as its start date; otherwise null.
+   * Then this is where the plan began, to keep as its start date; otherwise null. A plan of several
+   * calendars has no one start: each calendar keeps its own, in `keepStarts`, and this is null (D73).
    */
   keepStart: string | null;
+  /** With `PlanInput.calendars`: `keepStart` for each calendar whose start would move, by its key (D73). */
+  keepStarts?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -308,11 +337,20 @@ export interface TaskCostRow {
   resolved: boolean;
 }
 
+/** Money in the report's `currency`; hours are all their hours. */
 export interface PersonCostRow {
   resourceId: string;
   hourlyRate: number | null;
   plannedHours: number;
   actualHours: number;
+  plannedCost: number;
+  actualCost: number;
+  /** With `PlanInput.calendars`: their cost in each currency their work is in, never converted (D73). */
+  byCurrency?: PersonCurrencyCost[];
+}
+
+export interface PersonCurrencyCost {
+  currency: string;
   plannedCost: number;
   actualCost: number;
 }
@@ -332,6 +370,33 @@ export interface EvmResult {
   vac: number | null;
 }
 
+/** One calendar's budget and money, in its own currency (D73). */
+export interface CalendarCostRow {
+  /** Its key in `PlanInput.calendars`; `PLAN_CALENDAR_KEY` for the plan's own. */
+  calendarId: string;
+  currency: string;
+  budget: number | null;
+  plannedCost: number;
+  actualCost: number;
+  forecastCost: number;
+  budgetVariance: number | null;
+}
+
+/** The plan's money in one currency, never converted (D73). Budgets are per calendar only. */
+export interface CurrencyCostRow {
+  currency: string;
+  plannedCost: number;
+  actualCost: number;
+  forecastCost: number;
+  evm: EvmResult | null;
+}
+
+/**
+ * A plan of one calendar has its budget and currency. A plan of several (D73) has no budget of its own
+ * (`budget` and `budgetVariance` are null; each calendar's is in `byCalendar`), and when they use several
+ * currencies, every figure here but a task's is in `currency`, the plan's own calendar's: the others are in
+ * `byCurrency`, and a warning says so. A task's money is in its own calendar's currency.
+ */
 export interface CostResult {
   currency: string;
   budget: number | null;
@@ -343,4 +408,8 @@ export interface CostResult {
   byPerson: PersonCostRow[];
   evm: EvmResult | null;
   warnings: string[];
+  /** With `PlanInput.calendars`: each calendar in use, by key order. */
+  byCalendar?: CalendarCostRow[];
+  /** With `PlanInput.calendars`: each currency in use, alphabetically. */
+  byCurrency?: CurrencyCostRow[];
 }

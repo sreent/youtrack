@@ -4,6 +4,10 @@
  * gives half their hours; someone with a working week of their own (D43) works the plan's days on
  * which they have hours, and those hours. Someone with neither works on the plan's calendar itself,
  * the same object, so a plan without any is scheduled exactly as it was before there were absences.
+ *
+ * A plan across projects (D73) has a calendar per project, and a person works each project's tasks on
+ * that project's days, so availability is kept per (calendar, person). Their week's shares and their days
+ * away are theirs, the same on every calendar; holidays are the calendar's.
  */
 import { addDays, isISODate, maxDate, minDate } from '../lib/dates';
 import { addWorkingDays, normalizeCalendar } from './calendar';
@@ -61,17 +65,40 @@ export function availabilities(
   today: string,
   resources: readonly PlanResource[] = [],
 ): (resourceId: string | null) => Availability {
-  const plain = everyone(cal);
-  const weeks = new Map<string, NonNullable<ReturnType<typeof ownWeek>>>();
-  for (const r of resources) {
-    const w = weeks.has(r.id) ? null : ownWeek(cal, r);
-    if (w) weeks.set(r.id, w);
-  }
-  if (!absences?.length && !weeks.size) return () => plain;
+  const on = availabilityByCalendar(absences, today, resources);
+  return (resourceId) => on(cal, resourceId);
+}
+
+/**
+ * Each person's availability on any (normalised) calendar, memoised per (calendar, person) (D73): the
+ * calendar's working days on which their week has hours, less its holidays and their whole days away,
+ * each day giving its share. People with neither days away nor a week of their own, and work with nobody
+ * to do it, get the calendar itself.
+ */
+export function availabilityByCalendar(
+  absences: readonly PlanAbsence[] | undefined,
+  today: string,
+  resources: readonly PlanResource[] = [],
+): (cal: PlanCalendar, resourceId: string | null) => Availability {
+  let away: Map<string, Map<string, AwayPart>> | null = null;
+  const awayOf = (): Map<string, Map<string, AwayPart>> => (away ??= awayByPerson(absences ?? [], today));
+  const onCalendar = new WeakMap<PlanCalendar, (resourceId: string | null) => Availability>();
+  return (cal, resourceId) => {
+    let of = onCalendar.get(cal);
+    if (!of) {
+      of = availabilityOn(cal, Boolean(absences?.length), awayOf, resources);
+      onCalendar.set(cal, of);
+    }
+    return of(resourceId);
+  };
+}
+
+/** People's days away, by person and date, within what the engine looks at around today. */
+function awayByPerson(absences: readonly PlanAbsence[], today: string): Map<string, Map<string, AwayPart>> {
   const first = addDays(today, -AWAY_LOOK_BACK_DAYS);
   const last = addDays(today, AWAY_LOOK_AHEAD_DAYS);
   const byPerson = new Map<string, Map<string, AwayPart>>();
-  for (const a of absences ?? []) {
+  for (const a of absences) {
     if (!isISODate(a.from) || !isISODate(a.to) || a.to < a.from) continue;
     const days = byPerson.get(a.resourceId) ?? new Map<string, AwayPart>();
     byPerson.set(a.resourceId, days);
@@ -84,6 +111,24 @@ export function availabilities(
     }
     for (let d = maxDate(a.from, first), end = minDate(a.to, last); d <= end; d = addDays(d, 1)) days.set(d, 'day');
   }
+  return byPerson;
+}
+
+/** Each person's availability on one calendar. */
+function availabilityOn(
+  cal: PlanCalendar,
+  anyAway: boolean,
+  awayOf: () => Map<string, Map<string, AwayPart>>,
+  resources: readonly PlanResource[],
+): (resourceId: string | null) => Availability {
+  const plain = everyone(cal);
+  const weeks = new Map<string, NonNullable<ReturnType<typeof ownWeek>>>();
+  for (const r of resources) {
+    const w = weeks.has(r.id) ? null : ownWeek(cal, r);
+    if (w) weeks.set(r.id, w);
+  }
+  if (!anyAway && !weeks.size) return () => plain;
+  const byPerson = awayOf();
   const built = new Map<string, Availability>();
   return (resourceId) => {
     if (resourceId === null) return plain;
