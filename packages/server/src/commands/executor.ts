@@ -1,8 +1,8 @@
-import { MAX_BULK_ISSUES, type Change, type CommandResult } from '@a4a/shared';
-import { and, eq, sql } from 'drizzle-orm';
+import { MAX_BULK_ISSUES, type Change, type CommandResult, type ViewEdit } from '@a4a/shared';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { boards, sprints } from '../db/schema';
+import { boards, issues as issuesTable, sprints } from '../db/schema';
 import { publishActivities, type ActivityRow } from '../events/activity';
 import type { Translator } from '@a4a/shared/i18n';
 import { translatorFor } from '../i18n';
@@ -10,7 +10,8 @@ import { AppError, asSentence, badRequest, errorWords, keyedProblem, saidProblem
 import { readableId } from '../services/issue-refs';
 import { assertCanWriteProject, visibleSchema } from '../services/access';
 import { changeSprintInTx, type BoardRow, type SprintRow } from '../services/boards';
-import { applyChanges, findIssue, findVisibleIssue, type ChangeSpec, type FieldChangeSpec, type IssueRow, type LinkSpec } from '../services/issues';
+import { newGroupId } from '../services/agent-changes';
+import { applyChanges, findIssue, findVisibleIssue, undoOf, type ChangeSpec, type FieldChangeSpec, type IssueRow, type KeptChange, type LinkSpec } from '../services/issues';
 import { resolveFieldInput } from '../services/values';
 import { todayIn } from '../reports/tz';
 import { zoneOf } from '../services/time-zones';
@@ -30,6 +31,11 @@ export interface CommandRequest {
    * workflow agent, and its "me" is the person whose change set it off.
    */
   meId?: string;
+  /**
+   * The view a person ran it in (D72): then it changes every issue or none, in one transaction, and
+   * its author can undo it all at once (D34's revisit): one group, its own or the one sent.
+   */
+  view?: ViewEdit;
 }
 
 /**
@@ -66,6 +72,8 @@ export async function runCommand(ctx: Ctx, req: CommandRequest, words?: Translat
       description,
     };
   }
+
+  if (req.view && !req.dryRun) return runInView(ctx, req, req.view, rows, parsed.ops, description);
 
   const results: CommandResult['results'] = [];
   const activities: ActivityRow[] = [];
@@ -110,6 +118,82 @@ export async function runCommand(ctx: Ctx, req: CommandRequest, words?: Translat
   }
   await publishActivities(ctx.app, activities);
   return { applied: !req.dryRun && results.some((r) => r.changes.length > 0), problems: [], results, description };
+}
+
+/**
+ * A command run in a view (the issues list's chosen issues): every issue or none, in one transaction,
+ * as one group its author undoes at once (D34's revisit). The issues are locked in id order first, so
+ * two such commands, or a command and an undo, never wait on each other in a circle.
+ */
+async function runInView(ctx: Ctx, req: CommandRequest, view: ViewEdit, rows: IssueRow[], ops: CommandOp[], description: string): Promise<CommandResult & { description: string }> {
+  const s = await ctx.app.schema.get();
+  const prepared: { issue: IssueRow; spec: ChangeSpec; moves: SprintMove[] }[] = [];
+  const refused: CommandResult['results'] = [];
+  for (const issue of rows) {
+    try {
+      const spec = await commandSpec(ctx, issue, ops, req.comment, { meId: req.meId, sprints: true });
+      const moves = await sprintMoves(ctx, issue, ops);
+      if (moves.length) await assertCanWriteProject(ctx, issue.projectId);
+      prepared.push({ issue, spec, moves });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      refused.push({ issue: readableId(s, issue), changes: [], errors: [msg], errorWords: [errorWords(e, msg)] });
+    }
+  }
+  // One that can't change stops them all: none changes, and the answer says which and why.
+  const unchanged = (bad: CommandResult['results']) => ({
+    applied: false,
+    problems: [],
+    results: rows.map((r) => bad.find((b) => b.issue === readableId(s, r)) ?? { issue: readableId(s, r), changes: [], errors: [], errorWords: [] }),
+    description,
+  });
+  if (refused.length) return unchanged(refused);
+  const group = view.group ?? (rows.length > 1 ? newGroupId() : undefined);
+  const inView = { name: view.name, ...(group ? { group } : {}) };
+  let failed = null as CommandResult['results'][number] | null;
+  try {
+    const done = await ctx.db.transaction(async (txRaw) => {
+      const tx = txRaw as unknown as Db;
+      const ids = [...new Set(rows.map((r) => r.id))].sort();
+      await tx.select({ id: issuesTable.id }).from(issuesTable).where(inArray(issuesTable.id, ids)).orderBy(asc(issuesTable.id)).for('update');
+      const out: { issue: string; changes: Change[] }[] = [];
+      const activities: ActivityRow[] = [];
+      const kept: KeptChange[] = [];
+      for (const p of prepared) {
+        const rid = readableId(s, p.issue);
+        try {
+          const fresh = (await findIssue(tx, s, p.issue.id)) ?? p.issue;
+          const applied = await applyChanges(tx, ctx, fresh, { ...p.spec, view: inView });
+          const sprintChanges: Change[] = [];
+          for (const m of p.moves) {
+            const moved = await changeSprintInTx(tx, ctx, m.sprint, m.board, [fresh], m.remove);
+            applied.activities.push(...moved);
+            if (moved.length) sprintChanges.push(m.remove ? { field: 'Sprint', from: m.sprint.name, to: null } : { field: 'Sprint', from: null, to: m.sprint.name });
+          }
+          activities.push(...applied.activities);
+          kept.push(...(applied.kept ?? []));
+          out.push({ issue: rid, changes: [...applied.changes, ...sprintChanges] });
+        } catch (e) {
+          const msg = e instanceof AppError ? (e.hint ? `${e.message} (${e.hint})` : e.message) : String(e);
+          failed = { issue: rid, changes: [], errors: [msg], errorWords: [errorWords(e, msg)] };
+          throw e;
+        }
+      }
+      return { out, activities, kept };
+    });
+    await publishActivities(ctx.app, done.activities);
+    const undo = undoOf(done.kept);
+    return {
+      applied: done.out.some((r) => r.changes.length > 0),
+      problems: [],
+      results: done.out.map((r) => ({ ...r, errors: [], errorWords: [] })),
+      ...(undo ? { undo } : {}),
+      description,
+    };
+  } catch (e) {
+    if (failed) return unchanged([failed]);
+    throw e;
+  }
 }
 
 interface SprintMove {

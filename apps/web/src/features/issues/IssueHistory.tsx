@@ -84,6 +84,11 @@ function byRule(data: Record<string, unknown>): string | undefined {
   return typeof name === 'string' ? t('issues.issueHistory.appliedTheRule', { name: name }) : undefined;
 }
 
+/** Where a person made the change, when it was in a view (D72): "in the list", "on the timeline". */
+function inView(data: Record<string, unknown>): string | undefined {
+  return typeof data.view === 'string' ? t('issues.issueHistory.inView', { view: data.view }) : undefined;
+}
+
 /** Today's time alone; older ones with their day, as people read them. */
 export function when(iso: string, now = new Date()): string {
   const d = new Date(iso);
@@ -110,7 +115,7 @@ interface Entry {
   /** The comment itself, for ticking its checklist against the version read (D39). */
   source?: Comment;
   anchor?: string;
-  /** A change an agent made on its own: its event, and whether a person can undo it (D34). */
+  /** A change kept to be undone (D34): an agent's on its own, or your own edit in a view; its event, and where it stands. */
   undo?: { event: number } & NonNullable<TrackerEvent['undo']>;
   /** A comment's reactions, and its id to react to it (D41). */
   reactions?: { id: string; list: Comment['reactions'] };
@@ -169,7 +174,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       if (!e.changes.length) return null;
       return {
         ...base,
-        did: undid(e, byId, 'change') ?? (data.acceptedFrom === 'triage' ? t('issues.issueHistory.acceptedWhatTriageWorkedOut') : byRule(data)),
+        did: undid(e, byId, 'change') ?? (data.acceptedFrom === 'triage' ? t('issues.issueHistory.acceptedWhatTriageWorkedOut') : (byRule(data) ?? inView(data))),
         body: <ChangeLines changes={e.changes} />,
       };
     case 'commit.linked': {
@@ -234,7 +239,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       const phrase = String(data.phrase ?? t('issues.issueHistory.linksTo'));
       return {
         ...base,
-        did: undid(e, byId, 'link'),
+        did: undid(e, byId, 'link') ?? inView(data),
         body: (
           <ul className="change-lines">
             <li>
@@ -465,9 +470,14 @@ export function IssueHistory({
     setUndoSaid(null);
     try {
       const done = await post<UndoResult>(`/events/${event}/undo`);
-      const what = done.changes.map((c) => (c.field === 'Links' ? t('issues.issueHistory.theLink') : c.field));
+      // Each field once, though a group put it back on several issues.
+      const what = [...new Set(done.changes.map((c) => (c.field === 'Links' ? t('issues.issueHistory.theLink') : c.field)))];
       setUndoSaid({ event, text: t('issues.issueHistory.undoneAsBefore', { v: formatList(what), n: what.length }) });
-      await Promise.all([qc.invalidateQueries({ queryKey: keys.issue(issue.id) }), qc.invalidateQueries({ queryKey: ['issues', 'list'] })]);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: keys.issue(issue.id) }),
+        qc.invalidateQueries({ queryKey: ['issues', 'list'] }),
+        ...(done.issues ?? []).map((i) => qc.invalidateQueries({ queryKey: keys.issue(i.id) })),
+      ]);
     } catch (e) {
       // What changed since, or who undid it already, in the server's words; anything else as usual.
       const said = e instanceof ApiError && (e.code === 'changed_since' || e.code === 'already_undone') ? e.message : errorText(e);
@@ -586,7 +596,8 @@ export function IssueHistory({
                     <button
                       type="button"
                       className="history-undo"
-                      aria-label={t('issues.issueHistory.undoSChange', { name: e.who.name })}
+                      aria-label={e.undo.by === 'author' ? t('issues.issueHistory.undoYourChange') : t('issues.issueHistory.undoSChange', { name: e.who.name })}
+                      aria-describedby={e.undo.others?.length ? `${e.key}-group` : undefined}
                       disabled={undoing !== null}
                       onClick={() => void undo(e)}
                     >
@@ -596,6 +607,12 @@ export function IssueHistory({
                 }
               />
               {e.body}
+              {/* Your edit with others made as one: its undo puts them all back, and says which. */}
+              {e.undo?.others?.length && e.undo.state !== 'undone' ? (
+                <p className="note" id={`${e.key}-group`}>
+                  {t('issues.issueHistory.undoesWith', { n: e.undo.others.length, others: formatList(e.undo.others) })}
+                </p>
+              ) : null}
               {undoSaid && e.undo?.event === undoSaid.event ? <Said text={undoSaid.text} tone={undoSaid.bad ? 'bad' : undefined} /> : null}
               {e.comment !== undefined ? (
                 <div className={['history-comment', e.public ? 'public' : '', e.files?.length ? 'stack tight' : ''].filter(Boolean).join(' ')}>

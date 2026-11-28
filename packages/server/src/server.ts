@@ -14,6 +14,7 @@ import { pruneTickets } from './services/two-factor';
 import { authenticatorList, prunePasskeyChallenges } from './services/passkeys';
 import { refreshWhenListed, RETRY_MS } from './services/passkey-metadata';
 import { pruneLoginThrottle } from './services/login-throttle';
+import { pruneViewEdits } from './services/agent-changes';
 import { insertUser } from './services/users';
 import { stopWhiteboardLive } from './events/whiteboard-live';
 
@@ -61,6 +62,8 @@ export function defaultChores(runtime: Runtime): Chore[] {
     { name: 'sessions', everyMs: 60 * 60_000, run: () => pruneSessions(runtime.db) },
     { name: 'sign-in tickets', everyMs: 60 * 60_000, run: () => pruneTickets(runtime.db) },
     { name: 'passkey challenges', everyMs: 15 * 60_000, run: () => prunePasskeyChallenges(runtime.db) },
+    // What undoing a person's view edit needs goes after 30 days; an agent's stays (D34's revisit).
+    { name: 'view-edit undo', everyMs: 6 * 3_600_000, run: async () => void (await pruneViewEdits(runtime.db)) },
     // FIDO's metadata, only while some authenticators alone are taken (D68).
     { name: 'passkey metadata', everyMs: RETRY_MS, run: () => refreshWhenListed(runtime, async () => Boolean(await authenticatorList(runtime))) },
     ...choreFactories.flatMap((f) => f(runtime)),

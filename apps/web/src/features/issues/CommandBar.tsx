@@ -1,4 +1,4 @@
-import type { CommandResult, NLCommandResult, QueryProblem, SuggestItem } from '@a4a/shared';
+import type { CommandResult, NLCommandResult, QueryProblem, SuggestItem, ViewKind } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ApiError, post } from '../../api/client';
@@ -6,6 +6,7 @@ import { useAIStatus } from '../../api/queries';
 import { ChangeLines } from '../../components/Changes';
 import { Who } from '../../components/Who';
 import { LanguageField, useLanguage, type Checker } from './LanguageField';
+import { Refused, useViewEdits, useViewUndoProblem, type ViewEditDone } from './undo';
 import { ErrorLine } from '../../components/States';
 import { errorSaid, formatList, itemNodes, listNodes, t, tr, problemWords } from '../../i18n';
 
@@ -17,6 +18,11 @@ interface Props {
   onApplied?: () => void;
   /** A command to start from, e.g. "State In Progress". */
   initial?: string;
+  /**
+   * The view it's run in (the issues list's chosen issues): on more than one issue, it changes them
+   * all or none, as one edit of yours, which a toast and Ctrl+Z undo (D34's revisit).
+   */
+  view?: ViewKind;
 }
 
 type Preview = CommandResult & { description?: string };
@@ -41,13 +47,38 @@ function IdList({ ids }: { ids: string[] }) {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** "BACK-2 (why), BACK-5 (why)": each issue that wasn't changed, with why, joined as the page's language joins a list. */
+const failedList = (failed: CommandResult['results']) => formatList(failed.map((f) => `${f.issue} (${f.errors.map((e, i) => errorSaid(f.errorWords?.[i], e)).join('; ')})`));
+
+/** A command run in a view, as the page remembers it to undo: what it changed, and how to run it again. */
+function viewEditOf(res: CommandResult, again: () => Promise<CommandResult>): ViewEditDone | null {
+  if (!res.undo) return null;
+  const n = res.results.filter((r) => r.changes.length > 0).length;
+  return {
+    words: t('issues.undo.changedIssues', { n }),
+    undoneWords: t('issues.undo.putBack', { n }),
+    undo: res.undo,
+    again: async () => {
+      const next = await again();
+      const bad = next.results.filter((r) => r.errors.length);
+      if (bad.length) throw new Refused(t('issues.commandBar.noneChanged', { join: failedList(bad) }));
+      return viewEditOf(next, again);
+    },
+  };
+}
+
 /**
  * Ocean's CommandBar: a command for the issues someone chose, in the browser's own dialog.
  * What it changes is shown on each issue before anything changes; nothing does until the
  * person applies it, whether they typed the command or an agent read it from their words.
  */
-export function CommandBar({ issues, open, onClose, onApplied, initial }: Props) {
+export function CommandBar({ issues, open, onClose, onApplied, initial, view }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
+  // Only a bar in a view makes edits Ctrl+Z undoes: the issue page's and the boards' are as they were.
+  const edits = useViewEdits(view !== undefined);
+  const undoProblem = useViewUndoProblem();
+  // One issue is changed as on its own page; several chosen in a view are one edit, undone as one.
+  const inView = view && issues.length > 1 ? view : undefined;
   const titleId = useId();
   const qc = useQueryClient();
   const ai = useAIStatus();
@@ -133,12 +164,14 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
     setBusy('applying');
     setError(null);
     try {
-      const res = await post<Preview>('/commands', {
+      const body = {
         issues: ids,
         command,
         comment: comment.trim() || undefined,
         readBy: viaAssistant ? 'assistant' : undefined,
-      });
+        ...(inView ? { view: { name: inView } } : {}),
+      };
+      const res = await post<Preview>('/commands', body);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['issues'] }),
         qc.invalidateQueries({ queryKey: ['boards'] }),
@@ -149,6 +182,9 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
         setFailed(bad);
         return;
       }
+      // Changed in a view: its toast offers Undo, and Ctrl+Z undoes it; a redo sends it again.
+      const done = viewEditOf(res, () => post<Preview>('/commands', body));
+      if (done) edits.remember(done);
       onApplied?.();
       onClose();
     } catch (e) {
@@ -169,6 +205,8 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
   const applyLabel = issues.length === 1 ? t('issues.commandBar.applyTo', { id: issues[0]!.id }) : t('issues.commandBar.applyToIssues', { n: issues.length });
 
   return (
+    <>
+    {view && undoProblem.problem ? <ErrorLine>{undoProblem.problem}</ErrorLine> : null}
     <dialog ref={dialog} className="dialog command" aria-labelledby={titleId} onClose={onClose}>
       <h2 id={titleId}>{t('issues.commandBar.applyACommand')}</h2>
       <p className="command-to">{tr('issues.commandBar.toIssues', { n: issues.length, el: <IdList ids={ids} /> })}</p>
@@ -241,7 +279,9 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
       <label className="command-comment">{tr('issues.commandBar.aCommentIfYouWant', { el: <textarea value={comment} onChange={(e) => setComment(e.target.value)} /> })}</label>
 
       {error ? <ErrorLine>{error}</ErrorLine> : null}
-      {failed.length ? <ErrorLine>{tr('issues.commandBar.someIssuesWerenTChanged', { join: formatList(failed.map((f) => `${f.issue} (${f.errors.map((e, i) => errorSaid(f.errorWords?.[i], e)).join('; ')})`)) })}</ErrorLine> : null}
+      {failed.length ? (
+        <ErrorLine>{tr(inView ? 'issues.commandBar.noneChanged' : 'issues.commandBar.someIssuesWerenTChanged', { join: failedList(failed) })}</ErrorLine>
+      ) : null}
 
       <div className="dialog-actions">
         {hint ? <p className="command-hint">{hint}</p> : null}
@@ -257,5 +297,6 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
         )}
       </div>
     </dialog>
+    </>
   );
 }

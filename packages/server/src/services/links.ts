@@ -1,12 +1,13 @@
-import type { IssueLink, LinkType } from '@a4a/shared';
+import type { IssueLink, LinkType, ViewEdit, ViewUndo } from '@a4a/shared';
 import { eq } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { issueLinks, linkTypes } from '../db/schema';
 import { publishActivities } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
+import { readableId } from './issue-refs';
 import { newId } from '../lib/ids';
-import { applyChanges, findVisibleIssue, issueLinksOf, resolveIssue, resolveLinkPhrase } from './issues';
+import { applyChanges, findVisibleIssue, issueLinksOf, resolveIssue, resolveLinkPhrase, undoOf } from './issues';
 
 export async function listLinkTypes(ctx: Ctx): Promise<LinkType[]> {
   const s = await ctx.app.schema.get();
@@ -50,7 +51,8 @@ export async function listLinks(ctx: Ctx, issueId: string): Promise<IssueLink[]>
 
 /**
  * Link `issueId` to `other` using a phrase from issueId's point of view ("depends on"). A link
- * changes both issues, so it needs write access to both (applyChanges checks the other end).
+ * changes both issues, so it needs write access to both (applyChanges checks the other end). Made in
+ * a view (`view`), its author can undo it, and the link just made says what undoes it (D34's revisit).
  */
 export async function linkIssues(
   ctx: Ctx,
@@ -58,7 +60,8 @@ export async function linkIssues(
   relation: string,
   other: string,
   remove = false,
-): Promise<IssueLink[]> {
+  view?: ViewEdit,
+): Promise<(IssueLink & { undo?: ViewUndo })[]> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
@@ -66,14 +69,18 @@ export async function linkIssues(
   if (!target) throw notFound(`Issue ${other}`).said('notFound.issue', { id: other });
   const phrase = resolveLinkPhrase(s, relation);
   const result = await ctx.db.transaction(async (tx) =>
-    applyChanges(tx as unknown as Db, ctx, issue, { links: [{ phrase, target, remove }] }),
+    applyChanges(tx as unknown as Db, ctx, issue, { links: [{ phrase, target, remove }], ...(view ? { view } : {}) }),
   );
   if (!result.changes.length && remove) throw badRequest(`${issueId} is not linked that way to ${other}`).said('links.notLinked', { issue: issueId, other });
   await publishActivities(ctx.app, result.activities);
-  return issueLinksOf(ctx, issue.id);
+  const links = await issueLinksOf(ctx, issue.id);
+  const undo = undoOf(result.kept);
+  // The link just made, by its type and its other end, carries what undoes it.
+  return undo ? links.map((l) => (l.typeId === phrase.type.id && l.issue.id === readableId(s, target) ? { ...l, undo } : l)) : links;
 }
 
-export async function deleteLinkById(ctx: Ctx, linkId: string): Promise<void> {
+/** Take a link away. Taken away in a view (`view`), its author can undo it: the answer says how. */
+export async function deleteLinkById(ctx: Ctx, linkId: string, view?: ViewEdit): Promise<ViewUndo | undefined> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const [link] = await ctx.db.select().from(issueLinks).where(eq(issueLinks.id, linkId));
@@ -85,7 +92,8 @@ export async function deleteLinkById(ctx: Ctx, linkId: string): Promise<void> {
   if (!type) throw notFound('Link type').said('links.linkTypeNotFound');
   const phrase = s.linkPhrases.find((p) => p.type.id === type.id && (p.direction === 'outward' || p.direction === 'both'))!;
   const result = await ctx.db.transaction(async (tx) =>
-    applyChanges(tx as unknown as Db, ctx, source, { links: [{ phrase, target, remove: true }] }),
+    applyChanges(tx as unknown as Db, ctx, source, { links: [{ phrase, target, remove: true }], ...(view ? { view } : {}) }),
   );
   await publishActivities(ctx.app, result.activities);
+  return undoOf(result.kept);
 }

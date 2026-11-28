@@ -12,7 +12,11 @@ import {
   IssueLinkSchema,
   IssueListQuery,
   IssueListSchema,
+  IssueUpdatedSchema,
   LinkBody,
+  LinkMadeSchema,
+  LinkRemovedQuery,
+  LinkRemovedSchema,
   MoveIssueBody,
   MovePlanSchema,
   NewCommentBody,
@@ -76,10 +80,11 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/issues/{id}',
       tags,
       summary: 'Update an issue',
-      description: 'Only the fields you send change. Send `expectedVersion` to fail with 409 if someone changed the issue meanwhile.',
+      description:
+        "Only the fields you send change. Send `expectedVersion` to fail with 409 if someone changed the issue meanwhile. Made in a view (a typed cell, a drag), send `view`: the answer's `undo` names the change, which you alone can undo (POST /events/{id}/undo) for 30 days.",
       params: Id,
       body: UpdateIssueBody,
-      response: IssueDetailSchema,
+      response: IssueUpdatedSchema,
     },
     ({ ctx, params, body }) => updateIssue(ctx, params.id, body),
   );
@@ -194,17 +199,33 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/issues/{id}/links',
       tags: ['Links'],
       summary: 'Link to another issue',
-      description: 'The relation reads from this issue: `{"relation": "depends on", "issue": "BACK-2"}` means this issue depends on BACK-2.',
+      description:
+        'The relation reads from this issue: `{"relation": "depends on", "issue": "BACK-2"}` means this issue depends on BACK-2. Made in a view (a bar dragged to another), send `view`: the link just made carries `undo`, which you alone can undo for 30 days.',
       params: Id,
       body: LinkBody,
-      response: z.array(IssueLinkSchema),
+      response: z.array(LinkMadeSchema),
     },
-    ({ ctx, params, body }) => linkIssues(ctx, params.id, body.relation, body.issue),
+    ({ ctx, params, body }) => linkIssues(ctx, params.id, body.relation, body.issue, false, body.view),
   );
-  route(app, { method: 'delete', path: '/links/{id}', tags: ['Links'], summary: 'Remove a link', params: z.object({ id: z.string() }), status: 204 }, async ({ ctx, params }) => {
-    await deleteLinkById(ctx, params.id);
-    return null;
-  });
+  route(
+    app,
+    {
+      method: 'delete',
+      path: '/links/{id}',
+      tags: ['Links'],
+      summary: 'Remove a link',
+      description: 'Taken away in a view, send `view` (and `group`, to undo it with other changes of yours): the answer is then 200, with what undoes it.',
+      params: z.object({ id: z.string() }),
+      query: LinkRemovedQuery,
+      status: 204,
+      also: { status: 200, description: 'Taken away in a view: what undoes it', response: LinkRemovedSchema },
+    },
+    async ({ c, ctx, params, query }) => {
+      const view = query.view ? { name: query.view, ...(query.group ? { group: query.group } : {}) } : undefined;
+      const undo = await deleteLinkById(ctx, params.id, view);
+      return view ? c.json({ ...(undo ? { undo } : {}) }, 200) : null;
+    },
+  );
 
   // Work items
   route(app, { method: 'get', path: '/issues/{id}/work-items', tags: ['Time tracking'], summary: 'Logged work on an issue', params: Id, response: z.array(WorkItemSchema) }, ({ ctx, params }) => listWorkItems(ctx, params.id));
@@ -246,7 +267,8 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/commands',
       tags: ['Commands'],
       summary: 'Apply a command to up to 50 issues (or preview it with dryRun)',
-      description: 'Examples: `State Fixed`, `for me In Progress`, `Critical tag regression`, `subtask of BACK-3`, `remove tag needs-info`. With `dryRun: true` nothing changes and the result lists exactly what would.',
+      description:
+        'Examples: `State Fixed`, `for me In Progress`, `Critical tag regression`, `subtask of BACK-3`, `remove tag needs-info`. With `dryRun: true` nothing changes and the result lists exactly what would. Run in a view (the issues list\'s chosen issues), send `view`: every issue changes or none does, and the answer\'s `undo` undoes them all at once, for you alone, for 30 days.',
       body: CommandBody,
       response: CommandResultSchema.extend({ description: z.string() }),
       status: 200,
