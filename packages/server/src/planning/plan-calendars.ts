@@ -47,7 +47,7 @@ export function planCalendars(input: PlanInput, tasks: readonly PlanTaskInput[] 
     let key = PLAN_CALENDAR_KEY;
     if (typeof id === 'string' && id !== PLAN_CALENDAR_KEY) {
       if (given && Object.hasOwn(given, id) && given[id]) key = id;
-      else warn?.(`${t.id} is on the calendar ${id}, which this plan doesn't have; planned on the plan's own calendar`);
+      else warn?.(`${t.id} is on the calendar ${id}, which this plan doesn’t have; planned on the plan’s own calendar`);
     }
     keyOfTask.set(t.id, key);
   }
