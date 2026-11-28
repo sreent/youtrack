@@ -186,6 +186,8 @@ Levelling is proposed before it is applied, and applying writes exactly what was
 - Applying is one transaction: the whole proposal or none of it.
 - The caller sends back the proposal's `starts` as `expect`. If levelling would now write anything else, because the plan changed between seeing and applying, nothing is written and the answer is 409 with the new proposal. The web app, the API and the MCP tool all work this way.
 
+A plan can span projects, each task on its own project's calendar and plan-wide numbers on the union of them: D73.
+
 ### D11. The UI follows Ocean
 
 The UI takes `@sreent/ocean` pinned to a commit and imports its tokens and component CSS. a4a's own pieces (the issue list, query and command bars, field panel, links, history, board, Gantt, load grid and cost panel) were added to Ocean first, each with its markup contract, and a4a's components emit that markup. The first of them came in sreent/ocean#7, and each piece since went into Ocean the same way; the pin is a commit of Ocean's `main`.
@@ -897,6 +899,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
   - A task starts on a day its assignee is there. It takes as many of their days as its hours need, each giving its share, and its slack is counted on their days.
   - A start-to-due window that falls while they're away is planned for when they're back, with a warning.
   - Milestones, and work nobody is assigned, keep the plan's calendar. The plan's holidays hold for everyone.
+  - In a plan across projects (D73), "the plan's calendar" is each task's project's: a person's days away are theirs on every one, and each project's holidays hold for its own work.
 - **Levelling** looks for room on the assignee's own days, at each day's capacity, half of it on a half day. It calls a move levelling only when it moves work for resources, not when work just waits for its person.
 - **What it looks at:** days away from a year before today to five years after. Beyond that everyone is there, so someone away for good can't run the engine out of days.
 - **The load** gives each day's capacity (none on a day away, half on a half day) and whether someone is away (`away`: day, morning, afternoon). It never says why. The grid says "away", and dashes half a day with what's left of it.
@@ -1191,6 +1194,7 @@ A board plans its sprints from a backlog, counts story points, and shows how muc
   - Work logged in projects the reader can't see is left out, as everywhere.
 - **The working week** is each person's (`users.work_week`): hours on each weekday, Sunday first, or none for the plan's working days at their capacity. They set it on their profile; an administrator can set anyone's.
   - The engine gives each person the plan's working days on which they have hours, and each of those days its share of their capacity, alongside their days away (D36). Someone whose week changes nothing (every working day, at their capacity) keeps the plan's own calendar, so plans come out exactly as they did.
+  - In a plan across projects (D73) their week is theirs on each project's calendar: they work a project's days on which they have hours, and their capacity on a day is the same whichever project's work fills it.
   - Scheduling, levelling, the load grid, a sprint's capacity and the timesheet's hours all read it.
 - **The Gantt draws days away** (D36): the schedule says, per assignee, their days away on the plan's working days between its start and finish, and the Gantt marks them on that person's bars. It never says why, and to a guest it says none (D64).
 
@@ -2292,6 +2296,36 @@ The app runs only the migrations' SQL; drizzle-kit's snapshots beside them are w
 - The snapshots before 0046 are as they were. The rebuilt ones say what each migration made, in `pull`'s words, which `db:generate` never reads again.
 
 **Revisit when:** drizzle-kit can compare a database with a schema without asking about renames (`push` asks, and a test can't answer); or a4a's migrations move to another tool.
+
+### D73. One engine across projects' calendars
+
+A plan is becoming a saved search (D72), and a search can hold issues from several projects. The owner decided that in a plan across projects each issue keeps its own project's calendar and budget, then its assignee's week and days away. The engine took one calendar for the whole plan; now it takes one per project, and nothing else about it changed.
+
+- **What it's handed.** `PlanInput.calendars` holds the plan's projects' calendars by a key, and each task names its own (`PlanTaskInput.calendarId`). A calendar is what a project's plan settings are: its start, working days, hours a day, holidays, budget and currency. A task that names none is on `PlanInput.calendar`, the plan's own; so is one naming a calendar the plan doesn't have, with a warning that names it. A plan whose tasks name no calendar is planned exactly as before.
+- **A task's own days.** A task is planned on its calendar's working days, at its calendar's hours a day, then on its assignee's days: that calendar's days on which their week has hours (D43), less their whole days away, each day giving its share (D36). So a person's availability is kept per calendar. Their week and their days away are theirs, the same in every project; holidays are each project's.
+- **Dependencies.** A successor starts on its own calendar's first working day after its predecessor finishes, then on its assignee's next day: a Friday finish in a Monday-to-Friday project lets a Sunday-to-Thursday project's work start that Sunday. Going back, a predecessor's latest finish is its own calendar's last day before its successor's latest start, on its own days. That is the forward rule read backwards, so a chain across calendars has no false slack and no false lateness. Measuring the way back on the successor's calendar instead would make that Friday finish a day late.
+- **Slack, the critical path, summaries.** Slack counts each task's own days, so two tasks side by side in different projects can have different slack; critical still means none. A summary spans its subtasks, whatever their calendars, and counts its own working days and variance on its own project's calendar.
+- **Numbers of the whole plan** count a union calendar, on which a day works if any of the plan's calendars works it: a what-if's `finishDeltaDays`, a baseline's finish variance, the last day the backward pass starts from. A task's own numbers (a what-if's delta for it, its levelling delay, its variance) count its own calendar. With one calendar, the union is that calendar.
+- **Each project's start.** A project begins at its own start date, else its issues' earliest Start date or logged work, else its first working day from today; the plan begins at the earliest of them. When writing the levelled starts would move where a project begins, levelling keeps that project's start (`keepStarts`, by key, as D10 keeps a plan's). A plan of several projects has no start of its own to keep, so `keepStart` is null.
+- **Levelling and the load.** A person's capacity on a day is theirs (their week, less days away), whichever project's work fills it. Levelling books their hours by the day across projects, so two projects can't both have the same day. The load grid's days are the union's, so a day that is a holiday in one project is still a working day for the other's work.
+- **Costs.** A task's money is in its project's currency, and budgets are each project's (`byCalendar`, each with its budget's variance). Money is totalled per currency and never converted (`byCurrency`, with earned value per currency, and each person's money per currency too).
+  - A plan of one calendar keeps its budget and currency. A plan of several has no budget of its own. When their currencies differ, the report's own figures are in the plan's own calendar's currency, and a warning names each other one.
+  - A summary counts only what is in its own currency. A person's rate is read in the currency of the project the work is in.
+  - Money comes from estimates and logged minutes, so a project's hours a day change how long a task takes, not what it costs. Earned value counts each baseline row's planned share on its task's calendar.
+- **Plans of one project come out as they did.** Before the engine changed, every plan its own tests hand it, and the demo's plans built through the service on a seeded database, were kept with every answer the engine gave them (`test/planning/golden`): schedules, what-ifs, loads, levelling both ways and costs. The golden test asks again and wants the same bytes. It also hands each of those plans its calendar under a key every task names, beside a plan's own calendar that no task is on and that differs in every way: the answers are the same, less what a keyed plan adds per calendar.
+
+**What it costs.**
+- Results say per calendar only when the input names calendars, so their shape depends on how the plan was loaded: a project's plan loaded as today's routes load it has no `byCalendar`.
+- A plan in several currencies has no single total. Its top-level figures cover the plan's own currency only, so anything that shows one number must show `byCurrency` beside it.
+- A person's rate has no currency: across two projects in different currencies, the same number is read in each.
+- The union can move a plan's finish by more working days than any of its tasks moved: a Sunday one project works counts, though the other's tasks skip it.
+- Each project's start reads the plan's tasks once per project.
+
+**Revisit when:** a project's calendar should differ by team or by shift; rates should carry a currency, or be converted at a date's rate; or a plan should count elapsed days rather than working days, as a dependency's lag in elapsed days would.
+
+#### Dates from any fields
+
+P8 writes this part: each project's own fields for a task's start, end, duration and estimate, and its milestones.
 
 ## Not yet
 
