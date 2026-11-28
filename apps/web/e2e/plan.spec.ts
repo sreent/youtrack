@@ -194,3 +194,23 @@ test('levelling a plan with no start date of its own leaves it levelled', async 
   const runbookStart = (s: Schedule) => s.tasks.find((t) => t.issue.id === plan.runbook.id)?.start;
   expect(runbookStart(after)).toBe(runbookStart(before));
 });
+
+// A plan holds at most 2,000 issues (D72). Making 2,001 here would cost minutes, so the server's own answer
+// is marked as cut short on its way to the page: the server's cut is tested in plan-scope.test.ts.
+test('a timeline cut short says so, and where to narrow its search', async ({ page, api }) => {
+  const plan = await cutoverPlan(api);
+  await page.route(
+    (url) => url.pathname === '/api/v1/plans/schedule',
+    async (route) => {
+      const response = await route.fetch();
+      const answer = (await response.json()) as Schedule & { total?: number; truncated?: boolean };
+      await route.fulfill({ response, json: { ...answer, total: 2050, truncated: true } });
+    },
+  );
+  await page.goto(`/plan/${plan.key}`);
+  await expect(page.getByRole('group', { name: new RegExp(`^${plan.name}, `) })).toBeVisible();
+  await expect(page.getByText('Planned the first 3 of 2,050 issues')).toBeVisible();
+  await expect(page.getByText('A plan holds at most 2,000 issues, the first by project and number.', { exact: false })).toBeVisible();
+  await page.getByRole('link', { name: 'open the search in Issues' }).click();
+  await expect(page).toHaveURL(new RegExp(`/issues\\?q=project%3A%20${plan.key}$`));
+});
