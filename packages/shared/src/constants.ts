@@ -79,6 +79,12 @@ export function isOwnAgent(user: { isBot: boolean; login: string }): boolean {
  */
 export const UNDO_STATES = ['possible', 'changed_since', 'undone'] as const;
 export type UndoState = (typeof UNDO_STATES)[number];
+/**
+ * Who may undo a change (D72): anyone who may change the issue, for an agent's change on its own (D34);
+ * only its author, for a person's edit in a view.
+ */
+export const UNDO_BY = ['author', 'anyone'] as const;
+export type UndoBy = (typeof UNDO_BY)[number];
 
 export const FIELD_TYPES = [
   'enum',

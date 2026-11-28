@@ -80,7 +80,8 @@ export async function ensureDefaults(db: Db): Promise<void> {
   if (Number(links) === 0) {
     await db.insert(linkTypes).values([
       { id: newId(), name: 'Relates', outward: 'relates to', inward: 'relates to', directed: false, ordinal: 0 },
-      { id: newId(), name: 'Depend', outward: 'depends on', inward: 'is required for', directed: true, ordinal: 1 },
+      // Plans read it as their dependency by its flag, whatever its phrase becomes (D72).
+      { id: newId(), name: 'Depend', outward: 'depends on', inward: 'is required for', directed: true, dependency: true, ordinal: 1 },
       { id: newId(), name: 'Duplicate', outward: 'duplicates', inward: 'is duplicated by', directed: true, ordinal: 2 },
       { id: newId(), name: 'Subtask', outward: 'parent for', inward: 'subtask of', directed: true, aggregation: true, ordinal: 3 },
     ]);

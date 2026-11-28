@@ -6,3 +6,4 @@ export * from './reports';
 export * from './imports';
 export * from './mentions';
 export * from './whiteboard';
+export * from './views';

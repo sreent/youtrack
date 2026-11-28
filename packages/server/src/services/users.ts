@@ -8,6 +8,7 @@ import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { colorFor, newId } from '../lib/ids';
 import { accessChanged } from './access';
 import { setPasskeyExempt } from './passkey-policy';
+import { deletePrivateSearchesOf } from './saved-searches';
 import { requireOn } from './passkeys';
 import { findUser, type UserRow } from './schema-cache';
 import { signInsOf } from './sso';
@@ -204,7 +205,12 @@ export async function deleteUser(ctx: Ctx, idOrLogin: string): Promise<void> {
   const target = s.users.get(idOrLogin) ?? findUser(s, idOrLogin, ctx.actor.user.id);
   if (!target) throw notFound(`User ${idOrLogin}`).said('notFound.user', { id: idOrLogin });
   if (target.id === ctx.actor.user.id) throw badRequest('You cannot delete yourself').said('users.deleteYourself');
-  await ctx.db.delete(users).where(eq(users.id, target.id));
+  await ctx.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    // Their private searches go with them; their shared ones, a team's plans, stay, with no owner (D72).
+    await deletePrivateSearchesOf(tx, target.id);
+    await tx.delete(users).where(eq(users.id, target.id));
+  });
   ctx.app.schema.invalidate();
   accessChanged(ctx.app);
 }

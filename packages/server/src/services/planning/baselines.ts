@@ -19,7 +19,7 @@ async function baselineDto(ctx: Ctx, s: SchemaSnapshot, row: typeof baselines.$i
     count ?? (await ctx.db.select({ id: baselineTasks.issueId }).from(baselineTasks).where(eq(baselineTasks.baselineId, row.id))).length;
   return {
     id: row.id,
-    projectKey: s.projects.get(row.projectId)?.key ?? '',
+    projectKey: (row.projectId ? s.projects.get(row.projectId)?.key : undefined) ?? '',
     name: row.name,
     note: row.note,
     createdAt: row.createdAt.toISOString(),
@@ -41,8 +41,9 @@ export async function getBaseline(ctx: Ctx, id: string): Promise<Baseline> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(baselines).where(eq(baselines.id, id));
-  // A baseline of a project the caller can't see is not found, as one that doesn't exist.
-  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline').said('planning.baselineNotFound');
+  // A baseline of a project the caller can't see is not found, as one that doesn't exist. A saved
+  // search's (D72) is read through its search, by the routes that bring them, and isn't one here.
+  if (!row || !row.projectId || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline').said('planning.baselineNotFound');
   return baselineDto(ctx, s, row);
 }
 
@@ -91,6 +92,7 @@ export async function createBaseline(
           effortMinutes: Math.round(t.effortMinutes),
           cost: t.plannedCost,
           assigneeId: t.assigneeId,
+          projectId: l.project.id,
         })),
       );
     }
@@ -110,7 +112,7 @@ export async function deleteBaseline(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(baselines).where(eq(baselines.id, id));
-  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline').said('planning.baselineNotFound');
+  if (!row || !row.projectId || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline').said('planning.baselineNotFound');
   await requireProject(ctx, s.projects.get(row.projectId)?.key ?? '', 'manage');
   await ctx.db.delete(baselines).where(eq(baselines.id, id));
 }
