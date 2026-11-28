@@ -2293,6 +2293,67 @@ The app runs only the migrations' SQL; drizzle-kit's snapshots beside them are w
 
 **Revisit when:** drizzle-kit can compare a database with a schema without asking about renames (`push` asks, and a test can't answer); or a4a's migrations move to another tool.
 
+### D72. Planning as views of one search
+
+D10 planned a project on a page of its own: the Plan area, a timeline, a load grid and costs, read from one project's issues. People plan across projects, by a search, and want to change a plan where they see it, as Microsoft Project, Smartsheet and monday.com let them. So planning becomes views of the issues a4a already has: any query or saved search, in one project or several, shown as a list, a timeline, a calendar, a table or a workload, and changed the way a command changes an issue. YouTrack's planning is the baseline; what the other three do best goes on top, inside a4a rather than beside it.
+
+**The principles: seamless, not bolted on.** What needs a second place to keep work, a second way to change it or a second set of rules doesn't ship that way.
+
+- **One record: the issue.** A row, a bar, a card and a milestone are the same issue, and its dependencies are its "depends on" links. No copy of the work is kept in step with it.
+- **Dates people set, dates the engine plans.** People set fields: a start (no earlier than), a due date, an estimate. The engine works out each issue's planned start and finish from them, never stored (D10). A drag writes the fields; a table shows both kinds, labelled.
+- **Views, not modules.** The list, the timeline and the calendar, then the table and the workload, are views of one search; one switch moves between them and keeps the search, its grouping and what's chosen. Boards keep their sprints, and a board's search opens in any view.
+- **One way to change things.** A drag, a typed cell or work handed to someone changes the issue through `applyChanges` (D4), so guards, required fields, permissions, history, notifications, rules, the API and agents all apply. No view writes the database its own way, and anything a view changes a command, a rule or an agent can change too.
+- **One engine.** `planning/*` works out every planned date (D10), extended where it must be. A date someone set moves only when they accept a proposal, as levelling's does now.
+- **One look and one access model.** Ocean's pieces, every language a4a speaks (D49), the keyboard, screen readers and phones: where a timeline can't fit a phone, the list takes its place. A view shows only what its search would; changing something in a view takes the same right as on the issue's own page; guests see a view as they see a plan (D64), its dates and never its money or people's loads.
+
+**The owner's decisions.**
+
+- **Phase 1 ships first:** the editable timeline with the view switch and undo; then dates from any fields; then the calendar and milestones. **Phase 2** follows: the table, the workload, link types with lag, a portfolio, update requests, planning conditions for rules, guests, costs in the table, and the Plan area retired. Nothing of a third phase (importers from Project, Smartsheet and monday.com, PDF and Project XML, a risk agent) now.
+- **A saved search remembers its view**, so a plan is a saved search shown as a timeline, and the sidebar's Plan lists those.
+- **In a plan across projects**, each issue keeps its own project's calendar and budget, then its assignee's week and days away (D36, D43). A baseline belongs to the saved search it was taken of.
+- **When a bar moves**, successors whose dates people set get proposals from the engine, accepted as one change. A set date never moves unasked.
+- **Link types and lag** are kept on the one "depends on" link, so search, rules and imports see one kind of dependency.
+- **Update requests:** anyone who can change an issue sends one; the assignee answers as themselves, by email too.
+
+**The scope, and the routes under `/plans`.** A plan is read from a `PlanScope`: `{savedSearch}` or `{query}`, exactly one (an empty query is everything the reader sees), and an optional `project` that narrows either to one. A GET route takes it in its query string (`PlanScopeQuery`, made a body's by `planScopeOf`). The family: `GET /plans/schedule`, `POST /plans/what-if`, `POST /plans/move`, `POST /plans/draft`, `POST /plans/check`, `GET /plans/workload`, `POST /plans/level`, `GET /plans/table` (and `.csv`, `.xlsx`), `GET /plans/summary`, `GET/POST /saved-searches/{id}/baselines` and `POST /saved-searches/{id}/order`. Today's `/projects/{key}/…` routes and MCP tools keep their names and shapes, answered as the scope `{project: key, query}`, and their answers only gain optional fields. Retiring the Plan area takes away pages, never REST or MCP.
+
+**The plan's answer.** `PlanSchedule` is today's `Schedule` and, each optional so today's answers are ones too: the `scope` it was read from; its `projects`, each with its calendar's id; the `calendars` by id, budgets null without the costs permission (D64); `total`, the issues the scope holds; and `truncated`, when it holds more than a plan does (2,000), which a page says and asks to narrow. Each task (`PlanTask`) adds its `project`, its `calendar`, whether the reader may change it (`editable`), and `set`: for each role (start, end, duration, estimate), the field its project plans it from and the value set there, or null where the project plans that role from no field.
+
+**A saved search's view.** `saved_searches.view` keeps how it's shown (`ViewSettings`): its `kind`, its `group` (a field by name, or null), and each view's settings once someone chose them: the timeline's zoom, order (by plan, or by hand), side columns and baseline; the calendar's span; the table's columns and which dates it shows. Every list and string is capped. A list until someone chooses; read through the schema, so what a later version wrote opens as a list rather than not at all. Its owner's switch is kept, debounced, with `version` as the expected one; anyone else's lives in the page's address. The load window stays each person's own (D36).
+
+- **A shared search outlives its owner.** Its owner key is `ON DELETE SET NULL`: a team's plan shouldn't go with the person who saved it. Deleting someone (`deleteUser`, or removing an app with its agent) deletes their private searches first, in the same transaction, under locks on their row and on their searches, so a search being unshared meanwhile is taken as private and nothing is left private with no owner; a test on Postgres races the two and fails without the locks. An ownerless search is a shared one to everyone, listed where its query reads for them, as any shared one is, and still followed by its subscriptions (D31). Administrators see every one, whether or not it reads, and they alone change it, until one adopts it.
+- **Its own order.** A timeline's rows put in order by hand are kept in `search_ranks` (a search, an issue, a key), keys as D65's: compared by their bytes, made by `keyBetween`, read through the index on (search, key), written under the saved search's lock.
+
+**What the foundation lays** (F0), so the packages after it don't collide and code against types that exist:
+
+- **Phase 1's schema, in one migration (0063):** the view and version above, the owner key, `search_ranks`; `agent_changes.kind` (`agent`, or `view` for a person's edit in a view), `group_id` (several rows undone as one) and `view`; `baselines.saved_search_id` with `project_id` nullable and a check that exactly one is set, and `baseline_tasks.project_id`, the project each task was in, backfilled from each project's baseline; `link_types.dependency`, at most one, backfilled on the type whose outward phrase is "depends on" and made so on the built-in Depend, so a renamed phrase can't drop a plan's dependencies once the loader reads it. Migration 0063 carries its two backfills beside what drizzle-kit wrote, each said where it is (D71).
+- **The contract,** in `@a4a/shared`: `views.ts` (the view kinds, `ViewSettings`, `PlanScope` and its query-string form), `PlanSchedule` and `PlanTask` beside `Schedule`, `SavedSearch`'s `view` and `version`, and an event's `undo.group` and `undo.by` (`author` or `anyone`).
+- **The planning service in a folder,** a pure move: `services/planning/` holds `load.ts` (the loader), `schedule.ts` (the schedule and what-if, as a reader may see them), `resources.ts` (load and levelling), `costs.ts` and `baselines.ts`, and `index.ts` exports what `services/planning.ts` did.
+- **Seams:** `http/routes/plans.ts` and `tools/plans.ts`, empty and registered, for the routes and tools to come; `ChangeSpec.view` (`{name, group}`), passed through `applyChanges` untouched until undo reads it; on the web, `ViewProps` and the view registry (the list offered, the other four placeholders until their packages bring them), and Ocean's toasts in the shell (`useToast`), whose live region says each toast, with time to read it and an action such as Undo.
+
+**What each phase builds, in order.** Wave A (with the foundation): the engine's calendars across projects (P1), and Ocean's pieces for Phase 1 (O1). Wave B: plans of a search, read (P2); undo of a person's view edits (P3); the view switch and saved views (P4). Wave C: edits through the plan on the server (P6) and the editable timeline (P5). Wave D: dates from any fields with milestones (P8), and the calendar view (P9): Phase 1 ships. Wave E: Phase 2's contract and seams (F1), and Ocean's pieces for it (O2). Wave F: link types and lag (P13), the table and export (P14), the workload (P15), a portfolio (P16), update requests (P17), then planning conditions for rules (P18). Wave G: guests (P19), and costs and earned value, with the Plan area retired (P20).
+
+Where the rest is decided: D73, one engine across projects' calendars and dates from any fields (P1, P8); D74, changing a plan where it's seen (P6, P5); D34's revisit, undo of a person's view edit (P3); D75, the calendar view (P9); D76, link types and lag (P13); D77, the table, the workload and the portfolio (P14 to P16); D78, update requests (P17); D79, planning conditions for rules (P18); D64's revisit, guests (P19); D10's revisit, costs and the Plan area (P20).
+
+#### Plans of a search, read: the loader, the answer and the routes
+
+P2 writes this part: the loader across projects and their calendars, `GET /plans/schedule` and `POST /plans/what-if`, a saved search's baselines, and today's routes and tools as a scope.
+
+#### The view switch and saved views
+
+P4 writes this part: the switch in the issues page, grouping, what a saved search's view keeps and who changes it, adopting a search with no owner, and the sidebar's plans.
+
+**What it costs.**
+
+- A saved search keeps one view, its owner's: everyone else's choice lives in the address they share, and is gone when they leave the page.
+- A shared search whose owner was deleted keeps nobody's switch, and only administrators can change it, until one adopts it. Deleting someone locks their row and their searches for the delete.
+- Until the loader reads the dependency flag, plans still find the type by its phrase: the flag and the phrase agree on every installation the migration upgraded, and on every new one.
+- The contract comes before the features that fill it, so some of it waits unused for its packages: the table's and workload's settings, a task's `set`, an event's undo group.
+- Five files where the planning service was one: a function's history follows it with `git log --follow` or `git blame -C`.
+- A toast is never the only place something is said: the page says it too, and Undo has a key of its own.
+
+**Revisit when:** each person's view of a shared search should be kept, not only its owner's; a search whose owner left should pass to someone on its own (a project's lead) rather than wait for an administrator; a plan should hold more than 2,000 issues; or boards should open as one of the views rather than beside them.
+
 ## Not yet
 
 Planned, with the seams already in place:
