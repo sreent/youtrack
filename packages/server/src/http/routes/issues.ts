@@ -32,7 +32,6 @@ import {
   VoteSchema,
   WorkItemBody,
   WorkItemSchema,
-  patchBody,
 } from '@a4a/shared';
 import { z } from 'zod';
 import { parseCommandForApi, runCommand } from '../../commands/executor';
