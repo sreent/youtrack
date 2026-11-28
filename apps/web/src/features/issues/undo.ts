@@ -24,6 +24,8 @@ export interface ViewEditDone {
   undo: ViewUndo;
   /** Make it again as a new edit (a redo): what that one is, or null when it changed nothing. */
   again: () => Promise<ViewEditDone | null>;
+  /** The view said it already in its own live region (a timeline's keyboard move): its toast is shown, not said again. */
+  saidOnPage?: boolean;
 }
 
 interface Edit extends ViewEditDone {
@@ -63,7 +65,7 @@ function remember(edit: ViewEditDone, opts: { redo?: boolean } = {}): void {
   // A new edit of your own starts again what a redo makes; a redo leaves the rest of them.
   if (!opts.redo) store.undone = [];
   setProblem(null);
-  store.toasts?.show({ words: edit.words, undo: () => void undoEdit(kept), key: 'view-edit' });
+  store.toasts?.show({ words: edit.words, undo: () => void undoEdit(kept), key: 'view-edit', saidOnPage: edit.saidOnPage });
 }
 
 /** Undo one of your edits here: all of it or none, as you, through the write path. */
