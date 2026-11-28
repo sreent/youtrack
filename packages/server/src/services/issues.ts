@@ -71,7 +71,7 @@ import { enforceGuards, guardChecks, guardsHeld } from '../workflow/guards';
 import { machineMoves, transitionSpecs } from '../workflow/machines';
 import { changeOf } from '../workflow/script-issue';
 import { enforceScriptGuards } from '../workflow/scripts';
-import { actsAsAgent, keepAgentChange, textHash, type FieldsUndo } from './agent-changes';
+import { keepAgentChange, keepingFor, newGroupId, textHash, type FieldsUndo, type Keeping } from './agent-changes';
 import { afterRequestChange } from './sla';
 import { requestGrouping, writeGrouping } from './customer-groups';
 import {
@@ -403,16 +403,28 @@ export interface ChangeSpec {
   requestPrivate?: boolean;
   /**
    * The view a person made the change in (D72), and the change it is part of when one gesture made
-   * several (a move and the successors it took along), so they undo as one. Passed through untouched:
-   * the history and undo read it once they come (P3).
+   * several (a move and the successors it took along), so they undo as one. The change keeps what
+   * undoing it needs, for its author alone (D34's revisit); one call that keeps several rows (fields
+   * and a link) makes them a group of their own when it's given none.
    */
   view?: { name: ViewKind; group?: string };
+}
+
+/** A change kept so it can be undone: its event (POST /events/{id}/undo), and its group. */
+export interface KeptChange {
+  activityId: number;
+  groupId: string | null;
+  kind: Keeping['kind'];
+  /** The view it was made in, when it was: only then does an answer say what undoes it. */
+  view: Keeping['view'];
 }
 
 export interface ApplyResult {
   changes: Change[];
   activities: ActivityRow[];
   issue: IssueRow;
+  /** What this call kept so it can be undone (D34): none, unless an agent made it or a person made it in a view. */
+  kept?: KeptChange[];
 }
 
 function mergeValues(field: FieldRow, current: ResolvedValue[], spec: FieldChangeSpec): ResolvedValue[] {
@@ -659,8 +671,19 @@ export async function applyChanges(
   const fromOutside = ctx.actor.channel === 'helpdesk';
   // An import brings history, not news: who wrote its text there makes nobody here watch.
   const imported = Boolean((spec.data as { imported?: unknown } | undefined)?.imported);
-  // A change an agent made on its own keeps what undoing it puts back (D34).
-  const keep = !imported && actsAsAgent(ctx);
+  // A change an agent made on its own keeps what undoing it puts back (D34), and so does a person's
+  // edit in a view, for them alone (D34's revisit). Several rows from one view edit are one group.
+  const keeping = keepingFor(ctx, spec);
+  const keep = keeping !== null;
+  const rows = (fieldOrMetaChanged ? 1 : 0) + linkOps.length + (moves.length ? 1 : 0);
+  if (keeping?.kind === 'view' && !keeping.groupId && rows > 1) keeping.groupId = newGroupId();
+  const kept: KeptChange[] = [];
+  const keepRow = async (input: { activityId: number; pairActivityId?: number; undo: FieldsUndo | LinkUndoInput }) => {
+    await keepAgentChange(tx, ctx, { issueId: issue.id, ...input, keeping: keeping! });
+    kept.push({ activityId: input.activityId, groupId: keeping!.groupId, kind: keeping!.kind, view: keeping!.view });
+  };
+  // Where a person's edit was made, for the history to say (D72).
+  const fromView = keeping?.kind === 'view' && spec.view ? { view: spec.view.name } : {};
   const assigneeField = assigneeFieldOf(s);
   const assigneeUpdate = assigneeField ? fieldUpdates.find((u) => u.field.id === assigneeField.id) : undefined;
   const assigned = assigneeUpdate
@@ -692,7 +715,7 @@ export async function applyChanges(
 
   if (fieldOrMetaChanged) {
     const via = moves.length ? { transition: moves.map((m) => m.transition.name).join(', ') } : {};
-    const data = spec.data || assigned.length || describedMentions.length || moves.length ? { ...spec.data, ...told, ...via } : undefined;
+    const data = spec.data || assigned.length || describedMentions.length || moves.length || fromView.view ? { ...spec.data, ...told, ...via, ...fromView } : undefined;
     activities.push(
       await recordActivity(tx, ctx, {
         type: 'issue.updated',
@@ -709,7 +732,7 @@ export async function applyChanges(
         ...(patch.description !== undefined ? { description: { before: issue.description, afterHash: textHash(patch.description) } } : {}),
         ...(toAdd.length || toRemove.length ? { tags: { added: addedTags, removed: toRemove.map((t) => t.name) } } : {}),
       };
-      await keepAgentChange(tx, ctx, { issueId: issue.id, activityId: activities[activities.length - 1]!.id, undo });
+      await keepRow({ activityId: activities[activities.length - 1]!.id, undo });
     }
   }
 
@@ -732,18 +755,17 @@ export async function applyChanges(
       type,
       projectId: issue.projectId,
       issueId: issue.id,
-      payload: { issue: ref, data: { ...spec.data, phrase: op.spec.phrase.display, target: targetRef } },
+      payload: { issue: ref, data: { ...spec.data, ...fromView, phrase: op.spec.phrase.display, target: targetRef } },
     });
     const there = await recordActivity(tx, ctx, {
       type,
       projectId: op.spec.target.projectId,
       issueId: op.spec.target.id,
-      payload: { issue: targetRef, data: { ...spec.data, phrase: inverse, target: ref } },
+      payload: { issue: targetRef, data: { ...spec.data, ...fromView, phrase: inverse, target: ref } },
     });
     activities.push(here, there);
     if (keep) {
-      await keepAgentChange(tx, ctx, {
-        issueId: issue.id,
+      await keepRow({
         activityId: here.id,
         pairActivityId: there.id,
         undo: { kind: 'link', typeId: op.spec.phrase.type.id, sourceId: op.endpoints.sourceId, targetId: op.endpoints.targetId, created: !op.spec.remove },
@@ -787,11 +809,14 @@ export async function applyChanges(
   }
 
   // What the transitions made also do: their commands, as whoever made the move, in this transaction.
+  // A view edit's are part of it, so its undo puts them back too.
   let final = updated!;
   for (const extra of moves.length ? await transitionSpecs(tx, ctx, s, final, moves) : []) {
-    const res = await applyChanges(tx, ctx, final, extra, { guards: false, machines: false, privateOk: true });
+    const inGroup = keeping?.kind === 'view' && spec.view ? { view: { name: spec.view.name, group: keeping.groupId ?? undefined } } : {};
+    const res = await applyChanges(tx, ctx, final, { ...extra, ...inGroup }, { guards: false, machines: false, privateOk: true });
     changes.push(...res.changes);
     activities.push(...res.activities);
+    kept.push(...(res.kept ?? []));
     final = res.issue;
   }
 
@@ -809,7 +834,16 @@ export async function applyChanges(
     activities.push(...(await afterRequestChange(tx, ctx.app, s, final)));
   }
 
-  return { changes, activities, issue: final };
+  return { changes, activities, issue: final, kept };
+}
+
+type LinkUndoInput = { kind: 'link'; typeId: string; sourceId: string; targetId: string; created: boolean };
+
+/** What undoes the change a call kept (an answer's `undo`): its first event, and its group when it has one. */
+export function undoOf(kept: KeptChange[] | undefined): { event: number; group?: string } | undefined {
+  const first = kept?.find((k) => k.view !== null);
+  if (!first) return undefined;
+  return first.groupId ? { event: first.activityId, group: first.groupId } : { event: first.activityId };
 }
 
 /**
@@ -1131,7 +1165,16 @@ export async function createIssueInTx(tx: Db, ctx: Ctx, input: CreateIssueInput,
   return insertIssue(tx, ctx, await prepareIssue(ctx, input, tx, opts.carry), opts);
 }
 
-export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateIssueInput, opts: { data?: Record<string, unknown> } = {}): Promise<IssueDetail> {
+/**
+ * Change an issue. Made in a view (`input.view`), the change is its author's to undo (D34's revisit),
+ * and the answer says what undoes it.
+ */
+export async function updateIssue(
+  ctx: Ctx,
+  idOrReadable: string,
+  input: UpdateIssueInput,
+  opts: { data?: Record<string, unknown> } = {},
+): Promise<IssueDetail & { undo?: { event: number; group?: string } }> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, idOrReadable);
@@ -1145,10 +1188,13 @@ export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateI
     removeTags: input.removeTags,
     expectedVersion: input.expectedVersion,
     data: opts.data,
+    ...(input.view ? { view: input.view } : {}),
   };
   const result = await ctx.db.transaction(async (tx) => applyChanges(tx as unknown as Db, ctx, issue, spec));
   await publishActivities(ctx.app, result.activities);
-  return issueDetail(ctx, result.issue);
+  const undo = undoOf(result.kept);
+  const detail = await issueDetail(ctx, result.issue);
+  return undo ? { ...detail, undo } : detail;
 }
 
 /**

@@ -85,6 +85,8 @@ export type UndoState = (typeof UNDO_STATES)[number];
  */
 export const UNDO_BY = ['author', 'anyone'] as const;
 export type UndoBy = (typeof UNDO_BY)[number];
+/** How long a person's edit in a view can be undone (D34's revisit): what undoing it needs is kept this long. An agent's is kept for good. */
+export const VIEW_EDIT_UNDO_DAYS = 30;
 
 export const FIELD_TYPES = [
   'enum',

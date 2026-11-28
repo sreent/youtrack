@@ -177,7 +177,7 @@ describe('undoing what an agent did on its own', () => {
     const issue = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Exports time out', fields: { Priority: 'Normal', Type: 'Bug' }, tags: ['perf'] });
     await updateIssue(agent, issue.id, { summary: 'Exports time out on big projects', fields: { Priority: 'Critical', State: 'In Progress' }, addTags: ['urgent'], removeTags: ['perf'] });
     const [change] = await updatesOf(issue.id);
-    expect(change!.undo).toEqual({ state: 'possible', note: '', noteWords: [] });
+    expect(change!.undo).toEqual({ state: 'possible', note: '', noteWords: [], by: 'anyone' });
 
     const done = await undoAgentChange(w.as(w.anna), change!.id);
     expect(done.undoes).toBe(change!.id);
@@ -188,7 +188,7 @@ describe('undoing what an agent did on its own', () => {
     expect(undo!.data.undoes).toBe(change!.id);
     expect(undo!.undo).toBeUndefined();
     const undone = (await updatesOf(issue.id))[0]!.undo;
-    expect(undone).toEqual({ state: 'undone', note: 'Anna Schmidt undid it', noteWords: [{ key: 'agents.undoneBy', values: { who: 'named', name: 'Anna Schmidt' } }] });
+    expect(undone).toEqual({ state: 'undone', note: 'Anna Schmidt undid it', noteWords: [{ key: 'agents.undoneBy', values: { who: 'named', name: 'Anna Schmidt' } }], by: 'anyone' });
     // A page says the note in its person's language, from its words (D49).
     expect(sayProblem(translatorFor('de'), undone!.noteWords![0] as ProblemSaid)).toBe('Anna Schmidt hat die Änderung rückgängig gemacht.');
 
@@ -205,6 +205,7 @@ describe('undoing what an agent did on its own', () => {
       state: 'changed_since',
       note: 'State is In Progress now: Ben Okafor changed it since',
       noteWords: [{ key: 'agents.stop.fieldChanged', values: { field: 'State', hasValue: 'yes', value: 'In Progress', hasBy: 'yes', by: 'Ben Okafor' } }],
+      by: 'anyone',
     });
     expect(sayProblem(translatorFor('de'), change!.undo!.noteWords![0] as ProblemSaid)).toBe('State ist jetzt In Progress: Ben Okafor hat es inzwischen geändert.');
     const e = await failure(undoAgentChange(w.as(w.anna), change!.id));
@@ -337,7 +338,7 @@ describe('over HTTP', () => {
     await call('PATCH', `/issues/${issue.body.id}`, made.body.token, { fields: { Priority: 'Critical' } });
     const events = (await call('GET', `/issues/${issue.body.id}/activity`, anna)).body as TrackerEvent[];
     const change = events.find((e) => e.type === 'issue.updated')!;
-    expect(change.undo).toEqual({ state: 'possible', note: '', noteWords: [] });
+    expect(change.undo).toEqual({ state: 'possible', note: '', noteWords: [], by: 'anyone' });
     const undone = await call('POST', `/events/${change.id}/undo`, anna);
     expect(undone.status).toBe(200);
     expect(undone.body).toMatchObject({ undoes: change.id, changes: [{ field: 'Priority', from: 'Critical', to: 'Normal' }] });

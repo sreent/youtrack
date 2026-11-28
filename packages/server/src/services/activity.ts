@@ -32,7 +32,7 @@ export async function issueActivity(ctx: Ctx, issueId: string, limit = 200): Pro
   // A change to a private field kept from them isn't there (D50).
   const events = rows.map((r) => eventFor(view, s, toEventDto(s, r))).filter((e): e is TrackerEvent => e !== null);
   // A change an agent made on its own says whether a person can still undo it (D34).
-  const standings = await undoStandings(ctx.db, s, events);
+  const standings = await undoStandings(ctx, s, events);
   const said = events.map((e) => (standings.has(e.id) ? { ...e, undo: standings.get(e.id) } : e));
   const moves = await movesInHistory(ctx, view, s, issue.id, limit);
   return [...said, ...moves].sort((a, b) => a.id - b.id).slice(0, limit);

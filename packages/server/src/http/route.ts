@@ -22,6 +22,11 @@ export interface RouteSpec<P extends AnyObject | undefined, Q extends AnyObject 
   bodyOptional?: boolean;
   response?: z.ZodType;
   status?: 200 | 201 | 202 | 204 | 302;
+  /**
+   * A second answer some requests get, documented beside the first: a DELETE that answers 204, and
+   * 200 with a body when asked for one. The handler returns it as a Response of its own.
+   */
+  also?: { status: 200; description: string; response: z.ZodType };
   /** 'required' (default): 401 without a user. 'none': public. */
   auth?: 'required' | 'none';
   /**
@@ -83,6 +88,7 @@ export function route<P extends AnyObject | undefined, Q extends AnyObject | und
         spec.response && status !== 204
           ? { description: 'OK', content: { 'application/json': { schema: spec.response } } }
           : { description: status === 204 ? 'Done' : status === 302 ? 'A redirect, for a browser to follow' : 'OK' },
+      ...(spec.also ? { [spec.also.status]: { description: spec.also.description, content: { 'application/json': { schema: spec.also.response } } } } : {}),
       ...ERRORS,
     },
   });

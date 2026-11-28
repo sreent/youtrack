@@ -52,7 +52,7 @@ import {
   VCS_DELIVERY_OUTCOMES,
   VCS_PROVIDERS,
 } from './constants';
-import { PlanScopeSchema, ViewSettingsSchema } from './views';
+import { PlanScopeSchema, ViewKindSchema, ViewSettingsSchema } from './views';
 
 /**
  * The body of a PATCH: every field of the create body, optional, and none filled in by a
@@ -811,6 +811,34 @@ export const CreateIssueBody = z.object({
 /** What callers send (defaults not yet applied). */
 export type CreateIssueInput = z.input<typeof CreateIssueBody>;
 
+/**
+ * Where a person made a change (D72): the view, and the change it is part of when one gesture made
+ * several, so they undo as one (D34's revisit). Only its author undoes it, for 30 days.
+ */
+export const ViewEditSchema = z
+  .strictObject({
+    name: ViewKindSchema,
+    group: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{1,64}$/, 'Letters, digits, - and _, at most 64')
+      .optional()
+      .describe(
+        'Ties this change to others of yours sent with the same group, so one undo puts them all back. Left out, a request that makes several changes (a command on several issues) makes them one group itself',
+      ),
+  })
+  .describe("The view a person made the change in, so they can undo it (POST /events/{id}/undo, theirs alone, for 30 days); agents don't send it")
+  .meta({ id: 'ViewEdit' });
+export type ViewEdit = z.infer<typeof ViewEditSchema>;
+
+/** What undoes a change made in a view: an event to undo (POST /events/{event}/undo), and its group when it is one of several. */
+export const ViewUndoSchema = z
+  .object({
+    event: z.number().int().describe('The change, by its event: POST /events/{event}/undo undoes it, with the rest of its group'),
+    group: z.string().optional().describe('The change it is part of, when the request made several (or was sent with a group): undone all at once, or not at all'),
+  })
+  .meta({ id: 'ViewUndo' });
+export type ViewUndo = z.infer<typeof ViewUndoSchema>;
+
 export const UpdateIssueBody = z.object({
   summary: z.string().min(1).max(500).optional(),
   description: z.string().max(100_000).optional(),
@@ -819,8 +847,15 @@ export const UpdateIssueBody = z.object({
   removeTags: z.array(z.string()).optional(),
   expectedVersion: z.number().int().optional().describe('Fail with 409 if the issue changed since this version'),
   descriptionAiDrafted: z.boolean().optional().describe('True when the saved description came from an accepted suggestion (D59); an edit that does not say so clears the mark'),
+  view: ViewEditSchema.optional(),
 });
 export type UpdateIssueInput = z.infer<typeof UpdateIssueBody>;
+
+/** PATCH /issues/{id}'s answer: the issue, and, for a change made in a view, what undoes it. */
+export const IssueUpdatedSchema = IssueDetailSchema.extend({
+  undo: ViewUndoSchema.optional().describe('Sent with `view`, and something changed: what undoes it'),
+}).meta({ id: 'IssueUpdated' });
+export type IssueUpdated = z.infer<typeof IssueUpdatedSchema>;
 
 export const IssueListQuery = z.object({
   query: z.string().default('').describe('Search query in a4a query language'),
@@ -887,7 +922,20 @@ export type LinkType = z.infer<typeof LinkTypeSchema>;
 export const LinkBody = z.object({
   relation: z.string().describe('Link phrase from this issue\'s point of view, e.g. "depends on", "subtask of", "duplicates"'),
   issue: z.string().describe('Readable id of the other issue'),
+  view: ViewEditSchema.optional(),
 });
+
+/** POST /issues/{id}/links' answer: the issue's links, the one just made carrying what undoes it when it was made in a view. */
+export const LinkMadeSchema = IssueLinkSchema.extend({
+  undo: ViewUndoSchema.optional().describe('On the link just made, when it was made in a view: what undoes it'),
+}).meta({ id: 'LinkMade' });
+
+/** DELETE /links/{id} in a view: where it was taken away (query parameters, as a DELETE has no body). */
+export const LinkRemovedQuery = z.object({
+  view: ViewKindSchema.optional().describe('The view it was taken away in, so you can undo it (yourself alone, for 30 days); the answer is then 200, with what undoes it'),
+  group: ViewEditSchema.shape.group,
+});
+export const LinkRemovedSchema = z.object({ undo: ViewUndoSchema.optional() }).meta({ id: 'LinkRemoved' });
 
 export const WorkItemSchema = z
   .object({
@@ -969,9 +1017,15 @@ export const EventSchema = z
           .enum(UNDO_BY)
           .optional()
           .describe("Who may undo it: anyone who may change the issue, for an agent's change on its own (D34); only its author, for a person's edit in a view (D72)"),
+        others: z
+          .array(z.string())
+          .optional()
+          .describe('With `group`: the other issues its undo puts back too, by readable id, those the reader sees now'),
       })
       .optional()
-      .describe("Only in an issue's history, on a change an agent made on its own: whether a person can still undo it (POST /events/{id}/undo)"),
+      .describe(
+        "Only in an issue's history: on a change an agent made on its own, for anyone who may change the issue; on a person's edit in a view, for that person alone (D34). Whether it can still be undone (POST /events/{id}/undo)",
+      ),
   })
   .meta({ id: 'Event' });
 export type TrackerEvent = z.infer<typeof EventSchema>;
@@ -1051,6 +1105,9 @@ export const CommandBody = z.object({
     .literal('assistant')
     .optional()
     .describe("In the web app: the assistant read this command from the person's words (POST /ai/command), so each issue's history says it came via the assistant"),
+  view: ViewEditSchema.optional().describe(
+    'The view it was run in (on the issues list, `list`): then it changes every issue or none, in one transaction, as one group its author can undo (POST /events/{id}/undo)',
+  ),
 });
 /**
  * A problem's words, for a page to say it in its person's language (D49): its key under problem.* in
@@ -1093,6 +1150,7 @@ export const CommandResultSchema = z
     applied: z.boolean(),
     problems: z.array(QueryProblemSchema),
     results: z.array(CommandIssueResultSchema),
+    undo: ViewUndoSchema.optional().describe('Run with `view`, and something changed: what undoes it, every issue at once'),
   })
   .meta({ id: 'CommandResult' });
 export type CommandResult = z.infer<typeof CommandResultSchema>;
@@ -3035,6 +3093,8 @@ export const UndoResultSchema = z
     issue: IssueRefSchema,
     changes: z.array(ChangeSchema).describe('What the undo put back'),
     events: z.array(EventSchema).describe("The undo's own events, each saying which it undoes (data.undoes)"),
+    group: z.string().optional().describe('The group it undid, when the change was one of several made as one (D34’s revisit)'),
+    issues: z.array(IssueRefSchema).optional().describe('With `group`: every issue it put back'),
   })
   .meta({ id: 'UndoResult' });
 export type UndoResult = z.infer<typeof UndoResultSchema>;

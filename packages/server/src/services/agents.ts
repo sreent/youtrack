@@ -8,9 +8,11 @@
  * - What an agent changed on its own, a person who may change the issue can undo from its history,
  *   unless what it changed has changed since. The undo goes through the write path as that person,
  *   says which change it undoes (data.undoes), and happens once.
+ * - A person's own edit in a view (a command on the list's chosen issues, a drag, a typed cell) is
+ *   undone the same way, by that person alone, for 30 days; several made as one undo as one group.
  */
 import { isOwnAgent, type AgentAccount, type ApiToken, type Scope, type TrackerEvent, type UndoResult, type UndoState } from '@a4a/shared';
-import { and, desc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 import { requireScope, scopesForRole, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { activities, agentChanges, apiTokens, issueLinks, issueTags, issues, tags } from '../db/schema';
@@ -18,10 +20,10 @@ import { publishActivities, toEventDto, type ActivityPayload, type ActivityRow }
 import { listIn } from '../i18n';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import type { ListSaid, ProblemSaid } from '@a4a/shared/i18n';
-import { canUserReadProject, eventFor, eventSeen, projectAccess, requireProject } from './access';
+import { canUserReadProject, eventFor, eventSeen, projectAccess, requireProject, seenIssueIds } from './access';
 import { actsAsAgent, textHash, type AgentUndo, type LinkUndo } from './agent-changes';
 import { issueTokenFor, keysFor, tokenDto, tokenScopes } from './auth';
-import { issueRef, stateNames, type IssueRow } from './issue-refs';
+import { issueRef, issueRefsById, readableId, stateNames, type IssueRow } from './issue-refs';
 import { applyChanges, fieldValuesOf, type ChangeSpec, type FieldChangeSpec, type LinkSpec } from './issues';
 import type { SchemaSnapshot, UserRow } from './schema-cache';
 import { userDto } from './users';
@@ -123,7 +125,7 @@ export async function revokeAgentToken(ctx: Ctx, idOrLogin: string, tokenId: str
 }
 
 // ---------------------------------------------------------------------------
-// Where an agent's change stands, and undoing it
+// Where a kept change stands, and undoing it (D34, and its revisit for a person's edit in a view)
 // ---------------------------------------------------------------------------
 
 type ChangeRow = typeof agentChanges.$inferSelect;
@@ -133,6 +135,13 @@ function nameOf(s: SchemaSnapshot, userId: string | null | undefined): string {
   const u = userId ? s.users.get(userId) : undefined;
   return u ? (u.isBot ? u.login : u.name) : 'someone';
 }
+
+/**
+ * Whether the reader may see a kept change's undo, and ask for it: an agent's is anyone's who may
+ * change the issue (D34); a person's edit in a view is theirs alone. To anyone else, a view edit is a
+ * change like any: there's nothing to undo there.
+ */
+const undoableBy = (rec: ChangeRow, userId: string): boolean => rec.kind !== 'view' || rec.actorId === userId;
 
 /** What the issue is like now, read once for every change of it that's looked at. */
 interface Now {
@@ -179,8 +188,14 @@ async function linkExists(db: Db, s: SchemaSnapshot, undo: LinkUndo): Promise<bo
  */
 /** Why a change can't be undone: in the API's English, and as a page says it (D49). */
 type Stop = { words: string; said: ProblemSaid };
-const stop = (words: string, key: string, values?: Record<string, string | number | ListSaid>): Stop => ({ words, said: values ? { key, values } : { key } });
+const stop = (words: string, key: string, values?: Record<string, string | number | ListSaid | ProblemSaid>): Stop => ({
+  words,
+  said: values ? { key, values: values as ProblemSaid['values'] } : { key },
+});
 const ISSUE_GONE = stop('the issue is gone', 'agents.stop.issueGone');
+const ISSUE_HIDDEN = stop('one of its issues is no longer one you can see', 'agents.stop.issueHidden');
+/** A reason on one issue of a group, said with the issue it is on. */
+const onIssue = (id: string, x: Stop): Stop => stop(`${id}: ${x.words}`, 'agents.stop.onIssue', { id, reason: x.said });
 
 async function whatStops(db: Db, s: SchemaSnapshot, rec: ChangeRow, now: Now): Promise<Stop[]> {
   const undo = rec.undo as AgentUndo;
@@ -243,43 +258,90 @@ async function whatStops(db: Db, s: SchemaSnapshot, rec: ChangeRow, now: Now): P
   return out;
 }
 
+/**
+ * What stops a change, or its whole group, being undone: each row's reasons, a group's said with the
+ * issue each is on. An issue the reader no longer sees is said as one, unnamed.
+ */
+async function groupStops(db: Db, s: SchemaSnapshot, recs: ChangeRow[], seen: Set<string> | null): Promise<Stop[]> {
+  const earliest = new Map<string, number>();
+  for (const rec of recs) earliest.set(rec.issueId, Math.min(earliest.get(rec.issueId) ?? rec.activityId, rec.activityId));
+  const nows = new Map<string, Now | null>();
+  const out: Stop[] = [];
+  const grouped = recs.length > 1 || recs.some((r) => r.groupId !== null);
+  let hidden = false;
+  for (const rec of recs) {
+    if (seen && !seen.has(rec.issueId)) {
+      hidden = true;
+      continue;
+    }
+    if (!nows.has(rec.issueId)) nows.set(rec.issueId, await issueNow(db, rec.issueId, earliest.get(rec.issueId)!));
+    const now = nows.get(rec.issueId)!;
+    const stops = now ? await whatStops(db, s, rec, now) : [ISSUE_GONE];
+    out.push(...(grouped && now ? stops.map((x) => onIssue(readableId(s, now.issue), x)) : stops));
+  }
+  if (hidden) out.push(ISSUE_HIDDEN);
+  return out;
+}
+
 const sentence = (parts: string[]) => {
   const text = parts.join('; ');
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
-/** Where an agent's change stands, in the API's English (`note`) and as a page says it (`noteWords`, D49). */
-type UndoStanding = { state: UndoState; note: string; noteWords: ProblemSaid[] };
+/** Where a kept change stands, in the API's English (`note`) and as a page says it (`noteWords`, D49). */
+type UndoStanding = NonNullable<TrackerEvent['undo']> & { state: UndoState; note: string; noteWords: ProblemSaid[] };
+
+/** The rows of a kept change's group, in id order: those of the same kind by the same actor. */
+function sameGroup(rec: ChangeRow) {
+  return and(eq(agentChanges.groupId, rec.groupId!), eq(agentChanges.kind, rec.kind), rec.actorId ? eq(agentChanges.actorId, rec.actorId) : isNull(agentChanges.actorId));
+}
 
 /**
- * In an issue's history, where each change an agent made on its own stands: undone (and by whom), or
- * changed since (and what), or undoable. Changes a person made carry nothing.
+ * In an issue's history, where each kept change stands: undone (and by whom), or changed since (and
+ * what), or undoable; who may undo it (`by`); and for one of a group, the group and its other issues.
+ * A person's edit in a view says so to its author alone (D34's revisit). Other changes carry nothing.
  */
-export async function undoStandings(db: Db, s: SchemaSnapshot, events: TrackerEvent[]): Promise<Map<number, UndoStanding>> {
+export async function undoStandings(ctx: Ctx, s: SchemaSnapshot, events: TrackerEvent[]): Promise<Map<number, UndoStanding>> {
+  const db = ctx.db;
   const out = new Map<number, UndoStanding>();
   const ids = events.map((e) => e.id);
   if (!ids.length) return out;
-  const recs = await db
+  const me = ctx.actor.user.id;
+  const found = await db
     .select()
     .from(agentChanges)
     .where(or(inArray(agentChanges.activityId, ids), inArray(agentChanges.pairActivityId, ids)));
-  // Each issue is read once, with the changes after its earliest agent's change here.
-  const earliest = new Map<string, number>();
-  for (const rec of recs) earliest.set(rec.issueId, Math.min(earliest.get(rec.issueId) ?? rec.activityId, rec.activityId));
-  const nows = new Map<string, Now | null>();
+  const recs = found.filter((rec) => undoableBy(rec, me));
+  // A group's other rows, read once for each group.
+  const groupIds = [...new Set(recs.flatMap((r) => (r.groupId ? [r.groupId] : [])))];
+  const groupRows = groupIds.length ? await db.select().from(agentChanges).where(inArray(agentChanges.groupId, groupIds)).orderBy(asc(agentChanges.id)) : [];
+  const membersOf = (rec: ChangeRow) => (rec.groupId ? groupRows.filter((g) => g.groupId === rec.groupId && g.kind === rec.kind && g.actorId === rec.actorId) : [rec]);
+  const seen = await seenIssueIds(ctx, [...new Set([...recs, ...groupRows].map((r) => r.issueId))]);
+  const refs = await issueRefsById(db, s, [...seen]);
+  const standingOf = new Map<string, Omit<UndoStanding, 'others'>>();
   for (const rec of recs) {
-    let standing: UndoStanding;
-    if (rec.undoneActivityId !== null) {
-      const known = rec.undoneById ? s.users.has(rec.undoneById) : false;
-      const name = nameOf(s, rec.undoneById);
-      standing = { state: 'undone', note: `${name} undid it`, noteWords: [{ key: 'agents.undoneBy', values: { who: known ? 'named' : 'someone', name: known ? name : '' } }] };
-    } else {
-      if (!nows.has(rec.issueId)) nows.set(rec.issueId, await issueNow(db, rec.issueId, earliest.get(rec.issueId)!));
-      const now = nows.get(rec.issueId);
-      const stops = now ? await whatStops(db, s, rec, now) : [ISSUE_GONE];
-      // Each reason as a page says it, a sentence of its own (D49); the note joins them as the API does.
-      standing = stops.length ? { state: 'changed_since', note: sentence(stops.map((x) => x.words)), noteWords: stops.map((x) => x.said) } : { state: 'possible', note: '', noteWords: [] };
+    const members = membersOf(rec);
+    const key = rec.groupId ?? rec.id;
+    if (!standingOf.has(key)) {
+      const undone = members.find((m) => m.undoneActivityId !== null);
+      let standing: Omit<UndoStanding, 'others'>;
+      if (undone) {
+        const known = undone.undoneById ? s.users.has(undone.undoneById) : false;
+        const name = nameOf(s, undone.undoneById);
+        standing = { state: 'undone', note: `${name} undid it`, noteWords: [{ key: 'agents.undoneBy', values: { who: known ? 'named' : 'someone', name: known ? name : '' } }] };
+      } else {
+        const stops = await groupStops(db, s, members, rec.groupId ? seen : null);
+        // Each reason as a page says it, a sentence of its own (D49); the note joins them as the API does.
+        standing = stops.length ? { state: 'changed_since', note: sentence(stops.map((x) => x.words)), noteWords: stops.map((x) => x.said) } : { state: 'possible', note: '', noteWords: [] };
+      }
+      standingOf.set(key, { ...standing, by: rec.kind === 'view' ? 'author' : 'anyone', ...(rec.groupId ? { group: rec.groupId } : {}) });
     }
+    const others = rec.groupId
+      ? [...new Set(members.filter((m) => m.issueId !== rec.issueId && seen.has(m.issueId)).map((m) => m.issueId))]
+          .flatMap((id) => (refs.get(id) ? [refs.get(id)!.id] : []))
+          .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
+      : [];
+    const standing: UndoStanding = { ...standingOf.get(key)!, ...(rec.groupId ? { others } : {}) };
     out.set(rec.activityId, standing);
     if (rec.pairActivityId !== null) out.set(rec.pairActivityId, standing);
   }
@@ -315,10 +377,20 @@ function stored(v: ResolvedValue): ResolvedValue {
   return Object.fromEntries(Object.entries(v).filter(([, x]) => x !== null && x !== undefined)) as ResolvedValue;
 }
 
+const NOT_UNDOABLE = () =>
+  new AppError(400, 'not_undoable', 'Only a change an agent made on its own, or one you made in a view in the last 30 days, can be undone', 'Change it back on the issue, as any change.').said(
+    'agents.onlyAgentsOwnChange',
+  );
+
 /**
- * Undo a change an agent made on its own, as the person asking, who must be able to change the issue
- * (and, for a link, the issue at its other end). It undoes all of the change or none of it: if anything
- * it changed has changed since, it says what, and changes nothing. An agent can't undo: a person decides.
+ * Undo a kept change, as the person asking (D34): an agent's change on its own, which anyone who may
+ * change the issue undoes (and, for a link, the issue at its other end), or a person's edit in a view,
+ * which only they undo; to anyone else that's a change like any, with nothing to undo there.
+ *
+ * It undoes all of the change, and all of its group, or none of it. The group's rows are locked first,
+ * in id order, then their issues, in id order, so two undos of the group happen once and an edit to
+ * one of its issues meanwhile is seen. If anything it changed has changed since, it says what, on
+ * which issue, and changes nothing. An agent can't undo: a person decides.
  */
 export async function undoAgentChange(ctx: Ctx, eventId: number): Promise<UndoResult> {
   requireScope(ctx, 'write');
@@ -335,53 +407,75 @@ export async function undoAgentChange(ctx: Ctx, eventId: number): Promise<UndoRe
     .select()
     .from(agentChanges)
     .where(or(eq(agentChanges.activityId, eventId), eq(agentChanges.pairActivityId, eventId)));
-  if (!found) {
-    throw new AppError(
-      400,
-      'not_undoable',
-      'Only a change an agent made on its own can be undone',
-      'Change it back on the issue, as any change. (a4a keeps what undoing needs for changes agents make from now on.)',
-    ).said('agents.onlyAgentsOwnChange');
-  }
+  if (!found || !undoableBy(found, ctx.actor.user.id)) throw NOT_UNDOABLE();
 
   const result = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
-    // One undo at a time: the change's row first, then its issue, as the write path locks it.
-    const [rec] = await tx.select().from(agentChanges).where(eq(agentChanges.id, found.id)).for('update');
-    if (!rec) throw notFound(`Event ${eventId}`).said('notFound.event', { id: eventId });
-    if (rec.undoneActivityId !== null) {
-      throw new AppError(409, 'already_undone', `${nameOf(s, rec.undoneById)} undid it already`, 'It is in the issue’s history, as the change after it.').said('agents.undoneAlreadyBy', { name: nameOf(s, rec.undoneById) });
+    // One undo at a time: the change's rows first (its group's, in id order), then their issues in id
+    // order, as the write path locks them.
+    const recs = await tx
+      .select()
+      .from(agentChanges)
+      .where(found.groupId ? sameGroup(found) : eq(agentChanges.id, found.id))
+      .orderBy(asc(agentChanges.id))
+      .for('update');
+    if (!recs.length) throw notFound(`Event ${eventId}`).said('notFound.event', { id: eventId });
+    const done = recs.find((r) => r.undoneActivityId !== null);
+    if (done) {
+      throw new AppError(409, 'already_undone', `${nameOf(s, done.undoneById)} undid it already`, 'It is in the issue’s history, as the change after it.').said('agents.undoneAlreadyBy', {
+        name: nameOf(s, done.undoneById),
+      });
     }
-    const [issue] = await tx.select().from(issues).where(eq(issues.id, rec.issueId)).for('update');
-    if (!issue) throw notFound(`Event ${eventId}`).said('notFound.event', { id: eventId });
-    const now = await issueNow(tx, issue.id, rec.activityId);
-    const stops = now ? await whatStops(tx, s, rec, now) : [ISSUE_GONE];
+    const issueIds = [...new Set(recs.map((r) => r.issueId))].sort();
+    const locked = await tx.select().from(issues).where(inArray(issues.id, issueIds)).orderBy(asc(issues.id)).for('update');
+    const byId = new Map(locked.map((i) => [i.id, i]));
+    if (found.groupId === null && !byId.has(found.issueId)) throw notFound(`Event ${eventId}`).said('notFound.event', { id: eventId });
+    // A group's issue the person no longer sees stops it, said without naming it.
+    const seen = found.groupId ? await seenIssueIds(ctx, issueIds, tx) : null;
+    const stops = await groupStops(tx, s, recs, seen);
     if (stops.length) {
       const words = stops.map((x) => x.words);
       throw new AppError(409, 'changed_since', `Nothing was undone: ${words.join('; ')}`, 'Change it on the issue instead, if it should change.', { changedSince: words }).said('agents.nothingUndoneBecause', {
         reasons: stops.map((x) => x.said),
       });
     }
-    const spec = await inverse(tx, s, rec, issue);
-    const applied = await applyChanges(tx, ctx, issue, { ...spec, data: { undoes: rec.activityId } });
-    if (!applied.activities.length) {
-      throw new AppError(409, 'changed_since', 'Nothing was undone: it is as it was before the agent changed it').said('agents.alreadyAsBefore');
+    const applied: { rec: ChangeRow; result: Awaited<ReturnType<typeof applyChanges>> }[] = [];
+    for (const rec of recs) {
+      const issue = byId.get(rec.issueId)!;
+      const spec = await inverse(tx, s, rec, issue);
+      const res = await applyChanges(tx, ctx, issue, { ...spec, data: { undoes: rec.activityId } });
+      if (!res.activities.length) {
+        throw rec.kind === 'view'
+          ? new AppError(409, 'changed_since', 'Nothing was undone: it is as it was before you changed it').said('agents.alreadyAsBeforeYours')
+          : new AppError(409, 'changed_since', 'Nothing was undone: it is as it was before the agent changed it').said('agents.alreadyAsBefore');
+      }
+      byId.set(issue.id, res.issue);
+      applied.push({ rec, result: res });
     }
-    const marked = await tx
-      .update(agentChanges)
-      .set({ undoneActivityId: applied.activities[0]!.id, undoneById: ctx.actor.user.id, undoneAt: new Date() })
-      .where(and(eq(agentChanges.id, rec.id), isNull(agentChanges.undoneActivityId)))
-      .returning({ id: agentChanges.id });
-    if (!marked.length) throw new AppError(409, 'already_undone', 'Someone undid it already').said('agents.undoneAlready');
-    return { applied, activityId: rec.activityId };
+    const at = new Date();
+    let marked = 0;
+    for (const { rec, result: res } of applied) {
+      const set = await tx
+        .update(agentChanges)
+        .set({ undoneActivityId: res.activities[0]!.id, undoneById: ctx.actor.user.id, undoneAt: at })
+        .where(and(eq(agentChanges.id, rec.id), isNull(agentChanges.undoneActivityId)))
+        .returning({ id: agentChanges.id });
+      marked += set.length;
+    }
+    if (marked !== applied.length) throw new AppError(409, 'already_undone', 'Someone undid it already').said('agents.undoneAlready');
+    return { applied, issue: byId.get(found.issueId) ?? applied[0]!.result.issue, group: found.groupId };
   });
 
-  await publishActivities(ctx.app, result.applied.activities);
-  const states = await stateNames(ctx.db, s, [result.applied.issue.id]);
+  const all = result.applied.flatMap((a) => a.result.activities);
+  await publishActivities(ctx.app, all);
+  const touched = [...new Set(result.applied.map((a) => a.result.issue.id))];
+  const states = await stateNames(ctx.db, s, touched);
+  const issueRefs = new Map(result.applied.map((a) => [a.result.issue.id, issueRef(s, a.result.issue, states.get(a.result.issue.id) ?? null)]));
   return {
-    undoes: result.activityId,
-    issue: issueRef(s, result.applied.issue, states.get(result.applied.issue.id) ?? null),
-    changes: result.applied.changes,
-    events: result.applied.activities.map((a) => toEventDto(s, a)),
+    undoes: found.activityId,
+    issue: issueRef(s, result.issue, states.get(result.issue.id) ?? null),
+    changes: result.applied.flatMap((a) => a.result.changes),
+    events: all.map((a) => toEventDto(s, a)),
+    ...(result.group ? { group: result.group, issues: [...issueRefs.values()] } : {}),
   };
 }
