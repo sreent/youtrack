@@ -4,14 +4,14 @@
  * with these and OpenAPI is made from them; the web types its views by them.
  */
 import { z } from 'zod';
+import { DEFAULT_VIEW, VIEW_KINDS } from './view-kinds';
+
+export { DEFAULT_VIEW, VIEW_KINDS, isViewKind, type ViewKind } from './view-kinds';
 
 // ---------------------------------------------------------------------------
 // Views
 // ---------------------------------------------------------------------------
 
-/** The views of one search: its list, and the planning views. Each shows the same issues. */
-export const VIEW_KINDS = ['list', 'timeline', 'calendar', 'table', 'workload'] as const;
-export type ViewKind = (typeof VIEW_KINDS)[number];
 export const ViewKindSchema = z.enum(VIEW_KINDS).describe('list, timeline, calendar, table or workload: views of the same search, its issues the same in each');
 
 /** How far a timeline shows across its width: a column a day, a week, a month or a quarter. */
@@ -105,9 +105,6 @@ export const ViewSettingsSchema = z
   })
   .meta({ id: 'ViewSettings' });
 export type ViewSettings = z.infer<typeof ViewSettingsSchema>;
-
-/** What a saved search shows until someone chooses otherwise: its list. */
-export const DEFAULT_VIEW: ViewSettings = { kind: 'list', group: null };
 
 /**
  * A saved search's view as it's kept, read through the schema: a list, should what's kept not read

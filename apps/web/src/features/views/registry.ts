@@ -1,4 +1,4 @@
-import { VIEW_KINDS, type ViewKind } from '@a4a/shared';
+import { VIEW_KINDS, type ViewKind } from '@a4a/shared/view-kinds';
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 import type { ViewProps } from './types';
 

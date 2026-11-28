@@ -93,6 +93,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - A moved issue counts once, in the project it was in each day.
   - Each chart has its figures as a table beside it, and the tables download as CSV.
 - **Dashboards**: a page of your own reports, saved searches and notes, private or shared. Each viewer sees what they may.
+- **Views of a search** (D72): the Issues page shows any query or saved search as a list, and as the planning views as each comes, chosen by one switch that keeps the search, its grouping and what's chosen, all in the page's address. The list groups by any field the search's projects share, each group under a head that folds and says how many it holds. A saved search remembers its owner's view and grouping, so a plan is a saved search shown as a timeline, and Plan lists those; anyone else's choice stays in their own address. A board opens in Issues with its projects and query, and an administrator adopts a shared search whose owner was deleted.
 - **Importing from Jira or YouTrack**, from a CSV export or straight from their APIs, for a project's managers:
   - columns and values are mapped for you where their names say what they are, and you map the rest;
   - a check says what would happen, row by row, before anything changes;
@@ -562,6 +563,7 @@ What it covers, in `apps/web/e2e`:
 - **Each language**: German, Spanish, French, Japanese, Korean, Portugal's Portuguese, Vietnamese, Indonesian, Thai and Simplified Chinese, a spec each: a browser that asks for the language gets the sign-in page and the pages it opens in it, dates too, and its problems, in light, in dark and at 390px.
 - **On a phone**: installable, opening offline and saying so, push turned on and off and what a push shows, sharing into New issue, and the pages people use, at a Pixel 7's size.
 - **Issues**: a query's problem and its fix, suggestions from the keyboard, rows chosen from the keyboard and a command previewed then applied, saved searches, a query read from words.
+- **Views of a search**: the switch and the address keeping the search, its grouping and what's chosen; a saved search opening in its owner's grouping across a reload, and not another person's; group heads folding, from the keyboard too; a board opened in Issues; in light, dark and at 390px.
 - **An issue**: a field changed from the keyboard, links, comments, logged time, triage's values accepted one at a time, the summary, and a save refused (409) when someone changed the issue first.
 - **Reporting**: similar issues while typing, and a retry that doesn't duplicate (`Idempotency-Key`).
 - **Moving and renaming**: an issue moved, with what doesn't carry over asked for first and its old address going to its new id; a clone linked back; a reaction and a vote; a project's key renamed, typed twice, with an old link still opening its issue and the old key still finding the project.

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runCommand } from '../src/commands/executor';
 import { suggestCommand } from '../src/commands/parser';
 import { parseQuery } from '../src/search/parser';
-import { countIssues, parseQueryForApi, searchIssues } from '../src/search/service';
+import { countIssues, groupFields, parseQueryForApi, searchIssues } from '../src/search/service';
 import { suggest } from '../src/search/suggest';
 import { buildVocabulary } from '../src/search/vocabulary';
 import { addComment } from '../src/services/comments';
@@ -168,6 +168,49 @@ describe('query language', () => {
       { value: 'Normal', count: 1 },
       { value: 'Minor', count: 1 },
     ]);
+  });
+
+  it('groups a list by a field: in its order, counted over the whole result whatever the page, the issues with none last (D72)', async () => {
+    const pages = await Promise.all([0, 2, 4].map((offset) => searchIssues(w.as(w.anna), 'sort by: summary asc', offset, 2, 'Type')));
+    const groups = pages[0]!.groups!;
+    for (const p of pages) expect(p.groups).toEqual(groups);
+    expect(groups.map((g) => g.count).reduce((a, b) => a + b, 0)).toBe(5);
+    expect(new Map(groups.map((g) => [g.value, g.count]))).toEqual(new Map([['Bug', 2], ['Feature', 2], ['Task', 1]]));
+    // Across the pages, the issues come in their groups' order, each group together, each in the query's order.
+    const items = pages.flatMap((p) => p.items);
+    expect(items.map((i) => i.group)).toEqual(groups.flatMap((g) => Array<string | null>(g.count).fill(g.value)));
+    for (const g of groups) {
+      const summaries = items.filter((i) => i.group === g.value).map((i) => i.summary.toLowerCase());
+      expect(summaries).toEqual([...summaries].sort());
+    }
+    // By a person: those with nobody are a group of their own, last; Priority keeps the field's order.
+    const byAssignee = await searchIssues(w.as(w.anna), 'project: BACK', 0, 50, 'Assignee');
+    expect(byAssignee.groups).toEqual([
+      { value: 'anna', count: 1 },
+      { value: 'ben', count: 1 },
+      { value: null, count: 1 },
+    ]);
+    expect(byAssignee.items.map((i) => [i.id, i.group])).toEqual([
+      [ids.sso, 'anna'],
+      [ids.rate, 'ben'],
+      [ids.migr, null],
+    ]);
+    expect((await searchIssues(w.as(w.anna), '#Unresolved', 0, 50, 'priority')).groups!.map((g) => g.value)).toEqual(['Critical', 'Major', 'Normal', 'Minor']);
+    // A list that isn't grouped says nothing of groups.
+    const plain = await searchIssues(w.as(w.anna), 'project: BACK');
+    expect(plain.groups).toBeUndefined();
+    expect(plain.items.every((i) => !('group' in i))).toBe(true);
+  });
+
+  it('refuses to group by what is no field, and offers the fields every project of the result has', async () => {
+    await expect(searchIssues(w.as(w.anna), '', 0, 50, 'Nonsuch')).rejects.toMatchObject({ status: 400, words: { key: 'issues.cannotGroupBy', values: { field: 'Nonsuch' } } });
+    const back = await groupFields(w.as(w.anna), 'project: BACK');
+    expect(back.projects).toEqual(['BACK']);
+    expect(back.fields.map((f) => f.name)).toEqual(expect.arrayContaining(['State', 'Priority', 'Type', 'Assignee', 'Subsystem']));
+    const both = await groupFields(w.as(w.anna), '');
+    expect(both.projects).toEqual(['BACK', 'WEB']);
+    expect(both.fields.map((f) => f.name)).toEqual(expect.arrayContaining(['State', 'Assignee']));
+    expect(await groupFields(w.as(w.anna), 'project: BACK zqxjkvwy')).toEqual({ projects: [], fields: [] });
   });
 
   it('suggests fields and values', async () => {

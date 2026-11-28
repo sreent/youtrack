@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./periods": "./src/periods.ts",
     "./constants": "./src/constants.ts",
+    "./view-kinds": "./src/view-kinds.ts",
     "./refs": "./src/refs.ts",
     "./mentions": "./src/mentions.ts",
     "./whiteboard": "./src/whiteboard.ts",

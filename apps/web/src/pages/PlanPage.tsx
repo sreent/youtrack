@@ -1,6 +1,6 @@
 import type { Project } from '@a4a/shared';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router';
-import { useProjects } from '../api/queries';
+import { useMe, useProjects, useSavedSearches } from '../api/queries';
 import { Empty, ErrorNote, Loading, PageHead } from '../components/States';
 import { useBaselineChoice } from '../features/plan/Baselines';
 import { Costs } from '../features/plan/Costs';
@@ -8,6 +8,7 @@ import { dayMonth } from '../features/plan/dates';
 import { money } from '../features/plan/format';
 import { Resources } from '../features/plan/Resources';
 import { Timeline } from '../features/plan/Timeline';
+import { VIEWS as SEARCH_VIEWS } from '../features/views/registry';
 import { formatItems, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
@@ -24,12 +25,50 @@ function planFacts(p: Project): string {
   return `${formatItems(parts)} · ${t('count.openIssues', { n: p.openIssueCount })}`;
 }
 
+/**
+ * The plans that are saved searches (D72): each a search shown as a timeline, yours and those shared
+ * with you, opening the Issues page in its timeline. Said only once there are some, or once a search
+ * can be shown as one.
+ */
+function SearchPlans() {
+  const saved = useSavedSearches();
+  const me = useMe();
+  const plans = (saved.data ?? []).filter((s) => s.view.kind === 'timeline');
+  if (!plans.length && !SEARCH_VIEWS.timeline.available) return null;
+  return (
+    <section className="card" aria-labelledby="plan-searches">
+      <h2 id="plan-searches">{t('views.plans.title')}</h2>
+      {saved.error ? <ErrorNote error={saved.error} /> : null}
+      {saved.data && !plans.length ? <p className="note">{t('views.plans.none')}</p> : null}
+      {plans.length ? (
+        <ul className="directory">
+          {plans.map((s) => (
+            <li key={s.id}>
+              <span className="directory-name">
+                <Link to={`/issues?search=${encodeURIComponent(s.id)}&view=timeline`}>{s.name}</Link>
+              </span>
+              <p className="note">
+                {s.owner?.id === me.data?.id
+                  ? t(s.shared ? 'views.plans.yoursShared' : 'views.plans.yours')
+                  : s.owner
+                    ? t('views.plans.sharedBy', { name: s.owner.name })
+                    : t('views.plans.noOwner')}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
 function ChooseProject() {
   const projects = useProjects();
   const live = (projects.data ?? []).filter((p) => !p.archived);
   return (
     <>
       <PageHead title={t('page.plan.plan')} about={t('page.plan.aProjectSTasksOver')} />
+      <SearchPlans />
       {projects.isLoading ? <Loading what="loadingLine.projects" /> : null}
       {projects.error ? <ErrorNote error={projects.error} /> : null}
       {projects.data && live.length === 0 ? <Empty title={t('page.plan.noProjectsYet')}>{t('page.plan.aPlanBelongsToA')}</Empty> : null}

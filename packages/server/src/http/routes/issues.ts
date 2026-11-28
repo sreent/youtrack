@@ -21,8 +21,11 @@ import {
   MovePlanSchema,
   NewCommentBody,
   ParseQueryResultSchema,
+  DeleteSavedSearchQuery,
+  GroupFieldsSchema,
   SavedSearchBody,
   SavedSearchSchema,
+  UpdateSavedSearchBody,
   SetVisibilityBody,
   QueryProblemSchema,
   ReactBody,
@@ -33,12 +36,11 @@ import {
   VoteSchema,
   WorkItemBody,
   WorkItemSchema,
-  patchBody,
 } from '@a4a/shared';
 import { z } from 'zod';
 import { parseCommandForApi, runCommand } from '../../commands/executor';
 import { suggestCommand } from '../../commands/parser';
-import { countIssues, parseQueryForApi, searchIssues } from '../../search/service';
+import { countIssues, groupFields, parseQueryForApi, searchIssues } from '../../search/service';
 import { cloneIssue, moveIssue } from '../../services/move';
 import { reactToComment, reactToIssue, setVote } from '../../services/votes';
 import { suggest } from '../../search/suggest';
@@ -46,7 +48,7 @@ import { issueActivity } from '../../services/activity';
 import { addComment, deleteComment, listComments, setCommentVisibility, updateComment } from '../../services/comments';
 import { createIssue, deleteIssue, getIssue, resolveIssue, setIssueVisibility, updateIssue } from '../../services/issues';
 import { deleteLinkById, linkIssues, listLinks } from '../../services/links';
-import { createSavedSearch, deleteSavedSearch, listSavedSearches, updateSavedSearch } from '../../services/saved-searches';
+import { adoptSavedSearch, createSavedSearch, deleteSavedSearch, listSavedSearches, updateSavedSearch } from '../../services/saved-searches';
 import { deleteWorkItem, listWorkItems, logWork } from '../../services/workitems';
 import { requireScope, withChannel } from '../../context';
 import { visibleSchema } from '../../services/access';
@@ -69,7 +71,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       query: IssueListQuery,
       response: IssueListSchema,
     },
-    ({ ctx, query }) => searchIssues(ctx, query.query, query.offset, query.limit),
+    ({ ctx, query }) => searchIssues(ctx, query.query, query.offset, query.limit, query.group),
   );
   route(app, { method: 'post', path: '/issues', tags, summary: 'Create an issue', description: 'Fields are set by name; send `Idempotency-Key` to make retries safe.', body: CreateIssueBody, response: IssueDetailSchema }, ({ ctx, body }) => createIssue(ctx, body));
   route(app, { method: 'get', path: '/issues/{id}', guests: true, tags, summary: 'Get an issue', params: Id, response: IssueDetailSchema }, ({ ctx, params }) => getIssue(ctx, params.id));
@@ -258,6 +260,19 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     },
   );
   route(app, { method: 'post', path: '/search/count', guests: true, tags: search, summary: 'Count issues matching a query, optionally grouped by a field', body: CountBody, response: CountResultSchema, status: 200 }, ({ ctx, body }) => countIssues(ctx, body.query, body.groupBy));
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/search/group-fields',
+      tags: search,
+      summary: "The fields a search's issues can be grouped by",
+      description: 'The fields every project of its issues has, as you see them (D72): what `GET /issues?group=` takes for this query.',
+      query: z.object({ query: z.string().default('').describe('Search query in a4a query language') }),
+      response: GroupFieldsSchema,
+    },
+    ({ ctx, query }) => groupFields(ctx, query.query),
+  );
 
   // Commands
   route(
@@ -301,9 +316,49 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
   const saved = ['Saved searches'];
   route(app, { method: 'get', path: '/saved-searches', tags: saved, summary: 'Your saved searches and shared ones', response: z.array(SavedSearchSchema) }, ({ ctx }) => listSavedSearches(ctx));
   route(app, { method: 'post', path: '/saved-searches', tags: saved, summary: 'Save a search', body: SavedSearchBody, response: SavedSearchSchema }, ({ ctx, body }) => createSavedSearch(ctx, body));
-  route(app, { method: 'patch', path: '/saved-searches/{id}', tags: saved, summary: 'Change a saved search', params: z.object({ id: z.string() }), body: patchBody(SavedSearchBody), response: SavedSearchSchema }, ({ ctx, params, body }) => updateSavedSearch(ctx, params.id, body));
-  route(app, { method: 'delete', path: '/saved-searches/{id}', tags: saved, summary: 'Delete a saved search', params: z.object({ id: z.string() }), status: 204 }, async ({ ctx, params }) => {
-    await deleteSavedSearch(ctx, params.id);
-    return null;
-  });
+  route(
+    app,
+    {
+      method: 'patch',
+      path: '/saved-searches/{id}',
+      tags: saved,
+      summary: 'Change a saved search',
+      description: 'Its owner changes it, or an administrator; one whose owner was deleted only an administrator, who can adopt it (D72). Send `expectedVersion` to be refused (409, with the version now) if it changed since.',
+      params: z.object({ id: z.string() }),
+      body: UpdateSavedSearchBody,
+      response: SavedSearchSchema,
+    },
+    ({ ctx, params, body }) => updateSavedSearch(ctx, params.id, body),
+  );
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/saved-searches/{id}/adopt',
+      tags: saved,
+      summary: 'Adopt a saved search whose owner was deleted',
+      description: 'An administrator takes on a shared search left with no owner (D72): it becomes theirs, to change as its owner. One that has an owner is refused (409).',
+      params: z.object({ id: z.string() }),
+      response: SavedSearchSchema,
+      status: 200,
+    },
+    ({ ctx, params }) => adoptSavedSearch(ctx, params.id),
+  );
+  route(
+    app,
+    {
+      method: 'delete',
+      path: '/saved-searches/{id}',
+      tags: saved,
+      summary: 'Delete a saved search',
+      description: 'Its baselines go with it (D72): one that has any is refused (409, saying how many) unless `confirm=true`.',
+      params: z.object({ id: z.string() }),
+      query: DeleteSavedSearchQuery,
+      status: 204,
+    },
+    async ({ ctx, params, query }) => {
+      await deleteSavedSearch(ctx, params.id, { confirm: query.confirm === 'true' });
+      return null;
+    },
+  );
 }

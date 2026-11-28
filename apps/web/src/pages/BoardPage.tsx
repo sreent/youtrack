@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { patch } from '../api/client';
+import { useProjects } from '../api/queries';
 import { ErrorLine, ErrorNote, Loading, PageHead } from '../components/States';
 import { useBoardView } from '../features/board/api';
 import { Board, type CommandAsk } from '../features/board/Board';
@@ -55,6 +56,22 @@ function LaneOrder({ board }: { board: BoardSettings }) {
   );
 }
 
+/**
+ * A board's search, as the Issues page reads it (D72): its projects, and its query within them, so it
+ * opens in any view. Its sort, when it has one, stays the search's own.
+ */
+export function boardSearch(board: BoardSettings, seen?: Set<string>): string {
+  // Only the projects the reader sees: a key they can't see would make the search one they can't run.
+  const keys = board.projects.map((p) => p.key).filter((k) => !seen || seen.has(k));
+  const projects = `project: ${(keys.length ? keys : board.projects.map((p) => p.key)).join(', ')}`;
+  const query = board.query?.trim() ?? '';
+  if (!query) return projects;
+  const sort = /\bsort\s+by\s*:/i.exec(query);
+  const where = (sort ? query.slice(0, sort.index) : query).trim();
+  const order = sort ? query.slice(sort.index).trim() : '';
+  return [projects, where ? `(${where})` : '', order].filter(Boolean).join(' ');
+}
+
 function sprintOption(s: Sprint): string {
   return formatItems(s.startDate && s.endDate ? [s.name, span(s.startDate, s.endDate)] : [s.name]);
 }
@@ -91,6 +108,8 @@ export default function BoardPage() {
   const [params, setParams] = useSearchParams();
   const sprintParam = params.get('sprint') ?? undefined;
   const view = useBoardView(id, sprintParam);
+  const seen = useProjects();
+  const seenKeys = seen.data ? new Set(seen.data.map((p) => p.key)) : undefined;
   const [ask, setAsk] = useState<CommandAsk | null>(null);
   const v = view.data;
 
@@ -164,6 +183,7 @@ export default function BoardPage() {
             {v.board.sprintsEnabled ? (
               <Link className="button" to={`/boards/${v.board.id}/plan`}>{t('page.board.planSprints')}</Link>
             ) : null}
+            <Link className="button" to={`/issues?q=${encodeURIComponent(boardSearch(v.board, seenKeys))}`}>{t('views.board.openInIssues')}</Link>
             {v.sprint?.startDate && v.sprint.endDate ? (
               <Link className="button" to={`/reports/burndown?board=${v.board.id}&sprint=${v.sprint.id}`}>{tr('page.board.sBurndown', { name: v.sprint.name })}</Link>
             ) : null}
