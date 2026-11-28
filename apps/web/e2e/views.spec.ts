@@ -7,7 +7,7 @@
  */
 import type { Page, Request } from '@playwright/test';
 import type { Board, SavedSearch } from '@a4a/shared';
-import { uniqueKey, type Api } from './support/api';
+import { Api, unique, uniqueKey } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { BASE_URL, SECOND, SECOND_AUTH_FILE, THIRD_AUTH_FILE } from './support/env';
 import { expect, prepareContext, settled, test } from './support/fixtures';
@@ -215,6 +215,29 @@ test('group heads fold and open, from the keyboard too, and stay as each person 
   await page.screenshot({ path: test.info().outputPath('views-grouped-dark.png') });
   await expectAccessible(page);
   await page.emulateMedia({ colorScheme: 'light' });
+});
+
+test('an administrator adopts a shared search whose owner was deleted, and then keeps its view', async ({ page, api }) => {
+  const key = await projectWith(api);
+  // An agent shares a search, then is deleted: the search stays, nobody's.
+  const { agent, token } = await api.createAgent(`vw${unique()}`);
+  const theirs = await Api.withToken(token);
+  const left = await theirs.post<SavedSearch>('/saved-searches', { name: `Left ${key}`, query: `project: ${key}`, shared: true, view: { kind: 'list', group: 'Type' } });
+  await theirs.dispose();
+  await api.delete(`/users/${agent.id}`);
+
+  await page.goto(`/issues?search=${left.id}`);
+  await settled(page);
+  await expect(groupBy(page)).toHaveValue('Type');
+  await page.getByRole('button', { name: `Adopt “Left ${key}”` }).click();
+  await expect(page.getByRole('status').filter({ hasText: `“Left ${key}” is yours now.` })).toBeAttached();
+  await expect(page.getByRole('button', { name: `Adopt “Left ${key}”` })).toHaveCount(0);
+  expect((await savedNow(page, left.id)).owner?.login).toBe(SECOND.login);
+  // Theirs now: Theo's grouping is kept in it.
+  const kept = page.waitForResponse((r) => r.url().includes(`/saved-searches/${left.id}`) && r.request().method() === 'PATCH');
+  await groupBy(page).selectOption('Priority');
+  expect((await kept).status()).toBe(200);
+  expect((await savedNow(page, left.id)).view.group).toBe('Priority');
 });
 
 test("a board opens in Issues with its projects and query", async ({ page, api }) => {
