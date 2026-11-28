@@ -150,6 +150,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - With one, an agent over MCP or the API acts as itself: its changes show under its name, for no one, and `me` is the agent.
   - Issues can be assigned to it, as to a person; `for: me #Unresolved` over its token is its work. a4a's own agents (triage, workflow, the help desk) take no work.
   - What an agent changes on its own (as itself, for a person over MCP, through the assistant, or by a rule), anyone who may change the issue can undo from its history: fields, summary, description, tags and links go back as they were, all or nothing. If someone has changed any of it since, nothing is undone, and a4a says what changed.
+  - A person's own change made in a view (a command on issues chosen in the list) is theirs to undo, for 30 days: from its toast, with Ctrl+Z (⌘Z on a Mac) on the page, or from the issue's history. A change of several issues undoes as one, or not at all if someone changed any of them since; Ctrl+Shift+Z makes it again.
 - **One process or several**: on Postgres, any number of instances behind a load balancer behave as one. Live events reach every instance within about a second, cached fields and values update everywhere at once, sign-in limits are shared, and exactly one instance runs the background work, with another taking over if it dies.
 
 ## Quick start
@@ -577,6 +578,7 @@ What it covers, in `apps/web/e2e`:
 - **Chat**: a Teams channel told of a project, and someone linking their Teams account; a Slack message made an issue, as whoever asked.
 - **Management**: tokens (one limited to projects too) and the MCP setup, webhooks (a test delivery, checked against its signature, and pausing), fields, projects, people and passwords.
 - **Signing in**: two-factor, with a code and with a recovery code, an administrator's reset, and a SCIM token; a passkey added, signed in with alone and removed, and its mail's "This wasn't me"; one owed at sign-in where they're required, a password removed for passkeys alone, and an administrator's setup link for a new account; an app signing in to MCP with OAuth, allowed and revoked.
+- **Undo in a view**: a command on two issues chosen in the list, undone from its toast and with Ctrl+Z, then made again with Ctrl+Shift+Z; the toasts' region said once and reached with F8; your own change undone from the issue's history (`view-undo.spec.ts`, `toasts.spec.ts`).
 - **Agents and apps**: an agent acting as itself, and its change undone from the issue's history; an app installed for a project, its widget drawn in a sandboxed frame, then removed.
 - **Access**: a manager makes a project members only and gives someone a role in it; to someone outside, it and its issues don't exist; a viewer reads and comments, and is offered nothing that would change an issue.
 - **Groups**: an administrator makes a group and puts someone in it, and a project gives the group a role; someone in it sees a members-only project as far as that role goes, and not once they're taken out; a group from the identity provider can't be filled by hand.
