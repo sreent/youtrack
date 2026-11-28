@@ -1,13 +1,14 @@
 /**
- * The toast host (components/Toasts.tsx, D72), held to Ocean's Toast. Nothing in a4a shows a toast yet
- * (undo's package will), so the built app can't show one: this serves the component on a page of its
- * own (fixtures/toasts), through Vite on a port of its own, in a clock the test moves.
+ * The toast host (components/Toasts.tsx, D72), held to Ocean's Toast: served on a page of its own
+ * (fixtures/toasts), through Vite on a port of its own, in a clock the test moves. A view's edit and its
+ * undo in the real app are view-undo.spec.ts's.
  *
- * - The live region is there before any toast, and says each as it comes.
- * - An action runs once and closes its toast; Dismiss and Escape close it at once, and the focus goes
- *   back where it was.
- * - Time to read it: ten seconds with an action, six without, held while the pointer or the focus is
- *   on it, and two more once let go; three at most, the newest at the foot.
+ * - The region is a landmark, "Notifications", always in the page, with a status line of its own that
+ *   says each toast once: its words, and with Undo how to undo from the keyboard, unless the page said
+ *   it already. The toasts aren't live; Undo and Dismiss are described by their toast's words.
+ * - F8 reaches the newest toast, and goes back; Escape closes it, and the focus goes back where it was.
+ * - Time to read it: six seconds, ten with Undo, a second more for every ten words past ten; held
+ *   while the pointer or the focus is on it, then going on from where it was; three at most.
  * - axe finds nothing in light or dark, and nothing scrolls sideways at 390px.
  */
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -57,47 +58,58 @@ async function open(page: Page, clock: 'paused' | 'running' = 'paused'): Promise
   return problems;
 }
 
-test('a toast is said in the live region, offers its action once, and stands while it is read', async ({ page }) => {
+test('a toast is said once by the region’s status line, offers Undo once, and stands while it is read', async ({ page }) => {
   const problems = await open(page);
-  const region = page.getByRole('status');
+  const region = page.getByRole('region', { name: 'Notifications' });
+  const said = region.getByRole('status');
   const toasts = region.locator('.toast');
-  await expect(region).toBeAttached();
+  await expect(region).toHaveAttribute('aria-keyshortcuts', 'F8');
+  await expect(said).toHaveText('');
   await expect(toasts).toHaveCount(0);
 
   const moveIt = page.getByRole('button', { name: 'Move it' });
   await moveIt.click();
   await expect(toasts).toHaveCount(1);
-  await expect(region).toContainText('Moved BACK-12 to 3 March.');
-  await expect(toasts.getByRole('button', { name: 'Undo' })).toBeVisible();
-  await expect(toasts.getByRole('button', { name: 'Dismiss' })).toBeVisible();
+  await page.clock.runFor(100);
+  // Its words and how to undo from the keyboard, said once; the toasts themselves aren't live.
+  await expect(said).toHaveText('Moved BACK-12 to 3 March. Ctrl+Z undoes it.');
+  expect(await region.locator('[aria-live], [role="status"], [role="alert"], [role="log"]').count()).toBe(1);
+  expect(await region.evaluate((el) => el.getAttribute('aria-live') ?? el.getAttribute('role'))).toBeNull();
+  const undo = toasts.getByRole('button', { name: 'Undo' });
+  await expect(undo).toHaveAccessibleDescription('Moved BACK-12 to 3 March.');
+  await expect(toasts.getByRole('button', { name: 'Dismiss' })).toHaveAccessibleDescription('Moved BACK-12 to 3 March.');
 
-  // Ten seconds with an action; held under the pointer, for as long as it's there; let go, two more.
+  // Ten seconds with Undo; held under the pointer for as long as it's there; let go, it goes on from where it was.
   await page.mouse.move(1, 1);
-  await page.clock.runFor(9_000);
+  await page.clock.runFor(8_000);
   await expect(toasts).toHaveCount(1);
   await toasts.hover();
   await page.clock.runFor(30_000);
   await expect(toasts).toHaveCount(1);
   await page.mouse.move(1, 1);
-  await page.clock.runFor(1_900);
+  await page.clock.runFor(1_800);
   await expect(toasts).toHaveCount(1);
-  await page.clock.runFor(200);
+  await page.clock.runFor(300);
   await expect(toasts).toHaveCount(0);
 
-  // Its action runs once, the toast goes with it, and the focus goes back to where it came from.
+  // Undo runs once, the toast goes with it, and the focus goes back to where it came from.
   await moveIt.click();
-  await toasts.getByRole('button', { name: 'Undo' }).click();
+  await undo.click();
   await expect(page.getByText('Undone 1 times')).toBeVisible();
   await expect(toasts).toHaveCount(0);
   await expect(moveIt).toBeFocused();
 
-  // Reached from the keyboard, it's held while focused; Escape closes it, and the focus goes back.
+  // F8 reaches it from anywhere; it's held while focused; F8 again goes back, and so does Escape.
   await moveIt.click();
-  await page.keyboard.press('Tab');
-  await page.keyboard.press('Tab');
-  await expect(toasts.getByRole('button', { name: 'Undo' })).toBeFocused();
+  await page.getByRole('button', { name: 'Save it' }).focus();
+  await page.keyboard.press('F8');
+  await expect(undo).toBeFocused();
   await page.clock.runFor(60_000);
   await expect(toasts).toHaveCount(1);
+  await page.keyboard.press('F8');
+  await expect(page.getByRole('button', { name: 'Save it' })).toBeFocused();
+  await page.keyboard.press('F8');
+  await expect(undo).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(toasts).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save it' })).toBeFocused();
@@ -105,9 +117,37 @@ test('a toast is said in the live region, offers its action once, and stands whi
   expect(problems).toEqual([]);
 });
 
+test('what the page said already is shown and not said again; more words stand longer', async ({ page }) => {
+  const problems = await open(page);
+  const region = page.getByRole('region', { name: 'Notifications' });
+  const said = region.getByRole('status');
+  const toasts = region.locator('.toast');
+  await page.getByRole('button', { name: 'Save it' }).click();
+  await page.clock.runFor(100);
+  await expect(said).toHaveText('Saved 1.');
+  // Said on the page where it happened: shown, and the status line is left alone.
+  await page.getByRole('button', { name: 'Cancel T-1' }).click();
+  await page.clock.runFor(100);
+  await expect(page.locator('main').getByRole('status')).toHaveText('Cancelled T-1.');
+  await expect(toasts.locator('.toast-words')).toHaveText(['Saved 1.', 'Cancelled T-1.']);
+  await expect(said).toHaveText('Saved 1.');
+  await toasts.nth(0).getByRole('button', { name: 'Dismiss' }).click();
+  await toasts.nth(0).getByRole('button', { name: 'Dismiss' }).click();
+
+  // Twenty-five words: six seconds, and two more.
+  await page.mouse.move(1, 1);
+  await page.getByRole('button', { name: 'Say a lot' }).click();
+  await page.mouse.move(1, 1);
+  await page.clock.runFor(7_800);
+  await expect(toasts).toHaveCount(1);
+  await page.clock.runFor(300);
+  await expect(toasts).toHaveCount(0);
+  expect(problems).toEqual([]);
+});
+
 test('three toasts at most, the newest at the foot, each going after six seconds; Dismiss closes one at once', async ({ page }) => {
   const problems = await open(page);
-  const toasts = page.getByRole('status').locator('.toast');
+  const toasts = page.getByRole('region', { name: 'Notifications' }).locator('.toast');
   const saveIt = page.getByRole('button', { name: 'Save it' });
   for (let i = 0; i < 4; i++) await saveIt.click();
   await expect(toasts).toHaveCount(3);
@@ -134,7 +174,7 @@ test('three toasts at most, the newest at the foot, each going after six seconds
 test('axe finds nothing in a toast, in light or dark', async ({ page }) => {
   const problems = await open(page, 'running');
   await page.getByRole('button', { name: 'Move it' }).click();
-  const toast = page.getByRole('status').locator('.toast');
+  const toast = page.getByRole('region', { name: 'Notifications' }).locator('.toast');
   // Held under the pointer while axe reads it, on the page's own clock.
   await toast.hover();
   await expectAccessible(page);

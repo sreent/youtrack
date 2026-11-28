@@ -126,6 +126,7 @@ export default function IssuesPage() {
         ) : null}
       </div>
       <CommandBar
+        view="list"
         issues={chosenIssues}
         open={commanding && chosenIssues.length > 0}
         onClose={() => setCommanding(false)}
