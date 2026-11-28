@@ -1,4 +1,5 @@
-import { DEFAULT_VIEW, VIEW_KINDS, type PlanScope, type SavedSearch, type ViewKind, type ViewSettings } from '@a4a/shared';
+import type { PlanScope, SavedSearch, ViewSettings } from '@a4a/shared';
+import { DEFAULT_VIEW, isViewKind } from '@a4a/shared/view-kinds';
 import { Suspense, useEffect, useId, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ApiError } from '../api/client';
@@ -70,7 +71,7 @@ export default function IssuesPage() {
   const settings: ViewSettings = {
     ...base,
     ...(owner ? {} : local),
-    kind: addressView !== null && (VIEW_KINDS as readonly string[]).includes(addressView) ? (addressView as ViewKind) : base.kind,
+    kind: isViewKind(addressView) ? addressView : base.kind,
     group: addressGroup !== null ? addressGroup || null : base.group,
   };
   const shown = viewFor(settings.kind);
