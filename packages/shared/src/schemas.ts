@@ -52,7 +52,7 @@ import {
   VCS_DELIVERY_OUTCOMES,
   VCS_PROVIDERS,
 } from './constants';
-import { PlanScopeSchema, ViewSettingsSchema } from './views';
+import { PlanScopeQuery, PlanScopeSchema, ViewSettingsSchema } from './views';
 
 /**
  * The body of a PATCH: every field of the create body, optional, and none filled in by a
@@ -1389,6 +1389,9 @@ export type PlanTask = z.infer<typeof PlanTaskSchema>;
  * adds is optional, so a project's schedule, as it is today, is one too.
  */
 export const PlanScheduleSchema = ScheduleSchema.extend({
+  project: ProjectRefSchema.describe(
+    "The project whose calendar is the plan's own: the scope's, else the first the plan holds by key; empty (its id, key and name '') for an empty plan of no one project",
+  ),
   tasks: z.array(PlanTaskSchema),
   scope: PlanScopeSchema.optional().describe('What the plan was read from'),
   projects: z
@@ -1406,6 +1409,15 @@ export const PlanScheduleSchema = ScheduleSchema.extend({
     .describe('The scope holds more issues than a plan does (2,000), so it holds the first, by project and number: narrow the search to plan the rest'),
 }).meta({ id: 'PlanSchedule' });
 export type PlanSchedule = z.infer<typeof PlanScheduleSchema>;
+
+/** `GET /plans/schedule`: the scope in the query string (`PlanScopeQuery`), and a baseline to compare with. */
+export const PlanScheduleQuery = PlanScopeQuery.extend({
+  baseline: z
+    .string()
+    .max(64)
+    .optional()
+    .describe("A baseline to compare with: one of the saved search's (GET /saved-searches/{id}/baselines), or, with `project` and a query, one of the project's"),
+});
 
 export const ScheduleQuery = z.object({
   query: z.string().optional().describe('Restrict the plan to issues matching this query (within the project)'),
@@ -1438,6 +1450,15 @@ export const WhatIfResultSchema = z
   })
   .meta({ id: 'WhatIfResult' });
 export type WhatIfResult = z.infer<typeof WhatIfResultSchema>;
+
+/** `POST /plans/what-if`: a plan of a scope, if some of its tasks changed. Nothing is saved. */
+export const PlanWhatIfBody = z.object({
+  scope: PlanScopeSchema,
+  baseline: z.string().max(64).optional().describe('A baseline to compare with, as GET /plans/schedule takes it'),
+  overrides: WhatIfBody.shape.overrides.max(200),
+});
+export const PlanWhatIfResultSchema = WhatIfResultSchema.extend({ after: PlanScheduleSchema }).meta({ id: 'PlanWhatIfResult' });
+export type PlanWhatIfResult = z.infer<typeof PlanWhatIfResultSchema>;
 
 export const ResourceDaySchema = z
   .object({
@@ -1565,10 +1586,32 @@ export const CostReportSchema = z
         actualHours: z.number(),
         plannedCost: z.number(),
         actualCost: z.number(),
+        byCurrency: z
+          .array(z.object({ currency: z.string(), plannedCost: z.number(), actualCost: z.number() }))
+          .optional()
+          .describe('Their money in each currency their work is in, never converted (D73)'),
       }),
     ),
     evm: EvmSchema.nullable(),
     warnings: z.array(z.string()),
+    byCalendar: z
+      .array(
+        z.object({
+          calendar: z.string().describe("The calendar's id: its project's key"),
+          currency: z.string(),
+          budget: z.number().nullable(),
+          plannedCost: z.number(),
+          actualCost: z.number(),
+          forecastCost: z.number(),
+          budgetVariance: z.number().nullable(),
+        }),
+      )
+      .optional()
+      .describe("Each project's calendar in the plan, with its own budget, in its own currency (D73). Across several, `budget` is null: budgets are each project's"),
+    byCurrency: z
+      .array(z.object({ currency: z.string(), plannedCost: z.number(), actualCost: z.number(), forecastCost: z.number(), evm: EvmSchema.nullable() }))
+      .optional()
+      .describe("The plan's money in each currency, never converted (D73); the figures above are in `currency`, the plan's own calendar's"),
   })
   .meta({ id: 'CostReport' });
 export type CostReport = z.infer<typeof CostReportSchema>;
@@ -1584,7 +1627,17 @@ export const BaselineSchema = z
     taskCount: z.number().int(),
     start: isoDate.nullable(),
     finish: isoDate.nullable(),
-    plannedCost: z.number(),
+    plannedCost: z
+      .number()
+      .describe(
+        "A saved search's: what its tasks cost in `currency` in the projects whose money you see (D64, D73), never converted; each project's own is in `projects`",
+      ),
+    savedSearch: z.string().optional().describe("The saved search it was taken of (D72); a project's baseline has none, and its `projectKey`"),
+    currency: z.string().optional().describe("A saved search's: the currency `plannedCost` is in, its first project's"),
+    projects: z
+      .array(z.object({ key: z.string(), currency: z.string(), plannedCost: z.number().nullable().describe('Null without the costs permission there (D64)') }))
+      .optional()
+      .describe("A saved search's: what its tasks in each project you see cost, in that project's currency"),
   })
   .meta({ id: 'Baseline' });
 export type Baseline = z.infer<typeof BaselineSchema>;
@@ -1593,6 +1646,8 @@ export const BaselineBody = z.object({
   note: z.string().max(2000).default(''),
   query: z.string().optional(),
 });
+/** A saved search's baseline is of the search, as its query finds it now (D72). */
+export const SavedSearchBaselineBody = BaselineBody.omit({ query: true });
 
 // ---------------------------------------------------------------------------
 // AI
