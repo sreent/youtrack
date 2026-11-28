@@ -8,6 +8,7 @@ import type {
   Conversation,
   ConversationDetail,
   Field,
+  GroupFields,
   IssueDetail,
   IssueLink,
   IssueList,
@@ -40,7 +41,8 @@ export const keys = {
   projectFields: (key: string) => ['projects', key, 'fields'] as const,
   members: (key: string) => ['projects', key, 'members'] as const,
   roles: ['roles'] as const,
-  issues: (query: string, offset: number, limit: number) => ['issues', 'list', query, offset, limit] as const,
+  issues: (query: string, offset: number, limit: number, group?: string | null) => ['issues', 'list', query, offset, limit, group ?? ''] as const,
+  groupFields: (query: string) => ['issues', 'group-fields', query] as const,
   issue: (id: string) => ['issues', 'one', id] as const,
   issueSub: (id: string, what: string) => ['issues', 'one', id, what] as const,
   users: ['users'] as const,
@@ -84,13 +86,17 @@ export const useMembers = (key: string | undefined) =>
 export const useProjectFields = (key: string | undefined) =>
   useQuery({ queryKey: keys.projectFields(key ?? ''), queryFn: () => get<ProjectField[]>(`/projects/${key}/fields`), enabled: Boolean(key), staleTime: 30_000 });
 
-export const useIssues = (query: string, offset = 0, limit = 50) =>
+export const useIssues = (query: string, offset = 0, limit = 50, group?: string | null, enabled = true) =>
   useQuery({
-    queryKey: keys.issues(query, offset, limit),
-    queryFn: () => get<IssueList>(`/issues${qs({ query, offset, limit })}`),
+    queryKey: keys.issues(query, offset, limit, group),
+    enabled,
+    queryFn: () => get<IssueList>(`/issues${qs({ query, offset, limit, group: group ?? undefined })}`),
     placeholderData: keepPreviousData,
     retry: false,
   });
+/** The fields a search's issues can be grouped by (D72): those every project of its issues has. */
+export const useGroupFields = (query: string, enabled = true) =>
+  useQuery({ queryKey: keys.groupFields(query), queryFn: () => get<GroupFields>(`/search/group-fields${qs({ query })}`), enabled, retry: false, staleTime: 30_000 });
 export const useIssue = (id: string | undefined) =>
   useQuery({ queryKey: keys.issue(id ?? ''), queryFn: () => get<IssueDetail>(`/issues/${id}`), enabled: Boolean(id), retry: false });
 export const useComments = (id: string) => useQuery({ queryKey: keys.issueSub(id, 'comments'), queryFn: () => get<Comment[]>(`/issues/${id}/comments`) });
