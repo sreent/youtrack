@@ -17,13 +17,13 @@ import {
   type WhatIfResult,
 } from '@a4a/shared';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { requireScope, type Ctx } from '../context';
-import type { Db } from '../db/client';
-import { baselines, baselineTasks, issueFieldValues, issueLinks, issues, projects, workItems } from '../db/schema';
-import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
-import { addDays, maxDate, minDate, todayISO } from '../lib/dates';
-import { badRequest, conflict, notFound } from '../lib/errors';
-import { newId } from '../lib/ids';
+import { requireScope, type Ctx } from '../../context';
+import type { Db } from '../../db/client';
+import { baselines, baselineTasks, issueFieldValues, issueLinks, issues, projects, workItems } from '../../db/schema';
+import { publishActivities, recordActivity, type ActivityRow } from '../../events/activity';
+import { addDays, maxDate, minDate, todayISO } from '../../lib/dates';
+import { badRequest, conflict, notFound } from '../../lib/errors';
+import { newId } from '../../lib/ids';
 import {
   computeCosts,
   computeLoad,
@@ -39,18 +39,18 @@ import {
   type PlanWorkItem,
   type ScheduledTask,
   type ScheduleResult,
-} from '../planning';
-import { isWorkingDay, normalizeCalendar } from '../planning/calendar';
-import type { AwayPart } from '../planning/types';
-import { searchIssueRows } from '../search/service';
-import { absencesForPlan } from './absences';
-import { canReadProject, hiddenFields, issueSeenSql, projectAccess, requireProject, seenIssueIds, type AccessView, type ProjectNeed } from './access';
-import { readableId, stateNames, type IssueRow } from './issue-refs';
-import { applyChanges, resolveFieldsInput } from './issues';
-import { projectWorkers } from './agile';
-import { projectSettings } from './projects';
-import { fieldByName, findUser, idWithKeyNow, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
-import { userRefDto } from './values';
+} from '../../planning';
+import { isWorkingDay, normalizeCalendar } from '../../planning/calendar';
+import type { AwayPart } from '../../planning/types';
+import { searchIssueRows } from '../../search/service';
+import { absencesForPlan } from '../absences';
+import { canReadProject, hiddenFields, issueSeenSql, projectAccess, requireProject, seenIssueIds, type AccessView, type ProjectNeed } from '../access';
+import { readableId, stateNames, type IssueRow } from '../issue-refs';
+import { applyChanges, resolveFieldsInput } from '../issues';
+import { projectWorkers } from '../agile';
+import { projectSettings } from '../projects';
+import { fieldByName, findUser, idWithKeyNow, projectByKey, type ProjectRow, type SchemaSnapshot } from '../schema-cache';
+import { userRefDto } from '../values';
 
 const MAX_PLAN_ISSUES = 2000;
 
