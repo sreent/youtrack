@@ -163,6 +163,8 @@ test("a saved search opens in its owner's view and grouping, kept across a reloa
   await expect(plans.getByRole('link', { name: `Timeline ${key}` })).toHaveAttribute('href', `/issues?search=${timeline.id}&view=timeline`);
   await expect(plans.getByRole('link', { name: `Plan ${key}` })).toHaveCount(0);
   await expect(plans.getByRole('listitem').filter({ hasText: `Timeline ${key}` })).toContainText(`Shared by ${SECOND.name}`);
+  await other.screenshot({ path: test.info().outputPath('views-plans-light.png') });
+  await expectAccessible(other);
   await plans.getByRole('link', { name: `Timeline ${key}` }).click();
   await settled(other);
   await expect(other.getByRole('heading', { level: 1, name: `Timeline ${key}` })).toBeVisible();
