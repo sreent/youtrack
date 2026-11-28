@@ -48,6 +48,7 @@ import { accessChanged, projectAccess, requireProject } from './access';
 import { getArticle } from './articles';
 import { readableId } from './issue-refs';
 import { resolveIssue, type IssueRow } from './issues';
+import { deletePrivateSearchesOf } from './saved-searches';
 import { appEnabledIn, appProjectIds, type AppRow, type SchemaSnapshot } from './schema-cache';
 import { insertUser } from './users';
 import { userRefDto } from './values';
@@ -517,6 +518,8 @@ export async function removeApp(ctx: Ctx, name: string): Promise<void> {
     // that history still says who.
     try {
       await tx.transaction(async (inner) => {
+        // Its private searches go with it, as a person's do (D72); kept, it keeps them.
+        await deletePrivateSearchesOf(inner as unknown as Db, row.agentId);
         await (inner as unknown as Db).delete(users).where(eq(users.id, row.agentId));
       });
     } catch {

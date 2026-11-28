@@ -1,8 +1,8 @@
 /**
  * The migrations and drizzle-kit's snapshots. The database the migrations build is the one schema.ts
  * declares, its keys included; the snapshots form one chain whose last is schema.ts, so `drizzle-kit
- * generate` writes only what changes next; and an installation upgrades through 0062 whatever rows
- * break its keys.
+ * generate` writes only what changes next; an installation upgrades through 0062 whatever rows
+ * break its keys; and through 0063 with its backfills (D72).
  *
  * Why: migrations 0049, 0051, 0055 and 0058 were written by hand and left out six foreign keys that
  * schema.ts declares, and their snapshots, written by hand too, kept `drizzle-kit generate` from
@@ -276,6 +276,78 @@ async function upgradeOverBrokenRows(db: Db, migrate: (folder: string) => Promis
   // And each key holds from now on.
   await expect(db.execute(sql`INSERT INTO timesheet_weeks (id, user_id, week) VALUES (${randomUUID()}, 'nobody-at-all', '2026-01-12')`)).rejects.toThrow();
 }
+
+/**
+ * An installation at 0062, upgraded through 0063 (D72): the type whose outward phrase is "depends on"
+ * becomes the dependency, the first by order should two have it, and no other; saved searches keep
+ * their rows and what follows them, shown as a list; a project's baseline's tasks say they were in it.
+ */
+async function upgradeTo0063(db: Db, migrate: (folder: string) => Promise<void>): Promise<void> {
+  const before = migrationsBefore('0063_planning_views_foundation');
+  try {
+    await migrate(before);
+  } finally {
+    rmSync(before, { recursive: true, force: true });
+  }
+  const depend = await insertRow(db, 'link_types', { name: 'Depend', outward: 'Depends on', inward: 'is required for', ordinal: 1 });
+  const relates = await insertRow(db, 'link_types', { name: 'Relates', outward: 'relates to', inward: 'relates to', ordinal: 0 });
+  const later = await insertRow(db, 'link_types', { name: 'Waits', outward: 'depends on', inward: 'is waited for by', ordinal: 7 });
+  const person = await insertRow(db, 'users', {});
+  const shared = await insertRow(db, 'saved_searches', { owner_id: person.id, name: 'Q3 plan', query: '#Unresolved', shared: true, ordinal: 2 });
+  const own = await insertRow(db, 'saved_searches', { owner_id: person.id, name: 'Mine', query: 'for: me', shared: false });
+  const follows = await insertRow(db, 'subscriptions', { user_id: person.id, saved_search_id: shared.id, project_id: null });
+  const baseline = await insertRow(db, 'baselines', {});
+  await insertRow(db, 'baseline_tasks', { baseline_id: baseline.id, issue_id: 'some-issue' });
+
+  await migrate(MIGRATIONS);
+
+  const types = await rows<{ id: string; dependency: boolean }>(db, sql`SELECT id, dependency FROM link_types WHERE id IN (${depend.id}, ${relates.id}, ${later.id})`);
+  expect(Object.fromEntries(types.map((t) => [t.id, t.dependency]))).toEqual({ [String(depend.id)]: true, [String(relates.id)]: false, [String(later.id)]: false });
+  const searches = await rows<{ id: string; owner_id: string; name: string; query: string; shared: boolean; ordinal: number; view: unknown; version: number }>(
+    db,
+    sql`SELECT id, owner_id, name, query, shared, ordinal, view, version FROM saved_searches WHERE id IN (${shared.id}, ${own.id}) ORDER BY name DESC`,
+  );
+  expect(searches.map((s) => ({ ...s, view: typeof s.view === 'string' ? JSON.parse(s.view) : s.view }))).toEqual([
+    { id: shared.id, owner_id: person.id, name: 'Q3 plan', query: '#Unresolved', shared: true, ordinal: 2, view: { kind: 'list' }, version: 0 },
+    { id: own.id, owner_id: person.id, name: 'Mine', query: 'for: me', shared: false, ordinal: own.ordinal, view: { kind: 'list' }, version: 0 },
+  ]);
+  expect((await rows(db, sql`SELECT 1 FROM subscriptions WHERE id = ${follows.id}`)).length).toBe(1);
+  expect((await rows<{ p: string }>(db, sql`SELECT project_id AS p FROM baseline_tasks WHERE baseline_id = ${baseline.id}`)).map((r) => r.p)).toEqual([baseline.project_id]);
+  // From now on: one dependency type at most; a baseline of a project or of a search, never both or neither;
+  // and a shared search outlives its owner, whose deletion leaves it with none.
+  await expect(db.execute(sql`UPDATE link_types SET dependency = true WHERE id = ${later.id}`)).rejects.toThrow();
+  await expect(db.execute(sql`UPDATE baselines SET saved_search_id = ${shared.id} WHERE id = ${baseline.id}`)).rejects.toThrow();
+  await expect(db.execute(sql`UPDATE baselines SET project_id = NULL WHERE id = ${baseline.id}`)).rejects.toThrow();
+  await db.execute(sql`DELETE FROM saved_searches WHERE id = ${own.id}`);
+  await db.execute(sql`DELETE FROM users WHERE id = ${person.id}`);
+  expect(await rows(db, sql`SELECT owner_id FROM saved_searches WHERE id = ${shared.id}`)).toEqual([{ owner_id: null }]);
+}
+
+describe("0063's planning views", () => {
+  it('an installation upgrades: the dependency flag on Depend alone, saved searches kept as lists, on PGlite', async () => {
+    const client = new PGlite({ extensions: { pg_trgm } });
+    await client.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm');
+    const db = drizzlePglite(client) as unknown as Db;
+    try {
+      await upgradeTo0063(db, (folder) => migratePglite(db as never, { migrationsFolder: folder }));
+    } finally {
+      await client.close();
+    }
+  }, 120_000);
+
+  it.runIf(ON_POSTGRES)('an installation upgrades: the dependency flag on Depend alone, saved searches kept as lists, on Postgres', async () => {
+    const fresh = (await freshPostgres())!;
+    const pool = new pg.Pool({ connectionString: fresh.url, max: 2 });
+    const db = drizzlePg(pool) as unknown as Db;
+    try {
+      await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+      await upgradeTo0063(db, (folder) => migratePg(db as never, { migrationsFolder: folder }));
+    } finally {
+      await pool.end();
+      await fresh.drop();
+    }
+  }, 120_000);
+});
 
 describe("0062's keys", () => {
   it('an installation upgrades over rows that break them, as each key would have taken them, on PGlite', async () => {

@@ -46,11 +46,13 @@ import {
   NOTIFY_KINDS,
   SUBSCRIPTION_EVENTS,
   TRIAGE_MODES,
+  UNDO_BY,
   UNDO_STATES,
   WATCH_REASONS,
   VCS_DELIVERY_OUTCOMES,
   VCS_PROVIDERS,
 } from './constants';
+import { PlanScopeSchema, ViewSettingsSchema } from './views';
 
 /**
  * The body of a PATCH: every field of the create body, optional, and none filled in by a
@@ -959,6 +961,14 @@ export const EventSchema = z
           .array(z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }))
           .optional()
           .describe("The note as a page says it, in its person's language (D49): each reason's key under problem.* and its values"),
+        group: z
+          .string()
+          .optional()
+          .describe('The change it is part of, when that change was several (a move and the successors it took along, D72): undoing one undoes them all, or none'),
+        by: z
+          .enum(UNDO_BY)
+          .optional()
+          .describe("Who may undo it: anyone who may change the issue, for an agent's change on its own (D34); only its author, for a person's edit in a view (D72)"),
       })
       .optional()
       .describe("Only in an issue's history, on a change an agent made on its own: whether a person can still undo it (POST /events/{id}/undo)"),
@@ -1093,7 +1103,9 @@ export const SavedSearchSchema = z
     name: z.string(),
     query: z.string(),
     shared: z.boolean(),
-    owner: UserRefSchema.nullable(),
+    owner: UserRefSchema.nullable().describe('Who keeps it; null once they were deleted: a shared search outlives its owner, for an administrator to adopt (D72)'),
+    view: ViewSettingsSchema.describe('How it is shown: the view it opens in, its grouping and each view’s settings (D72); a list until someone chooses otherwise'),
+    version: z.number().int().describe('Counts changes to it: send it back as expectedVersion, so a change made since isn’t overwritten (D72)'),
   })
   .meta({ id: 'SavedSearch' });
 export type SavedSearch = z.infer<typeof SavedSearchSchema>;
@@ -1338,6 +1350,62 @@ export const ScheduleSchema = z
   })
   .meta({ id: 'Schedule' });
 export type Schedule = z.infer<typeof ScheduleSchema>;
+
+/** The roles a field plays in a plan (D72): what people set, each in a field of the task's own project. */
+export const PLAN_SET_ROLES = ['start', 'end', 'duration', 'estimate'] as const;
+export type PlanSetRole = (typeof PLAN_SET_ROLES)[number];
+
+/** A value someone set, and the field it's in (D72): what a timeline's or a table's cell writes back. */
+export const PlanSetValueSchema = z
+  .object({
+    field: z.string().describe('The field, by name: the one its project plans this role from (Start date, Due date, Estimation …)'),
+    value: z
+      .union([z.string(), z.number()])
+      .nullable()
+      .describe('As the field holds it: a date as YYYY-MM-DD, a period in minutes, a number as it is; null when the issue has none'),
+  })
+  .meta({ id: 'PlanSetValue' });
+export type PlanSetValue = z.infer<typeof PlanSetValueSchema>;
+
+/** A task of a plan of a search (D72): today's task, and what it is in a plan across projects. */
+export const PlanTaskSchema = ScheduleTaskSchema.extend({
+  project: z.string().optional().describe("Its project, by key: one of the plan's projects"),
+  calendar: z.string().optional().describe("The calendar its dates are planned on, by its id in the plan's calendars: its project's"),
+  editable: z.boolean().optional().describe('Whether the reader may change it, as on its own page: the edit permission in its project, and its fields not kept from them'),
+  set: z
+    .object({
+      start: PlanSetValueSchema.nullable(),
+      end: PlanSetValueSchema.nullable(),
+      duration: PlanSetValueSchema.nullable(),
+      estimate: PlanSetValueSchema.nullable(),
+    })
+    .optional()
+    .describe("The dates and the work people set, beside the dates the engine plans (D10): each role's field and value, null where its project plans that role from no field"),
+}).meta({ id: 'PlanTask' });
+export type PlanTask = z.infer<typeof PlanTaskSchema>;
+
+/**
+ * A plan of a search (D72): today's schedule, and what a plan across projects adds to it. Every field it
+ * adds is optional, so a project's schedule, as it is today, is one too.
+ */
+export const PlanScheduleSchema = ScheduleSchema.extend({
+  tasks: z.array(PlanTaskSchema),
+  scope: PlanScopeSchema.optional().describe('What the plan was read from'),
+  projects: z
+    .array(z.object({ key: z.string(), name: z.string(), calendar: z.string().describe("Its calendar, by id in calendars") }))
+    .optional()
+    .describe('The projects its tasks are in, each with its own calendar'),
+  calendars: z
+    .record(z.string(), PlanSettingsSchema)
+    .optional()
+    .describe('Each calendar the plan is planned on, by id; budgets are null for a reader without the costs permission (D64)'),
+  total: z.number().int().optional().describe('How many issues the scope holds, though the plan may hold fewer (truncated)'),
+  truncated: z
+    .boolean()
+    .optional()
+    .describe('The scope holds more issues than a plan does (2,000), so it holds the first, by project and number: narrow the search to plan the rest'),
+}).meta({ id: 'PlanSchedule' });
+export type PlanSchedule = z.infer<typeof PlanScheduleSchema>;
 
 export const ScheduleQuery = z.object({
   query: z.string().optional().describe('Restrict the plan to issues matching this query (within the project)'),

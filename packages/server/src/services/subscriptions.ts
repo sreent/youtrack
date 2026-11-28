@@ -269,7 +269,8 @@ export async function unsubscribe(ctx: Ctx, id: string): Promise<void> {
  */
 export async function savedSearchChanged(app: AppServices, db: Db, search: SearchRow, change: { query: boolean; unshared: boolean }): Promise<void> {
   if (change.unshared) {
-    await db.delete(subscriptions).where(and(eq(subscriptions.savedSearchId, search.id), ne(subscriptions.userId, search.ownerId)));
+    // One with no owner (D72) leaves nobody subscribed.
+    await db.delete(subscriptions).where(and(eq(subscriptions.savedSearchId, search.id), search.ownerId ? ne(subscriptions.userId, search.ownerId) : undefined));
   }
   if (!change.query) return;
   const subs = await db.select({ id: subscriptions.id, userId: subscriptions.userId }).from(subscriptions).where(eq(subscriptions.savedSearchId, search.id));

@@ -387,15 +387,24 @@ export const issueTags = pgTable(
   (t) => [primaryKey({ columns: [t.issueId, t.tagId] }), index('issue_tags_tag').on(t.tagId)],
 );
 
-export const linkTypes = pgTable('link_types', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull().unique(),
-  outward: text('outward').notNull(),
-  inward: text('inward').notNull(),
-  directed: boolean('directed').notNull().default(true),
-  aggregation: boolean('aggregation').notNull().default(false),
-  ordinal: integer('ordinal').notNull().default(0),
-});
+export const linkTypes = pgTable(
+  'link_types',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull().unique(),
+    outward: text('outward').notNull(),
+    inward: text('inward').notNull(),
+    directed: boolean('directed').notNull().default(true),
+    aggregation: boolean('aggregation').notNull().default(false),
+    ordinal: integer('ordinal').notNull().default(0),
+    /**
+     * The type plans read as a dependency (D72): its source depends on its target. Built in on Depend; a
+     * renamed phrase keeps it. At most one type has it.
+     */
+    dependency: boolean('dependency').notNull().default(false),
+  },
+  (t) => [uniqueIndex('link_types_dependency').on(t.dependency).where(sql`${t.dependency}`)],
+);
 
 export const issueLinks = pgTable(
   'issue_links',
@@ -527,13 +536,19 @@ export const activities = pgTable(
 
 export const savedSearches = pgTable('saved_searches', {
   id: text('id').primaryKey(),
-  ownerId: text('owner_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
+  /**
+   * Who keeps it. Null once they're deleted (D72): deleting someone takes their private searches with
+   * them, and a shared one, a team's plan, outlives them for an administrator to adopt.
+   */
+  ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   query: text('query').notNull(),
   shared: boolean('shared').notNull().default(false),
   ordinal: integer('ordinal').notNull().default(0),
+  /** How it's shown (D72): its view and each view's settings, as ViewSettings in @a4a/shared says, read through it. */
+  view: jsonb('view').notNull().default({ kind: 'list' }),
+  /** Counts its changes, so a change sent with the version it saw doesn't overwrite one made since (D72). */
+  version: integer('version').notNull().default(0),
   createdAt: created(),
 });
 
@@ -625,13 +640,14 @@ export const webhookDeliveries = pgTable(
 // Planning: baselines
 // ---------------------------------------------------------------------------
 
+/** A plan as it stood: a project's (D10), or a saved search's (D72), never both. */
 export const baselines = pgTable(
   'baselines',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    /** The saved search it was taken of (D72): a baseline belongs to the search, across its projects. */
+    savedSearchId: text('saved_search_id').references(() => savedSearches.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     note: text('note').notNull().default(''),
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
@@ -640,7 +656,11 @@ export const baselines = pgTable(
     finish: date('finish', { mode: 'string' }),
     plannedCost: doublePrecision('planned_cost').notNull().default(0),
   },
-  (t) => [index('baselines_project').on(t.projectId)],
+  (t) => [
+    index('baselines_project').on(t.projectId),
+    index('baselines_saved_search').on(t.savedSearchId),
+    check('baselines_one_scope', sql`(${t.projectId} IS NULL) <> (${t.savedSearchId} IS NULL)`),
+  ],
 );
 
 export const baselineTasks = pgTable(
@@ -657,6 +677,8 @@ export const baselineTasks = pgTable(
     effortMinutes: integer('effort_minutes').notNull(),
     cost: doublePrecision('cost').notNull(),
     assigneeId: text('assignee_id'),
+    /** The project the task was in when the baseline was taken (D72): a saved search's spans several. */
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
   },
   (t) => [primaryKey({ columns: [t.baselineId, t.issueId] })],
 );
@@ -1830,11 +1852,19 @@ export const agentChanges = pgTable(
     undoneActivityId: bigint('undone_activity_id', { mode: 'number' }),
     undoneById: text('undone_by_id').references(() => users.id, { onDelete: 'set null' }),
     undoneAt: ts('undone_at'),
+    /** Whose undo it is (D72): an agent's change on its own, which a person undoes (D34), or a person's edit in a view, which only they undo. */
+    kind: text('kind').notNull().default('agent'),
+    /** A change made of several rows, such as a move and the successors it took along, undoes as one. */
+    groupId: text('group_id'),
+    /** The view a person's edit was made in (`timeline`, `calendar` …), for its history to say. */
+    view: text('view'),
   },
   (t) => [
     uniqueIndex('agent_changes_activity').on(t.activityId),
     uniqueIndex('agent_changes_pair').on(t.pairActivityId),
     index('agent_changes_issue').on(t.issueId),
+    index('agent_changes_group').on(t.groupId),
+    check('agent_changes_kind', sql`${t.kind} IN ('agent', 'view')`),
   ],
 );
 
@@ -3710,4 +3740,28 @@ export const groupCopyStops = pgTable(
     resumedAt: ts('resumed_at'),
   },
   (t) => [primaryKey({ columns: [t.groupId, t.requesterId] }), index('group_copy_stops_requester').on(t.requesterId)],
+);
+
+// ---------------------------------------------------------------------------
+// Planning as views of one search (wave 9, F0: docs/architecture.md, D72)
+// ---------------------------------------------------------------------------
+
+/**
+ * An issue's place in a saved search's own order (D72): the timeline's rows, put in order by hand. A key
+ * as a board's is (D65), compared by its bytes; a reorder reads its neighbours through the index on
+ * (search, key) and writes one row, under the saved search's lock. An issue without one comes after
+ * those with one, in the search's order.
+ */
+export const searchRanks = pgTable(
+  'search_ranks',
+  {
+    savedSearchId: text('saved_search_id')
+      .notNull()
+      .references(() => savedSearches.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    key: rankKey('key').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.savedSearchId, t.issueId] }), index('search_ranks_key').on(t.savedSearchId, t.key)],
 );

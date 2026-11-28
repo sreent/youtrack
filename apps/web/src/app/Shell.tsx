@@ -5,6 +5,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router';
 import { post, subscribeEvents } from '../api/client';
 import { keys, useProjects } from '../api/queries';
 import { Icon, type IconName } from '../components/Icon';
+import { ToastProvider } from '../components/Toasts';
 import { initials } from '../components/Who';
 import { useInboxLive, useUnreadCount } from '../features/notifications/api';
 import { forgetPushHere, keepPushInStep } from '../features/notifications/push';
@@ -169,8 +170,9 @@ export function Shell({ me }: { me: Me }) {
     qc.clear();
     navigate('/login');
   };
+  // Toasts (D72): what a page just did, said at the foot of the window, for every page in the shell.
   return (
-    <>
+    <ToastProvider>
       <aside className="sidebar">
         <NavLink className="brand" to="/issues">
           <span className="mark">{t('app.shell.a4')}</span>
@@ -213,7 +215,7 @@ export function Shell({ me }: { me: Me }) {
           <Outlet />
         </main>
       </div>
-    </>
+    </ToastProvider>
   );
 }
 
