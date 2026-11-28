@@ -52,7 +52,7 @@ import {
   VCS_DELIVERY_OUTCOMES,
   VCS_PROVIDERS,
 } from './constants';
-import { PlanScopeSchema, ViewSettingsSchema } from './views';
+import { PlanScopeSchema, VIEW_LIMITS, ViewSettingsSchema } from './views';
 
 /**
  * The body of a PATCH: every field of the create body, optional, and none filled in by a
@@ -826,10 +826,57 @@ export const IssueListQuery = z.object({
   query: z.string().default('').describe('Search query in a4a query language'),
   offset: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(200).default(50),
+  group: z
+    .string()
+    .trim()
+    .min(1)
+    .max(VIEW_LIMITS.column)
+    .optional()
+    .describe(
+      "A field to group the issues by, by name (D72): they come in its values' order, each in the group of its first value as you see it, the issues with none last, then in the query's own order. Each issue says its group, and `groups` counts them across the whole result",
+    ),
 });
 
-export const IssueListSchema = paginated(IssueSchema, 'IssueList');
+/** A group of a grouped list (D72): its value, and how many of the whole result it holds. */
+export const IssueGroupSchema = z
+  .object({
+    value: z
+      .string()
+      .nullable()
+      .describe("The value, as a query names it: an option's name, a person's login, a group's name, a date as YYYY-MM-DD, a number (a period in minutes); null for the issues with none"),
+    count: z.number().int().describe('How many issues of the whole result it holds, not only of this page'),
+  })
+  .meta({ id: 'IssueGroup' });
+export type IssueGroup = z.infer<typeof IssueGroupSchema>;
+
+/** An issue in a list: an issue, and in a grouped list the group it's in. */
+export const IssueListItemSchema = IssueSchema.extend({
+  group: z.string().nullable().optional().describe("Sent when the list is grouped: the value of the group it's in, as `groups` names it; null for the group of issues with none"),
+}).meta({ id: 'IssueListItem' });
+export type IssueListItem = z.infer<typeof IssueListItemSchema>;
+
+export const IssueListSchema = z
+  .object({
+    total: z.number().int(),
+    items: z.array(IssueListItemSchema),
+    groups: z
+      .array(IssueGroupSchema)
+      .optional()
+      .describe('Sent when the list is grouped: every group of the whole result, not only of this page, in the order its issues come in'),
+  })
+  .meta({ id: 'IssueList' });
 export type IssueList = z.infer<typeof IssueListSchema>;
+
+/** What a search's issues can be grouped by (D72): the fields every project of its issues has, as you see them. */
+export const GroupFieldsSchema = z
+  .object({
+    projects: z.array(z.string()).describe("The projects the search's issues are in, by key"),
+    fields: z
+      .array(z.object({ name: z.string(), type: z.enum(FIELD_TYPES) }))
+      .describe('The fields each of those projects has, in the first one’s order, less text fields and fields kept from you in any of them'),
+  })
+  .meta({ id: 'GroupFields' });
+export type GroupFields = z.infer<typeof GroupFieldsSchema>;
 
 // Comments, links, work items, tags --------------------------------------
 
@@ -1113,6 +1160,21 @@ export const SavedSearchBody = z.object({
   name: z.string().min(1).max(80),
   query: z.string().max(2000),
   shared: z.boolean().default(false),
+  view: ViewSettingsSchema.optional().describe('How it is shown (D72): the view it opens in, its grouping (a field of its issues’ projects) and each view’s settings; a list when left out'),
+});
+export const UpdateSavedSearchBody = patchBody(SavedSearchBody).extend({
+  expectedVersion: z
+    .number()
+    .int()
+    .optional()
+    .describe('Its version as you read it: refused (409, with the version now) if it was changed since, so read it again and make your change again'),
+});
+export type UpdateSavedSearchInput = z.infer<typeof UpdateSavedSearchBody>;
+export const DeleteSavedSearchQuery = z.object({
+  confirm: z
+    .enum(['true', 'false'])
+    .optional()
+    .describe('true deletes its baselines with it (D72): a saved search that has baselines is refused (409, saying how many) without it'),
 });
 
 // Boards & sprints ----------------------------------------------------------

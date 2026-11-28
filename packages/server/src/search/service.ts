@@ -1,6 +1,6 @@
-import { isOptionType } from '@a4a/shared';
-import type { CountResult, IssueList, QueryExplained, QueryProblem } from '@a4a/shared';
-import { and, sql, type SQL } from 'drizzle-orm';
+import { isOptionType, type FieldType } from '@a4a/shared';
+import type { CountResult, GroupFields, IssueGroup, IssueList, QueryExplained, QueryProblem } from '@a4a/shared';
+import { and, getTableColumns, sql, type SQL } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import { issues } from '../db/schema';
 import { badRequest, saidProblems } from '../lib/errors';
@@ -83,11 +83,72 @@ export async function compileOrThrow(ctx: Ctx, query: string, extra?: { projectI
   return prepared;
 }
 
+/**
+ * How a list is grouped by a field (D72): `key` is each issue's first value of it, as the reader sees it
+ * (through fieldSeenSql, so where it's kept from them an issue has none), and `order(k)` orders the
+ * groups by a key. The order is a function of the key alone, so each group's issues come together.
+ */
+interface Grouping {
+  key: SQL;
+  order: (k: SQL) => SQL[];
+}
+
+/** The field types a list can't be grouped by: a text's every value is a group of its own. */
+const UNGROUPABLE: readonly FieldType[] = ['text'];
+
+async function groupingBy(ctx: Ctx, name: string): Promise<Grouping> {
+  const s = await visibleSchema(ctx);
+  const field = fieldByName(s, name);
+  if (!field || UNGROUPABLE.includes(field.type)) {
+    throw badRequest(`Cannot group issues by "${name}"`, 'Group them by a field of their projects, by its name, other than a text field.').said('issues.cannotGroupBy', { field: name });
+  }
+  const seen = fieldSeenSql(await projectAccess(ctx), await ctx.app.schema.get(), field.id);
+  const of = sql`ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id}${seen ? sql` AND ${seen}` : sql``}`;
+  const last = (e: SQL) => sql`${e} ASC NULLS LAST`;
+  const byWords = (k: SQL) => [last(sql`lower(${k})`), last(k)];
+  if (isOptionType(field.type)) {
+    // An option's place is its field's order; values of the same name in several projects are one group, at the first's place.
+    const rank = new Map<string, number>();
+    for (const v of [...(s.valuesByField.get(field.id) ?? [])].sort((a, b) => a.ordinal - b.ordinal)) if (!rank.has(v.name)) rank.set(v.name, rank.size);
+    const cases = [...rank].map(([value, i]) => sql`WHEN ${value} THEN ${i}::int`);
+    return {
+      key: sql`(SELECT fv.name FROM issue_field_values ifv JOIN field_values fv ON fv.id = ifv.value_id WHERE ${of} ORDER BY fv.ordinal, fv.name LIMIT 1)`,
+      order: (k) => [...(cases.length ? [last(sql`(CASE ${k} ${sql.join(cases, sql` `)} END)`)] : []), last(k)],
+    };
+  }
+  switch (field.type) {
+    case 'user':
+      return { key: sql`(SELECT u.login FROM issue_field_values ifv JOIN users u ON u.id = ifv.user_id WHERE ${of} ORDER BY lower(u.login), u.login LIMIT 1)`, order: byWords };
+    case 'group':
+      return { key: sql`(SELECT g.name FROM issue_field_values ifv JOIN groups g ON g.id = ifv.group_id WHERE ${of} ORDER BY lower(g.name), g.name LIMIT 1)`, order: byWords };
+    case 'string':
+      return { key: sql`(SELECT ifv.text_value FROM issue_field_values ifv WHERE ${of} AND ifv.text_value IS NOT NULL ORDER BY lower(ifv.text_value), ifv.text_value LIMIT 1)`, order: byWords };
+    case 'date':
+      return { key: sql`(SELECT min(ifv.date_value)::text FROM issue_field_values ifv WHERE ${of})`, order: (k) => [last(k)] };
+    case 'datetime':
+      // By the day, where the asker is, as counting by it is.
+      return { key: sql`(SELECT to_char(min(ifv.time_value) AT TIME ZONE ${zoneOf(ctx)}, 'YYYY-MM-DD') FROM issue_field_values ifv WHERE ${of})`, order: (k) => [last(k)] };
+    default:
+      // integer, float, period (in minutes): a number, sent as its text.
+      return { key: sql`(SELECT min(ifv.number_value)::text FROM issue_field_values ifv WHERE ${of})`, order: (k) => [last(sql`(${k})::double precision`)] };
+  }
+}
+
 export async function searchIssueRows(
   ctx: Ctx,
   query: string,
   opts: { offset?: number; limit?: number; projectId?: string; projectIds?: string[]; extraWhere?: SQL } = {},
 ): Promise<{ total: number; rows: IssueRow[] }> {
+  const { total, rows } = await searchRows(ctx, query, opts);
+  return { total, rows };
+}
+
+/** searchIssueRows, and grouped by a field (D72) when `group` names one: each row's group, and every group's count. */
+async function searchRows(
+  ctx: Ctx,
+  query: string,
+  opts: { offset?: number; limit?: number; projectId?: string; projectIds?: string[]; extraWhere?: SQL; group?: string },
+): Promise<{ total: number; rows: (IssueRow & { groupValue?: string | null })[]; groups?: IssueGroup[] }> {
   requireScope(ctx, 'read');
   const { compiled } = await compileOrThrow(ctx, query, { projectId: opts.projectId });
   const parts: SQL[] = [compiled.where ?? sql`TRUE`];
@@ -99,22 +160,54 @@ export async function searchIssueRows(
   if (opts.extraWhere) parts.push(opts.extraWhere);
   const where = sql.join(parts, sql` AND `);
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 1000);
-  const [rows, countRows] = await Promise.all([
+  const offset = opts.offset ?? 0;
+  const count = ctx.db.select({ n: sql<number>`count(*)::int` }).from(issues).where(where);
+  if (!opts.group) {
+    const [rows, countRows] = await Promise.all([ctx.db.select().from(issues).where(where).orderBy(...compiled.orderBy).limit(limit).offset(offset), count]);
+    return { total: Number(countRows[0]?.n ?? 0), rows };
+  }
+  // Grouped: by the group's order, then the query's; and each group counted over the whole result, not the page.
+  const g = await groupingBy(ctx, opts.group);
+  const [rows, countRows, grouped] = await Promise.all([
     ctx.db
-      .select()
+      .select({ ...getTableColumns(issues), groupValue: sql<string | null>`${g.key}` })
       .from(issues)
       .where(where)
-      .orderBy(...compiled.orderBy)
+      .orderBy(...g.order(g.key), ...compiled.orderBy)
       .limit(limit)
-      .offset(opts.offset ?? 0),
-    ctx.db.select({ n: sql<number>`count(*)::int` }).from(issues).where(where),
+      .offset(offset),
+    count,
+    ctx.db.execute(sql`SELECT t.value, count(*)::int AS count FROM (SELECT ${g.key} AS value FROM issues WHERE ${where}) t GROUP BY t.value ORDER BY ${sql.join(g.order(sql`t.value`), sql`, `)}`),
   ]);
-  return { total: Number(countRows[0]?.n ?? 0), rows };
+  const groups = (grouped as unknown as { rows: { value: string | null; count: number }[] }).rows.map((r) => ({ value: r.value ?? null, count: Number(r.count) }));
+  return { total: Number(countRows[0]?.n ?? 0), rows, groups };
 }
 
-export async function searchIssues(ctx: Ctx, query: string, offset = 0, limit = 50): Promise<IssueList> {
-  const { total, rows } = await searchIssueRows(ctx, query, { offset, limit });
-  return { total, items: await issueDtos(ctx, rows) };
+export async function searchIssues(ctx: Ctx, query: string, offset = 0, limit = 50, group?: string): Promise<IssueList> {
+  const { total, rows, groups } = await searchRows(ctx, query, { offset, limit, group });
+  const items = await issueDtos(ctx, rows);
+  if (!groups) return { total, items };
+  return { total, items: items.map((item, i) => ({ ...item, group: rows[i]!.groupValue ?? null })), groups };
+}
+
+/**
+ * What a search's issues can be grouped by (D72): the fields every project they're in has, as the reader
+ * sees them, so a field kept from them in one of those projects isn't offered. None when it finds nothing.
+ */
+export async function groupFields(ctx: Ctx, query: string): Promise<GroupFields> {
+  requireScope(ctx, 'read');
+  const { compiled } = await compileOrThrow(ctx, query);
+  const found = await ctx.db
+    .selectDistinct({ projectId: issues.projectId })
+    .from(issues)
+    .where(compiled.where ?? sql`TRUE`);
+  const s = await visibleSchema(ctx);
+  const projects = found.map((r) => s.projects.get(r.projectId)).filter((p): p is NonNullable<typeof p> => Boolean(p)).sort((a, b) => a.key.localeCompare(b.key));
+  if (!projects.length) return { projects: [], fields: [] };
+  const own = (projectId: string) => [...(s.projectFields.get(projectId) ?? [])].sort((a, b) => a.ordinal - b.ordinal).map((pf) => pf.fieldId);
+  const everywhere = projects.slice(1).reduce((ids, p) => ids.filter((id) => own(p.id).includes(id)), own(projects[0]!.id));
+  const fields = everywhere.map((id) => s.fields.get(id)).filter((f): f is NonNullable<typeof f> => Boolean(f) && !UNGROUPABLE.includes(f!.type));
+  return { projects: projects.map((p) => p.key), fields: fields.map((f) => ({ name: f.name, type: f.type })) };
 }
 
 export async function countIssues(ctx: Ctx, query: string, groupBy?: string): Promise<CountResult> {

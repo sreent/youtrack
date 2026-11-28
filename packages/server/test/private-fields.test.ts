@@ -14,7 +14,7 @@ import { OutboxWorker } from '../src/events/worker';
 import { createHttpApp } from '../src/http/app';
 import { AppError } from '../src/lib/errors';
 import { notifierConsumer } from '../src/notify/notifier';
-import { countIssues, parseQueryForApi, searchIssues } from '../src/search/service';
+import { countIssues, groupFields, parseQueryForApi, searchIssues } from '../src/search/service';
 import { eventFeed, issueActivity } from '../src/services/activity';
 import { issueTokenFor } from '../src/services/auth';
 import { eventFor, scopeFields } from '../src/services/access';
@@ -186,6 +186,28 @@ describe('reading an issue', () => {
     expect(counted.groups.find((g) => g.value === 'Acme')).toBeUndefined();
     expect((await countIssues(chloe, 'project: BACK', 'Customer')).groups.find((g) => g.value === 'Acme')?.count).toBe(1);
     expect((await failure(() => countIssues(anna, '', 'Risk'))).words?.key).toBe('query.cannotGroupBy');
+  });
+
+  it('groups a list by it only for who sees it: to anyone else its issues have none, and Risk is no field (D72)', async () => {
+    const q = `issue id: ${id}, ${web}`;
+    const asChloe = await searchIssues(chloe, q, 0, 50, 'Customer');
+    expect(asChloe.groups).toEqual([{ value: 'Acme', count: 2 }]);
+    // To anna, BACK keeps it: its issue is in the group of issues with none; WEB's is Acme's.
+    const asAnna = await searchIssues(anna, q, 0, 50, 'Customer');
+    expect(asAnna.groups).toEqual([
+      { value: 'Acme', count: 1 },
+      { value: null, count: 1 },
+    ]);
+    expect(asAnna.items.map((i) => [i.id, i.group])).toEqual([
+      [web, 'Acme'],
+      [id, null],
+    ]);
+    expect((await failure(() => searchIssues(anna, q, 0, 50, 'Risk'))).words?.key).toBe('issues.cannotGroupBy');
+    expect((await searchIssues(ben, `issue id: ${id}`, 0, 50, 'Risk')).groups).toEqual([{ value: 'High', count: 1 }]);
+    // Nor is either offered to her to group BACK by; to who reads them, both are.
+    expect((await groupFields(anna, 'project: BACK')).fields.map((f) => f.name)).not.toEqual(expect.arrayContaining(['Risk']));
+    expect((await groupFields(anna, 'project: BACK')).fields.map((f) => f.name)).not.toContain('Customer');
+    expect((await groupFields(chloe, 'project: BACK')).fields.map((f) => f.name)).toEqual(expect.arrayContaining(['Risk', 'Customer']));
   });
 
   it('sorts by it as if it were empty where it is kept', async () => {
