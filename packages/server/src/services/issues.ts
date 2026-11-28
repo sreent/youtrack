@@ -9,6 +9,7 @@ import {
   type IssueLink,
   type IssueRef,
   type UpdateIssueInput,
+  type ViewKind,
   type VisibleToInput,
 } from '@a4a/shared';
 import { chatSourceOf } from './chat-sources';
@@ -400,6 +401,12 @@ export interface ChangeSpec {
   requestGroup?: { groupId: string | null };
   /** Whether a help desk request is kept from its customer group's other members (D56). */
   requestPrivate?: boolean;
+  /**
+   * The view a person made the change in (D72), and the change it is part of when one gesture made
+   * several (a move and the successors it took along), so they undo as one. Passed through untouched:
+   * the history and undo read it once they come (P3).
+   */
+  view?: { name: ViewKind; group?: string };
 }
 
 export interface ApplyResult {

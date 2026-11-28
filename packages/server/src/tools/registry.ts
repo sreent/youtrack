@@ -27,6 +27,7 @@ import { listTags } from '../services/tags';
 import { listUsers } from '../services/users';
 import { logWork } from '../services/workitems';
 import { planningTools } from './planning';
+import { plansTools } from './plans';
 import { accessTools } from './access';
 import { appTools } from './apps';
 import { articleTools } from './articles';
@@ -642,6 +643,7 @@ export const TOOLS: ToolDef[] = [
   unlinkIssuesTool,
   logWorkTool,
   ...planningTools,
+  ...plansTools,
   ...accessTools,
   ...attachmentTools,
   ...articleTools,

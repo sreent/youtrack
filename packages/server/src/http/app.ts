@@ -33,6 +33,7 @@ import { customerGroupRoutes } from './routes/customer-groups';
 import { issueRoutes } from './routes/issues';
 import { notificationRoutes } from './routes/notifications';
 import { planningRoutes } from './routes/planning';
+import { plansRoutes } from './routes/plans';
 import { accessRoutes } from './routes/access';
 import { ssoRoutes } from './routes/sso';
 import { dashboardRoutes } from './routes/dashboards';
@@ -94,6 +95,7 @@ export function createHttpApp(runtime: Runtime) {
   agileRoutes(api);
   eventRoutes(api);
   planningRoutes(api);
+  plansRoutes(api);
   aiRoutes(api);
   accessRoutes(api);
   ssoRoutes(api);
