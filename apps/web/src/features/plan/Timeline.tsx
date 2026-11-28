@@ -7,67 +7,16 @@ import { useId, useMemo, useState } from 'react';
 import { useUsers } from '../../api/queries';
 import { Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
-import { useSchedule, useWhatIf, type WhatIfChange } from './api';
-import { BaselinePicker, SaveBaselineDialog, type BaselineChoice } from './Baselines';
-import { dayMonth, span, workCalendar, type WorkCalendar } from './dates';
-import { shift } from './format';
-import { Gantt } from './Gantt';
-import { ganttRows, isMilestone } from './gantt';
 import { t, tr } from '../../i18n';
+import { PlanTimeline } from '../views/TimelineView';
+import { useWhatIf, type WhatIfChange } from './api';
+import { BaselinePicker, SaveBaselineDialog, type BaselineChoice } from './Baselines';
+import { dayMonth, span, workCalendar } from './dates';
+import { shift } from './format';
+import { isMilestone } from './gantt';
 import type { ReactNode } from 'react';
 
-/** The plan at a glance: when it ends, against the baseline, its critical path, what's late. */
-export function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
-  const leaves = s.tasks.filter((t) => !t.isSummary);
-  const late = leaves.filter((t) => t.late);
-  const b = s.baseline;
-  // A due date with little room left is at risk, though not late yet.
-  const tight = leaves
-    .filter((t) => !t.late && !t.issue.resolved && t.deadline)
-    .map((t) => ({ t, spare: cal.between(t.finish, t.deadline!) }))
-    .filter((x) => x.spare <= 2)
-    .sort((a, b2) => a.spare - b2.spare)[0];
-  return (
-    <ul className="plan-facts">
-      <li>{tr('plan.timeline.ends', { dayMonth: dayMonth(s.finish), t0: (c: ReactNode) => <strong>{c}</strong>, v: b ? (
-          <>
-            {', '}
-            {b.finishVarianceDays === 0
-              ? t('plan.timeline.asPlanned', { name: b.name })
-              : t(b.finishVarianceDays > 0 ? 'plan.timeline.daysLaterThan' : 'plan.timeline.daysEarlierThan', { n: Math.abs(b.finishVarianceDays), name: b.name, dayMonth: dayMonth(b.finish) })}
-          </>
-        ) : null })}</li>
-      <li>{tr('plan.timeline.tasksOnTheCriticalPath', { n: s.criticalPath.length })}</li>
-      <li>
-        {late.length ? (
-          <Badge tone="bad">{late.length === 1 ? t('plan.timeline.isLate', { id: late[0]!.issue.id }) : t('plan.timeline.tasksAreLate', { length: late.length })}</Badge>
-        ) : (
-          t('plan.timeline.nothingIsLate')
-        )}
-      </li>
-      {tight ? (
-        <li>
-          <Badge tone="warn">{tr('plan.timeline.daysToSpare', { id: tight.t.issue.id, n: tight.spare, dayMonth: dayMonth(tight.t.deadline!) })}</Badge>
-        </li>
-      ) : null}
-    </ul>
-  );
-}
-
-/** What a4a assumed to draw the plan: estimates it didn't have, and the like. */
-export function Warnings({ warnings }: { warnings: string[] }) {
-  if (!warnings.length) return null;
-  return (
-    <details className="plan-notes">
-      <summary>{tr('plan.timeline.thingsA4aAssumed', { n: warnings.length })}</summary>
-      <ul>
-        {warnings.map((w) => (
-          <li key={w}>{w}</li>
-        ))}
-      </ul>
-    </details>
-  );
-}
+export { Facts, Warnings } from './Facts';
 
 type ChangeKind = 'delay' | 'estimate' | 'assignee';
 
@@ -249,17 +198,18 @@ function WhatIfPanel({
   );
 }
 
+/**
+ * A project's timeline (`/plan/:project`): the timeline of the scope `{project: key}` (D72), drawn as every
+ * search's is, with the plan page's baselines and its what-if around it.
+ */
 export function Timeline({ project, choice }: { project: Project; choice: BaselineChoice }) {
   const key = project.key;
   const baselineId = choice.chosen?.id ?? null;
-  const schedule = useSchedule(key, baselineId, choice.ready);
+  const scope = useMemo(() => ({ query: '', project: key }), [key]);
   const [saving, setSaving] = useState(false);
   const [whatIfOpen, setWhatIfOpen] = useState(false);
   const [change, setChange] = useState<WhatIfChange | null>(null);
   const whatIf = useWhatIf(key, baselineId, change);
-  const s = schedule.data;
-  const cal = useMemo(() => workCalendar(s?.calendar), [s?.calendar]);
-  const rows = useMemo(() => (s ? ganttRows(s, cal, change && whatIf.data ? whatIf.data.after : null) : []), [s, cal, change, whatIf.data]);
 
   return (
     <div className="stack">
@@ -276,17 +226,24 @@ export function Timeline({ project, choice }: { project: Project; choice: Baseli
         >{t('plan.timeline.whatIf')}</button>
       </div>
       {choice.error ? <ErrorNote error={choice.error} /> : null}
-      {schedule.isLoading || !choice.ready ? <Loading what="loadingLine.plan" /> : null}
-      {schedule.error ? <ErrorNote error={schedule.error} /> : null}
-      {s ? (
-        s.tasks.length === 0 ? (
+      <PlanTimeline
+        scope={scope}
+        title={project.name}
+        baseline={baselineId}
+        baselineName={choice.chosen?.name ?? null}
+        enabled={choice.ready}
+        whatIf={change && whatIf.data ? whatIf.data.after : null}
+        // not words: a query, as the issues page reads it from its address
+        narrowAt={`/issues?q=${encodeURIComponent(`project: ${key}`)}`}
+        empty={
           <section className="card">
             <h2>{t('plan.timeline.nothingToPlanYet')}</h2>
             <p className="note">{tr('plan.timeline.hasNoIssuesAPlan', { name: project.name })}</p>
           </section>
-        ) : (
+        }
+      >
+        {(s) => (
           <>
-            <Facts s={s} cal={cal} />
             {!choice.chosen && choice.ready ? (
               <p className="note">
                 {choice.baselines.length
@@ -295,21 +252,9 @@ export function Timeline({ project, choice }: { project: Project; choice: Baseli
               </p>
             ) : null}
             {whatIfOpen ? <WhatIfPanel schedule={s} projectKey={key} baseline={baselineId} change={change} onChange={setChange} /> : null}
-            <Gantt
-              title={project.name}
-              rows={rows}
-              start={s.start}
-              finish={s.finish}
-              today={s.today}
-              cal={cal}
-              baselineName={choice.chosen?.name ?? null}
-              whatIf={Boolean(change && whatIf.data)}
-              scrollKey={key}
-            />
-            <Warnings warnings={s.warnings} />
           </>
-        )
-      ) : null}
+        )}
+      </PlanTimeline>
       <SaveBaselineDialog projectKey={key} open={saving} onClose={() => setSaving(false)} onSaved={(b) => choice.choose(b.id)} />
     </div>
   );

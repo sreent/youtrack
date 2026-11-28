@@ -325,6 +325,21 @@ describe('baselines of a saved search', () => {
     expect((await refused(getPlanSchedule(anna, { savedSearch: one }, { baseline: kept.id }))).key).toBe('plans.baselineNotFoundList');
   });
 
+  it('refuses over REST in the words its catalogs say (D49)', async () => {
+    const app = createHttpApp(w.app);
+    const bearer = async (userId: string) => (await issueTokenFor(w.app.db, userId, { name: 'refusals', scopes: ['read', 'write'] })).token;
+    const [anna, ben] = [await bearer(w.anna.id), await bearer(w.ben.id)];
+    const call = async (token: string, method: string, path: string, body?: unknown) => {
+      const res = await app.request(`/api/v1${path}`, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      return { status: res.status, body: (await res.json()) as { error?: { code?: string; message?: string } } };
+    };
+    expect((await call(ben, 'POST', `/saved-searches/${one}/baselines`, { name: 'Mine now' })).status).toBe(403);
+    const unmanaged = await call(anna, 'POST', `/saved-searches/${both}/baselines`, { name: 'Both' });
+    expect([unmanaged.status, JSON.stringify(unmanaged.body)]).toEqual([403, expect.stringContaining('BLB')]);
+    expect((await call(anna, 'GET', `/plans/schedule?savedSearch=${both}&baseline=${taken.id}`)).status).toBe(404);
+    expect((await call(ben, 'GET', `/saved-searches/${mine}/baselines`)).status).toBe(404);
+  });
+
   it('is deleted by whoever may take one, and is gone', async () => {
     expect(await refused(deleteBaseline(w.as(w.ben), taken.id))).toMatchObject({ status: 403, key: 'plans.baselineOnlyOwner' });
     await deleteBaseline(w.as(w.anna), taken.id);

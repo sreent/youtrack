@@ -14,13 +14,13 @@ export interface ViewEntry {
 }
 
 /**
- * Every view, by kind. The list is today's; each other view's file is a placeholder that draws nothing
- * until its package brings it, and turns `available` on: the timeline (P2, P5), the calendar (P9), the
- * table (P14) and the workload (P15).
+ * Every view, by kind. The list is today's, and the timeline is drawn read-only (P2) until P5 makes it
+ * editable; each other view's file is a placeholder that draws nothing until its package brings it, and
+ * turns `available` on: the calendar (P9), the table (P14) and the workload (P15).
  */
 export const VIEWS: Record<ViewKind, ViewEntry> = {
   list: { kind: 'list', label: 'views.kind.list', component: lazy(() => import('./ListView')), available: true },
-  timeline: { kind: 'timeline', label: 'views.kind.timeline', component: lazy(() => import('./TimelineView')), available: false },
+  timeline: { kind: 'timeline', label: 'views.kind.timeline', component: lazy(() => import('./TimelineView')), available: true },
   calendar: { kind: 'calendar', label: 'views.kind.calendar', component: lazy(() => import('./CalendarView')), available: false },
   table: { kind: 'table', label: 'views.kind.table', component: lazy(() => import('./TableView')), available: false },
   workload: { kind: 'workload', label: 'views.kind.workload', component: lazy(() => import('./WorkloadView')), available: false },
