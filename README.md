@@ -73,6 +73,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 - **Time tracking:** a timer on an issue (start, pause, stop; one running per person) that becomes a work item; work types per project, required where the project says so; and a weekly timesheet where people enter and correct their time across issues, each day against their working hours.
 - **Planning** for waterfall and hybrid projects:
   - a Gantt schedule with the critical path and *what-if* ("what slips if MIG-12 slips 3 days?");
+  - plans of any search, a saved one or a query, across projects: each issue on its own project's calendar, then its assignee's week and days away, as its reader sees it; a plan holds 2,000 issues and says when its search finds more; a saved search keeps its own baselines (D72, D73);
   - resource load and levelling, which is proposed first and applies exactly what was proposed, or nothing if the plan changed meanwhile;
   - people's days away, whole or half days: their work waits for them, levelling finds room on the days they're there, and the load grid and the Gantt show them (the grid over the days each person chooses), never why;
   - each person's working week (part time, a weekday off), which scheduling, levelling, the load grid, sprint planning and the timesheet use;
@@ -566,7 +567,7 @@ What it covers, in `apps/web/e2e`:
 - **Writing and files**: Markdown kept as it was written, a pasted screenshot uploaded into the text, a checklist ticked against the version read; a log read from its start or its end, sound and video played in ranges, and HTML shown as its source.
 - **Boards**: dragging (saved with `expectedVersion`), moving from the keyboard, and a move refused; cards ranked in their column and into another at a place, by dragging and with Alt and an arrow, and someone else's rank shown without a reload; a lane of its own order, turned on from the board, by keyboard and by pointer, and the move's line in its issue's history, in light, dark and at 390px.
 - **Sprints and time**: a sprint planned from a board's backlog, its load against capacity and the velocity chart; a timer, and work logged with a work type and corrected in the weekly timesheet, against a working week of one's own.
-- **Plans**: the what-if, baselines, levelling, and levelling refused (409); days away entered by a manager and followed by the grid and the schedule, a person's own on their profile, and the grid's days remembered.
+- **Plans**: the what-if, baselines, levelling, and levelling refused (409); a timeline cut short at 2,000 issues, saying so and where to narrow it; days away entered by a manager and followed by the grid and the schedule, a person's own on their profile, and the grid's days remembered.
 - **Whiteboards**: two people editing one at once, each seeing the other's changes and who's looking, and an undo; notes made issues and their arrow a link, and a card following its issue; from the keyboard.
 - **Reports**: issues per field and the matrix, each count opening its issues, average age and time in state, as CSV and as dashboard widgets.
 - **Notifications**: subscriptions to a project's new issues and to a saved search, reaching the inbox and listed on the profile; and a person's time zone, where their searches read "today".
